@@ -10,6 +10,7 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
+
 from PIL import Image
 
 
@@ -90,7 +91,7 @@ def cmd_resize(args):
     try:
         width, height = map(int, args.resolution.lower().split("x"))
     except ValueError:
-        print(f"Error: Invalid resolution format '{args.resolution}'. Use WIDTHxHEIGHT (e.g., 768x1024)")
+        print(f"Error: Invalid resolution '{args.resolution}'. Use WIDTHxHEIGHT (e.g., 768x1024)")
         sys.exit(1)
 
     # Parse input formats
@@ -120,7 +121,7 @@ def cmd_resize(args):
 
                 # Skip if image is too small
                 if orig_w < width or orig_h < height:
-                    print(f"[SKIP] {img_path.name}: {orig_w}x{orig_h} is smaller than {width}x{height}")
+                    print(f"[SKIP] {img_path.name}: {orig_w}x{orig_h} < {width}x{height}")
                     skipped += 1
                     continue
 
@@ -171,7 +172,7 @@ def cmd_caption(args):
     # Lazy import for faster CLI startup when not using caption
     try:
         import torch
-        from transformers import AutoProcessor, AutoModelForCausalLM
+        from transformers import AutoModelForCausalLM, AutoProcessor
     except ImportError:
         print("Error: Required packages not installed.")
         print("Run: pip install torch transformers")
