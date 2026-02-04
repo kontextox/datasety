@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "datasety"
 dynamic = ["version"]
-description = "CLI tool for dataset preparation: image resizing and captioning with Florence-2"
+description = "CLI tool for dataset preparation: resize, caption, and synthetic image generation"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -17,6 +17,9 @@ keywords = [
     "image-processing",
     "captioning",
     "florence-2",
+    "synthetic",
+    "image-editing",
+    "diffusers",
     "machine-learning",
     "cli",
 ]
@@ -44,6 +47,16 @@ caption = [
     "transformers>=4.38.0,<4.46.0",
     "einops",
     "timm",
+]
+synthetic = [
+    "torch>=2.0.0",
+    "diffusers>=0.32.0",
+    "transformers>=4.38.0",
+    "accelerate",
+    "sentencepiece",
+]
+all = [
+    "datasety[caption,synthetic]",
 ]
 dev = [
     "pytest>=7.0.0",

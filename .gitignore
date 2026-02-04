@@ -3,34 +3,92 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# C extensions
+*.so
+
 # Distribution / packaging
 build/
 dist/
 *.egg-info/
 *.egg
+wheels/
+pip-wheel-metadata/
+MANIFEST
 
 # Virtual environments
 venv/
 .venv/
 env/
+.env/
+ENV/
 
-# IDE
+# IDE / Editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# Testing
+# Testing / Coverage
 .pytest_cache/
+.tox/
+.nox/
 .coverage
+.coverage.*
 htmlcov/
+.hypothesis/
+*.cover
+coverage.xml
+nosetests.xml
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+
+# Linting
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Project specific
-*.jpg
-*.jpeg
-*.png
-*.webp
+# Logs
+*.log
+logs/
+
+# ML / AI specific
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+.cache/
+huggingface/
+~/.cache/huggingface/
+
+# Project specific - test data directories
+test_data/
+tests/fixtures/images/
+/in/
+/out/
+/synthetic/
+/captions/
+/resized/
+/dataset/

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-datasety - CLI tool for dataset preparation: image resizing and captioning.
+datasety - CLI tool for dataset preparation: resize, caption, and synthetic generation.
 
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
     datasety caption --input ./in --output ./out --trigger-word "[trigger]" --florence-2-large
+    datasety synthetic --input ./in --output ./out --prompt "add a winter hat"
 """
 
 import argparse
@@ -283,6 +284,114 @@ def cmd_caption(args):
     print(f"Done! Processed: {processed} images")
 
 
+def cmd_synthetic(args):
+    """Execute the synthetic image generation command."""
+    # Lazy import for faster CLI startup
+    try:
+        import torch
+    except ImportError:
+        print("Error: PyTorch not installed.")
+        print("Run: pip install 'datasety[synthetic]'")
+        sys.exit(1)
+
+    input_dir = Path(args.input)
+    output_dir = Path(args.output)
+
+    if not input_dir.exists():
+        print(f"Error: Input directory '{input_dir}' does not exist.")
+        sys.exit(1)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine device
+    if args.device == "cuda" and not torch.cuda.is_available():
+        print("Warning: CUDA not available, falling back to CPU")
+        device = "cpu"
+    else:
+        device = args.device
+
+    # Import the correct pipeline based on model
+    try:
+        from diffusers import QwenImageEditPlusPipeline
+        pipeline_class = QwenImageEditPlusPipeline
+    except ImportError:
+        print("Error: QwenImageEditPlusPipeline not found.")
+        print("Make sure you have the latest diffusers: pip install -U diffusers")
+        sys.exit(1)
+
+    print(f"Loading model: {args.model}")
+    print(f"Device: {device}")
+
+    torch_dtype = torch.bfloat16 if device == "cuda" else torch.float32
+
+    try:
+        pipeline = pipeline_class.from_pretrained(
+            args.model,
+            torch_dtype=torch_dtype
+        )
+        pipeline.to(device)
+        pipeline.set_progress_bar_config(disable=False)
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        sys.exit(1)
+
+    # Find images
+    formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
+    image_files = get_image_files(input_dir, formats)
+
+    if not image_files:
+        print(f"No images found in '{input_dir}'")
+        sys.exit(0)
+
+    print(f"Found {len(image_files)} images")
+    print(f"Prompt: {args.prompt}")
+    print(f"Steps: {args.steps}, CFG: {args.cfg_scale}, True CFG: {args.true_cfg_scale}")
+    print("-" * 50)
+
+    processed = 0
+
+    for img_path in image_files:
+        try:
+            image = Image.open(img_path).convert("RGB")
+
+            # Set up generation parameters
+            gen_kwargs = {
+                "image": [image],
+                "prompt": args.prompt,
+                "negative_prompt": args.negative_prompt,
+                "num_inference_steps": args.steps,
+                "guidance_scale": args.cfg_scale,
+                "true_cfg_scale": args.true_cfg_scale,
+                "num_images_per_prompt": args.num_images,
+            }
+
+            # Add seed if specified
+            if args.seed is not None:
+                gen_kwargs["generator"] = torch.manual_seed(args.seed)
+
+            with torch.inference_mode():
+                output = pipeline(**gen_kwargs)
+
+            # Save output image(s)
+            for idx, out_img in enumerate(output.images):
+                if args.num_images > 1:
+                    out_name = f"{img_path.stem}_{idx + 1}.png"
+                else:
+                    out_name = f"{img_path.stem}.png"
+
+                out_path = output_dir / out_name
+                out_img.save(out_path)
+
+            print(f"[OK] {img_path.name} -> {len(output.images)} image(s)")
+            processed += 1
+
+        except Exception as e:
+            print(f"[ERROR] {img_path.name}: {e}")
+
+    print("-" * 50)
+    print(f"Done! Processed: {processed} images")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="datasety",
@@ -378,6 +487,74 @@ def main():
         help="Use Florence-2-large model (0.77B params, more accurate) [default]"
     )
     caption_parser.set_defaults(func=cmd_caption)
+
+    # === SYNTHETIC command ===
+    synthetic_parser = subparsers.add_parser(
+        "synthetic",
+        help="Generate synthetic images using image editing models"
+    )
+    synthetic_parser.add_argument(
+        "--input", "-i",
+        required=True,
+        help="Input directory containing images"
+    )
+    synthetic_parser.add_argument(
+        "--output", "-o",
+        required=True,
+        help="Output directory for generated images"
+    )
+    synthetic_parser.add_argument(
+        "--prompt", "-p",
+        required=True,
+        help="Edit prompt (e.g., 'add a winter hat to the person')"
+    )
+    synthetic_parser.add_argument(
+        "--model",
+        default="Qwen/Qwen-Image-Edit-2511",
+        help="Model to use (default: Qwen/Qwen-Image-Edit-2511)"
+    )
+    synthetic_parser.add_argument(
+        "--device",
+        choices=["cpu", "cuda"],
+        default="cuda",
+        help="Device to run model on (default: cuda)"
+    )
+    synthetic_parser.add_argument(
+        "--steps",
+        type=int,
+        default=40,
+        help="Number of inference steps (default: 40)"
+    )
+    synthetic_parser.add_argument(
+        "--cfg-scale",
+        type=float,
+        default=1.0,
+        help="Guidance scale (default: 1.0)"
+    )
+    synthetic_parser.add_argument(
+        "--true-cfg-scale",
+        type=float,
+        default=4.0,
+        help="True CFG scale (default: 4.0)"
+    )
+    synthetic_parser.add_argument(
+        "--negative-prompt",
+        default=" ",
+        help="Negative prompt (default: ' ')"
+    )
+    synthetic_parser.add_argument(
+        "--num-images",
+        type=int,
+        default=1,
+        help="Number of images to generate per input (default: 1)"
+    )
+    synthetic_parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducibility"
+    )
+    synthetic_parser.set_defaults(func=cmd_synthetic)
 
     # Parse and execute
     args = parser.parse_args()

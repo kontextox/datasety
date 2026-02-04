@@ -1,6 +1,6 @@
 # datasety
 
-CLI tool for dataset preparation: image resizing and captioning with Florence-2.
+CLI tool for dataset preparation: resize, caption, and synthetic image generation.
 
 ## Installation
 
@@ -8,10 +8,12 @@ CLI tool for dataset preparation: image resizing and captioning with Florence-2.
 pip install datasety
 ```
 
-For captioning support (requires PyTorch and Transformers):
+Install with specific features:
 
 ```bash
-pip install datasety[caption]
+pip install datasety[caption]     # Florence-2 captioning
+pip install datasety[synthetic]   # Qwen image editing
+pip install datasety[all]         # All features
 ```
 
 ## Usage
@@ -53,7 +55,7 @@ datasety resize \
 1. Finds all images matching input formats
 2. Skips images where either dimension is smaller than target
 3. Resizes proportionally so the smaller side matches target
-4. Crops from the specified area to exact dimensions
+4. Crops from the specified position to exact dimensions
 5. Saves with high quality (95% for jpg/webp)
 
 ### Generate Captions
@@ -95,6 +97,43 @@ datasety caption \
 
 This creates a `.txt` file for each image with the generated caption.
 
+### Generate Synthetic Images
+
+Generate synthetic variations of images using Qwen-Image-Edit:
+
+```bash
+datasety synthetic --input ./images --output ./synthetic --prompt "add a winter hat"
+```
+
+**Options:**
+
+| Option              | Description                       | Default                    |
+| ------------------- | --------------------------------- | -------------------------- |
+| `--input`, `-i`     | Input directory                   | (required)                 |
+| `--output`, `-o`    | Output directory                  | (required)                 |
+| `--prompt`, `-p`    | Edit prompt                       | (required)                 |
+| `--model`           | Model to use                      | `Qwen/Qwen-Image-Edit-2511`|
+| `--device`          | `cpu` or `cuda`                   | `cuda`                     |
+| `--steps`           | Number of inference steps         | `40`                       |
+| `--cfg-scale`       | Guidance scale                    | `1.0`                      |
+| `--true-cfg-scale`  | True CFG scale                    | `4.0`                      |
+| `--negative-prompt` | Negative prompt                   | `" "`                      |
+| `--num-images`      | Images to generate per input      | `1`                        |
+| `--seed`            | Random seed for reproducibility   | (random)                   |
+
+**Example:**
+
+```bash
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --prompt "add sunglasses to the person, keep everything else the same" \
+    --device cuda \
+    --steps 40 \
+    --true-cfg-scale 4.0 \
+    --seed 42
+```
+
 ## Common Workflows
 
 ### Prepare a LoRA Training Dataset
@@ -105,6 +144,18 @@ datasety resize -i ./raw -o ./dataset -r 1024x1024 --crop-position center
 
 # 2. Generate captions with trigger word
 datasety caption -i ./dataset -o ./dataset --trigger-word "[trigger]" --device cuda
+```
+
+### Augment Dataset with Synthetic Variations
+
+```bash
+# Generate variations with different accessories
+datasety synthetic \
+    -i ./dataset \
+    -o ./synthetic \
+    --prompt "add a red scarf" \
+    --num-images 2 \
+    --device cuda
 ```
 
 ### Batch Process with Numbered Files
@@ -122,7 +173,8 @@ datasety resize \
 
 - Python 3.10+
 - Pillow (for resize)
-- PyTorch + Transformers (for caption, install with `pip install datasety[caption]`)
+- PyTorch + Transformers (for caption: `pip install datasety[caption]`)
+- PyTorch + Diffusers (for synthetic: `pip install datasety[synthetic]`)
 
 ## License
 
