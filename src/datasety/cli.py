@@ -440,9 +440,16 @@ def cmd_synthetic(args):
 
 
 def main():
+    from datasety import __version__
+
     parser = argparse.ArgumentParser(
         prog="datasety",
         description="CLI tool for dataset preparation: image resizing and captioning."
+    )
+    parser.add_argument(
+        "-v", "--version",
+        action="version",
+        version=f"%(prog)s {__version__}"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
