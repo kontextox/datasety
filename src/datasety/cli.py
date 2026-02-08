@@ -188,8 +188,10 @@ def cmd_caption(args):
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine model (base flag takes priority since large is default)
-    if args.florence_2_base:
+    # Determine model: --model takes priority, then --florence-2-base/--florence-2-large flags
+    if args.model:
+        model_name = args.model
+    elif args.florence_2_base:
         model_name = "microsoft/Florence-2-base"
     else:
         model_name = "microsoft/Florence-2-large"
@@ -210,19 +212,31 @@ def cmd_caption(args):
         # Load config first to patch potential issues
         config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
 
-        # Fix for "forced_bos_token_id" error in some Florence-2 / transformers versions
-        if not hasattr(config, "forced_bos_token_id"):
-            config.forced_bos_token_id = 1
-
-        if hasattr(config, "text_config") and not hasattr(
-            config.text_config, "forced_bos_token_id"
+        # Fix for "forced_bos_token_id" error in some Florence-2 / transformers versions.
+        # Monkey-patch the config class so re-instantiated objects also get the attribute.
+        for cfg in [config] + (
+            [config.text_config] if hasattr(config, "text_config") else []
         ):
-            config.text_config.forced_bos_token_id = 1
+            if not hasattr(cfg, "forced_bos_token_id"):
+                cfg.forced_bos_token_id = 1
+            cfg_cls = type(cfg)
+            if not hasattr(cfg_cls, "_datasety_patched"):
+                original_init = cfg_cls.__init__
+
+                def make_patched(orig):
+                    def patched_init(self, *args, **kwargs):
+                        orig(self, *args, **kwargs)
+                        if not hasattr(self, "forced_bos_token_id"):
+                            self.forced_bos_token_id = 1
+                    return patched_init
+
+                cfg_cls.__init__ = make_patched(original_init)
+                cfg_cls._datasety_patched = True
 
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             config=config,
-            torch_dtype=torch_dtype,
+            dtype=torch_dtype,
             trust_remote_code=True
         ).to(device).eval()
         processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
@@ -242,47 +256,62 @@ def cmd_caption(args):
     print(f"Prompt: {args.prompt}")
     if args.trigger_word:
         print(f"Trigger word: {args.trigger_word}")
+    if args.batch_size > 1:
+        print(f"Batch size: {args.batch_size}")
     print("-" * 50)
 
     processed = 0
+    batch_size = args.batch_size
 
-    for img_path in image_files:
+    for batch_start in range(0, len(image_files), batch_size):
+        batch_paths = image_files[batch_start:batch_start + batch_size]
+        batch_images = []
+        valid_paths = []
+
+        for img_path in batch_paths:
+            try:
+                with Image.open(img_path) as img:
+                    batch_images.append(img.convert("RGB").copy())
+                valid_paths.append(img_path)
+            except Exception as e:
+                print(f"[ERROR] {img_path.name}: {e}")
+
+        if not batch_images:
+            continue
+
         try:
-            with Image.open(img_path) as img:
-                img = img.convert("RGB")
+            inputs = processor(
+                text=[args.prompt] * len(batch_images),
+                images=batch_images,
+                return_tensors="pt",
+                padding=True,
+            ).to(device, torch_dtype)
 
-                inputs = processor(
-                    text=args.prompt,
-                    images=img,
-                    return_tensors="pt"
-                ).to(device, torch_dtype)
+            with torch.no_grad():
+                generated_ids = model.generate(
+                    input_ids=inputs["input_ids"],
+                    pixel_values=inputs["pixel_values"],
+                    max_new_tokens=1024,
+                    num_beams=3,
+                    do_sample=False
+                )
 
-                with torch.no_grad():
-                    generated_ids = model.generate(
-                        input_ids=inputs["input_ids"],
-                        pixel_values=inputs["pixel_values"],
-                        max_new_tokens=1024,
-                        num_beams=3,
-                        do_sample=False
-                    )
+            generated_texts = processor.batch_decode(
+                generated_ids, skip_special_tokens=False
+            )
 
-                generated_text = processor.batch_decode(
-                    generated_ids, skip_special_tokens=False
-                )[0]
-
+            for img_path, img, gen_text in zip(valid_paths, batch_images, generated_texts):
                 parsed = processor.post_process_generation(
-                    generated_text,
+                    gen_text,
                     task=args.prompt,
                     image_size=(img.width, img.height)
                 )
 
                 caption = parsed.get(args.prompt, "")
 
-                # Prepend trigger word if specified
                 if args.trigger_word:
                     caption = f"{args.trigger_word} {caption}"
 
-                # Save caption
                 caption_path = output_dir / f"{img_path.stem}.txt"
                 caption_path.write_text(caption.strip())
 
@@ -291,7 +320,7 @@ def cmd_caption(args):
                 processed += 1
 
         except Exception as e:
-            print(f"[ERROR] {img_path.name}: {e}")
+            print(f"[ERROR] batch starting at {batch_paths[0].name}: {e}")
 
     print("-" * 50)
     print(f"Done! Processed: {processed} images")
@@ -363,9 +392,12 @@ def cmd_synthetic(args):
 
     processed = 0
 
+    out_ext = args.output_format.lower()
+
     for img_path in image_files:
         try:
-            image = Image.open(img_path).convert("RGB")
+            with Image.open(img_path) as img:
+                image = img.convert("RGB").copy()
 
             # Set up generation parameters
             gen_kwargs = {
@@ -380,7 +412,9 @@ def cmd_synthetic(args):
 
             # Add seed if specified
             if args.seed is not None:
-                gen_kwargs["generator"] = torch.manual_seed(args.seed)
+                gen_kwargs["generator"] = torch.Generator(
+                    device=device
+                ).manual_seed(args.seed)
 
             with torch.inference_mode():
                 output = pipeline(**gen_kwargs)
@@ -388,9 +422,9 @@ def cmd_synthetic(args):
             # Save output image(s)
             for idx, out_img in enumerate(output.images):
                 if args.num_images > 1:
-                    out_name = f"{img_path.stem}_{idx + 1}.png"
+                    out_name = f"{img_path.stem}_{idx + 1}.{out_ext}"
                 else:
-                    out_name = f"{img_path.stem}.png"
+                    out_name = f"{img_path.stem}.{out_ext}"
 
                 out_path = output_dir / out_name
                 out_img.save(out_path)
@@ -488,6 +522,18 @@ def main():
         help="Florence-2 prompt (default: <MORE_DETAILED_CAPTION>)"
     )
 
+    caption_parser.add_argument(
+        "--model",
+        default="",
+        help="HuggingFace model name (overrides --florence-2-base/--florence-2-large)"
+    )
+    caption_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="Number of images to process at once (default: 1)"
+    )
+
     model_group = caption_parser.add_mutually_exclusive_group()
     model_group.add_argument(
         "--florence-2-base",
@@ -566,6 +612,12 @@ def main():
         type=int,
         default=None,
         help="Random seed for reproducibility"
+    )
+    synthetic_parser.add_argument(
+        "--output-format",
+        choices=["png", "jpg", "webp"],
+        default="png",
+        help="Output image format (default: png)"
     )
     synthetic_parser.set_defaults(func=cmd_synthetic)
 

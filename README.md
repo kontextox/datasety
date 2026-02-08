@@ -68,15 +68,17 @@ datasety caption --input ./images --output ./captions --florence-2-large
 
 **Options:**
 
-| Option               | Description                     | Default                   |
-| -------------------- | ------------------------------- | ------------------------- |
-| `--input`, `-i`      | Input directory                 | (required)                |
-| `--output`, `-o`     | Output directory for .txt files | (required)                |
-| `--device`           | `cpu` or `cuda`                 | `cpu`                     |
-| `--trigger-word`     | Text to prepend to captions     | (none)                    |
-| `--prompt`           | Florence-2 task prompt          | `<MORE_DETAILED_CAPTION>` |
-| `--florence-2-base`  | Use base model (0.23B, faster)  |                           |
-| `--florence-2-large` | Use large model (0.77B, better) | (default)                 |
+| Option               | Description                                        | Default                   |
+| -------------------- | -------------------------------------------------- | ------------------------- |
+| `--input`, `-i`      | Input directory                                    | (required)                |
+| `--output`, `-o`     | Output directory for .txt files                    | (required)                |
+| `--device`           | `cpu` or `cuda`                                    | `cpu`                     |
+| `--trigger-word`     | Text to prepend to captions                        | (none)                    |
+| `--prompt`           | Florence-2 task prompt                             | `<MORE_DETAILED_CAPTION>` |
+| `--model`            | Any HuggingFace model (overrides base/large flags) | (none)                    |
+| `--batch-size`       | Number of images to process at once                | `1`                       |
+| `--florence-2-base`  | Use base model (0.23B, faster)                     |                           |
+| `--florence-2-large` | Use large model (0.77B, better)                    | (default)                 |
 
 **Available prompts:**
 
@@ -84,7 +86,7 @@ datasety caption --input ./images --output ./captions --florence-2-large
 - `<DETAILED_CAPTION>` - Detailed caption
 - `<MORE_DETAILED_CAPTION>` - Most detailed caption (default)
 
-**Example:**
+**Examples:**
 
 ```bash
 datasety caption \
@@ -93,6 +95,14 @@ datasety caption \
     --device cuda \
     --trigger-word "photo of sks person," \
     --florence-2-large
+
+# Use a custom model with batch processing
+datasety caption \
+    --input ./dataset \
+    --output ./dataset \
+    --device cuda \
+    --model "microsoft/Florence-2-large" \
+    --batch-size 8
 ```
 
 This creates a `.txt` file for each image with the generated caption.
@@ -107,21 +117,22 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 
 **Options:**
 
-| Option              | Description                       | Default                    |
-| ------------------- | --------------------------------- | -------------------------- |
-| `--input`, `-i`     | Input directory                   | (required)                 |
-| `--output`, `-o`    | Output directory                  | (required)                 |
-| `--prompt`, `-p`    | Edit prompt                       | (required)                 |
-| `--model`           | Model to use                      | `Qwen/Qwen-Image-Edit-2511`|
-| `--device`          | `cpu` or `cuda`                   | `cuda`                     |
-| `--steps`           | Number of inference steps         | `40`                       |
-| `--cfg-scale`       | Guidance scale                    | `1.0`                      |
-| `--true-cfg-scale`  | True CFG scale                    | `4.0`                      |
-| `--negative-prompt` | Negative prompt                   | `" "`                      |
-| `--num-images`      | Images to generate per input      | `1`                        |
-| `--seed`            | Random seed for reproducibility   | (random)                   |
+| Option              | Description                         | Default                     |
+| ------------------- | ----------------------------------- | --------------------------- |
+| `--input`, `-i`     | Input directory                     | (required)                  |
+| `--output`, `-o`    | Output directory                    | (required)                  |
+| `--prompt`, `-p`    | Edit prompt                         | (required)                  |
+| `--model`           | Model to use                        | `Qwen/Qwen-Image-Edit-2511` |
+| `--device`          | `cpu` or `cuda`                     | `cuda`                      |
+| `--steps`           | Number of inference steps           | `40`                        |
+| `--cfg-scale`       | Guidance scale                      | `1.0`                       |
+| `--true-cfg-scale`  | True CFG scale                      | `4.0`                       |
+| `--negative-prompt` | Negative prompt                     | `" "`                       |
+| `--num-images`      | Images to generate per input        | `1`                         |
+| `--seed`            | Random seed for reproducibility     | (random)                    |
+| `--output-format`   | Output format: `png`, `jpg`, `webp` | `png`                       |
 
-**Example:**
+**Examples:**
 
 ```bash
 datasety synthetic \
@@ -132,6 +143,15 @@ datasety synthetic \
     --steps 40 \
     --true-cfg-scale 4.0 \
     --seed 42
+
+# Use a fine-tuned model with fewer steps
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --model "Phr00t/Qwen-Image-Edit-Rapid-AIO" \
+    --prompt "add a winter hat" \
+    --steps 4 \
+    --output-format jpg
 ```
 
 ## Common Workflows
