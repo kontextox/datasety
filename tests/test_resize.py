@@ -1,8 +1,9 @@
 """Tests for the resize command."""
 
+
 import pytest
-from datasety.cli import calculate_resize_and_crop, get_image_files
-from pathlib import Path
+
+from datasety.cli import calculate_resize_and_crop
 
 
 class TestCalculateResizeAndCrop:

@@ -173,7 +173,7 @@ def cmd_caption(args):
     # Lazy import for faster CLI startup when not using caption
     try:
         import torch
-        from transformers import AutoModelForCausalLM, AutoProcessor, AutoConfig
+        from transformers import AutoConfig, AutoModelForCausalLM, AutoProcessor
     except ImportError:
         print("Error: Required packages not installed.")
         print("Run: pip install torch transformers")
@@ -209,12 +209,14 @@ def cmd_caption(args):
     try:
         # Load config first to patch potential issues
         config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-        
+
         # Fix for "forced_bos_token_id" error in some Florence-2 / transformers versions
         if not hasattr(config, "forced_bos_token_id"):
             config.forced_bos_token_id = 1
-        
-        if hasattr(config, "text_config") and not hasattr(config.text_config, "forced_bos_token_id"):
+
+        if hasattr(config, "text_config") and not hasattr(
+            config.text_config, "forced_bos_token_id"
+        ):
             config.text_config.forced_bos_token_id = 1
 
         model = AutoModelForCausalLM.from_pretrained(
