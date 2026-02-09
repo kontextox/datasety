@@ -233,13 +233,20 @@ def cmd_caption(args):
                 cfg_cls.__init__ = make_patched(original_init)
                 cfg_cls._datasety_patched = True
 
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            config=config,
-            torch_dtype=torch_dtype,
-            trust_remote_code=True,
-            attn_implementation="eager",
-        ).to(device).eval()
+        model_kwargs = {
+            "config": config,
+            "trust_remote_code": True,
+            "attn_implementation": "eager",
+        }
+        try:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name, dtype=torch_dtype, **model_kwargs
+            ).to(device).eval()
+        except TypeError:
+            # Older Florence-2 code uses torch_dtype instead of dtype
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name, torch_dtype=torch_dtype, **model_kwargs
+            ).to(device).eval()
         processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
     except Exception as e:
         print(f"Error loading model: {e}")
@@ -257,53 +264,36 @@ def cmd_caption(args):
     print(f"Prompt: {args.prompt}")
     if args.trigger_word:
         print(f"Trigger word: {args.trigger_word}")
-    if args.batch_size > 1:
-        print(f"Batch size: {args.batch_size}")
     print("-" * 50)
 
     processed = 0
-    batch_size = args.batch_size
 
-    for batch_start in range(0, len(image_files), batch_size):
-        batch_paths = image_files[batch_start:batch_start + batch_size]
-        batch_images = []
-        valid_paths = []
-
-        for img_path in batch_paths:
-            try:
-                with Image.open(img_path) as img:
-                    batch_images.append(img.convert("RGB").copy())
-                valid_paths.append(img_path)
-            except Exception as e:
-                print(f"[ERROR] {img_path.name}: {e}")
-
-        if not batch_images:
-            continue
-
+    for img_path in image_files:
         try:
-            inputs = processor(
-                text=[args.prompt] * len(batch_images),
-                images=batch_images,
-                return_tensors="pt",
-                padding=True,
-            ).to(device, torch_dtype)
+            with Image.open(img_path) as img:
+                img = img.convert("RGB")
 
-            with torch.no_grad():
-                generated_ids = model.generate(
-                    input_ids=inputs["input_ids"],
-                    pixel_values=inputs["pixel_values"],
-                    max_new_tokens=1024,
-                    num_beams=3,
-                    do_sample=False
-                )
+                inputs = processor(
+                    text=args.prompt,
+                    images=img,
+                    return_tensors="pt"
+                ).to(device, torch_dtype)
 
-            generated_texts = processor.batch_decode(
-                generated_ids, skip_special_tokens=False
-            )
+                with torch.no_grad():
+                    generated_ids = model.generate(
+                        input_ids=inputs["input_ids"],
+                        pixel_values=inputs["pixel_values"],
+                        max_new_tokens=1024,
+                        num_beams=3,
+                        do_sample=False
+                    )
 
-            for img_path, img, gen_text in zip(valid_paths, batch_images, generated_texts):
+                generated_text = processor.batch_decode(
+                    generated_ids, skip_special_tokens=False
+                )[0]
+
                 parsed = processor.post_process_generation(
-                    gen_text,
+                    generated_text,
                     task=args.prompt,
                     image_size=(img.width, img.height)
                 )
@@ -321,7 +311,7 @@ def cmd_caption(args):
                 processed += 1
 
         except Exception as e:
-            print(f"[ERROR] batch starting at {batch_paths[0].name}: {e}")
+            print(f"[ERROR] {img_path.name}: {e}")
 
     print("-" * 50)
     print(f"Done! Processed: {processed} images")
@@ -535,13 +525,6 @@ def main():
         default="",
         help="HuggingFace model name (overrides --florence-2-base/--florence-2-large)"
     )
-    caption_parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=1,
-        help="Number of images to process at once (default: 1)"
-    )
-
     model_group = caption_parser.add_mutually_exclusive_group()
     model_group.add_argument(
         "--florence-2-base",

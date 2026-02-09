@@ -76,7 +76,6 @@ datasety caption --input ./images --output ./captions --florence-2-large
 | `--trigger-word`     | Text to prepend to captions                        | (none)                    |
 | `--prompt`           | Florence-2 task prompt                             | `<MORE_DETAILED_CAPTION>` |
 | `--model`            | Any HuggingFace model (overrides base/large flags) | (none)                    |
-| `--batch-size`       | Number of images to process at once                | `1`                       |
 | `--florence-2-base`  | Use base model (0.23B, faster)                     |                           |
 | `--florence-2-large` | Use large model (0.77B, better)                    | (default)                 |
 
@@ -96,13 +95,12 @@ datasety caption \
     --trigger-word "photo of sks person," \
     --florence-2-large
 
-# Use a custom model with batch processing
+# Use a custom model
 datasety caption \
     --input ./dataset \
     --output ./dataset \
     --device cuda \
-    --model "microsoft/Florence-2-large" \
-    --batch-size 8
+    --model "microsoft/Florence-2-large"
 ```
 
 This creates a `.txt` file for each image with the generated caption.
