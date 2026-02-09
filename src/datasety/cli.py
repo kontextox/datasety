@@ -184,7 +184,7 @@ def _load_caption_model_native(model_name, torch_dtype, device):
     model = Florence2ForConditionalGeneration.from_pretrained(
         native_name, dtype=torch_dtype
     ).to(device).eval()
-    processor = AutoProcessor.from_pretrained(native_name)
+    processor = AutoProcessor.from_pretrained(native_name, use_fast=True)
     return model, processor
 
 
@@ -249,7 +249,9 @@ def cmd_caption(args):
         model_name = "microsoft/Florence-2-large"
 
     # Determine device
-    if args.device == "cuda" and not torch.cuda.is_available():
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif args.device == "cuda" and not torch.cuda.is_available():
         print("Warning: CUDA not available, falling back to CPU")
         device = "cpu"
     else:
@@ -378,7 +380,9 @@ def cmd_synthetic(args):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine device
-    if args.device == "cuda" and not torch.cuda.is_available():
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif args.device == "cuda" and not torch.cuda.is_available():
         print("Warning: CUDA not available, falling back to CPU")
         device = "cpu"
     else:
@@ -546,9 +550,9 @@ def main():
     )
     caption_parser.add_argument(
         "--device",
-        choices=["cpu", "cuda"],
-        default="cpu",
-        help="Device to run model on (default: cpu)"
+        choices=["auto", "cpu", "cuda"],
+        default="auto",
+        help="Device to run model on (default: auto-detect GPU)"
     )
     caption_parser.add_argument(
         "--trigger-word",
@@ -612,9 +616,9 @@ def main():
     )
     synthetic_parser.add_argument(
         "--device",
-        choices=["cpu", "cuda"],
-        default="cuda",
-        help="Device to run model on (default: cuda)"
+        choices=["auto", "cpu", "cuda"],
+        default="auto",
+        help="Device to run model on (default: auto-detect GPU)"
     )
     synthetic_parser.add_argument(
         "--steps",
