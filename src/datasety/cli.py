@@ -236,7 +236,7 @@ def cmd_caption(args):
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             config=config,
-            dtype=torch_dtype,
+            torch_dtype=torch_dtype,
             trust_remote_code=True
         ).to(device).eval()
         processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
