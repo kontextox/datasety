@@ -237,7 +237,8 @@ def cmd_caption(args):
             model_name,
             config=config,
             torch_dtype=torch_dtype,
-            trust_remote_code=True
+            trust_remote_code=True,
+            attn_implementation="eager",
         ).to(device).eval()
         processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
     except Exception as e:
