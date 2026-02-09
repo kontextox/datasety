@@ -235,13 +235,16 @@ def cmd_caption(args):
         # Fix _supports_sdpa error on newer transformers by setting on config
         config._attn_implementation = "eager"
 
-        # Load model — match HF README: pass torch_dtype, trust_remote_code
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            config=config,
-            torch_dtype=torch_dtype,
-            trust_remote_code=True,
-        ).to(device).eval()
+        # Load model — newer Florence-2 code uses dtype, older uses torch_dtype
+        load_kwargs = {"config": config, "trust_remote_code": True}
+        try:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name, dtype=torch_dtype, **load_kwargs
+            ).to(device).eval()
+        except TypeError:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name, torch_dtype=torch_dtype, **load_kwargs
+            ).to(device).eval()
         processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
     except Exception as e:
         print(f"Error loading model: {e}")
@@ -262,6 +265,7 @@ def cmd_caption(args):
     print("-" * 50)
 
     processed = 0
+    num_beams = args.num_beams
 
     for img_path in image_files:
         try:
@@ -274,14 +278,27 @@ def cmd_caption(args):
                     return_tensors="pt"
                 ).to(device, torch_dtype)
 
+                generate_kwargs = {
+                    "input_ids": inputs["input_ids"],
+                    "pixel_values": inputs["pixel_values"],
+                    "max_new_tokens": 1024,
+                    "num_beams": num_beams,
+                    "do_sample": False,
+                }
+
                 with torch.no_grad():
-                    generated_ids = model.generate(
-                        input_ids=inputs["input_ids"],
-                        pixel_values=inputs["pixel_values"],
-                        max_new_tokens=1024,
-                        num_beams=3,
-                        do_sample=False
-                    )
+                    try:
+                        generated_ids = model.generate(**generate_kwargs)
+                    except AttributeError:
+                        # Beam search fails on some transformers versions due to
+                        # past_key_values format changes. Fall back to greedy.
+                        if num_beams > 1:
+                            print("Warning: beam search failed, falling back to greedy decoding")
+                            num_beams = 1
+                            generate_kwargs["num_beams"] = 1
+                            generated_ids = model.generate(**generate_kwargs)
+                        else:
+                            raise
 
                 generated_text = processor.batch_decode(
                     generated_ids, skip_special_tokens=False
@@ -524,6 +541,12 @@ def main():
         "--model",
         default="",
         help="HuggingFace model name (overrides --florence-2-base/--florence-2-large)"
+    )
+    caption_parser.add_argument(
+        "--num-beams",
+        type=int,
+        default=3,
+        help="Beam search width (default: 3, use 1 for greedy decoding)"
     )
     model_group = caption_parser.add_mutually_exclusive_group()
     model_group.add_argument(
