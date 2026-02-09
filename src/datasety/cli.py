@@ -413,6 +413,74 @@ def cmd_synthetic(args):
         print(f"Error loading model: {e}")
         sys.exit(1)
 
+    # Inject fine-tuned weights if specified
+    if args.weights:
+        import gc
+
+        try:
+            from huggingface_hub import hf_hub_download
+            from safetensors.torch import load_file
+        except ImportError:
+            print("Error: huggingface_hub and safetensors are required for --weights.")
+            print("Run: pip install huggingface_hub safetensors")
+            sys.exit(1)
+
+        # Parse repo_id:filename
+        if ":" not in args.weights:
+            print("Error: --weights must be in 'repo_id:filename' format")
+            print("Example: Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/model.safetensors")
+            sys.exit(1)
+
+        repo_id, filename = args.weights.split(":", 1)
+        print(f"Downloading weights: {repo_id} / {filename}")
+        weight_path = hf_hub_download(repo_id, filename)
+
+        print("Loading weight file...")
+        state_dict = load_file(weight_path)
+
+        # Sort weights by key prefix into component dicts
+        transformer_weights = {}
+        vae_weights = {}
+        text_encoder_weights = {}
+
+        for key, value in state_dict.items():
+            if key.startswith(("model.diffusion_model.", "transformer.")):
+                # Strip the prefix for loading into the component
+                for prefix in ("model.diffusion_model.", "transformer."):
+                    if key.startswith(prefix):
+                        transformer_weights[key[len(prefix):]] = value
+                        break
+            elif key.startswith(("first_stage_model.", "vae.")):
+                for prefix in ("first_stage_model.", "vae."):
+                    if key.startswith(prefix):
+                        vae_weights[key[len(prefix):]] = value
+                        break
+            elif "text_encoder" in key or "conditioner" in key:
+                text_encoder_weights[key] = value
+
+        # Inject into pipeline components
+        if transformer_weights:
+            print(f"Injecting {len(transformer_weights)} transformer weights")
+            pipeline.transformer.load_state_dict(transformer_weights, strict=False)
+
+        if vae_weights:
+            print(f"Injecting {len(vae_weights)} VAE weights")
+            pipeline.vae.load_state_dict(vae_weights, strict=False)
+
+        if text_encoder_weights:
+            print(f"Injecting {len(text_encoder_weights)} text encoder weights")
+            pipeline.text_encoder.load_state_dict(
+                text_encoder_weights, strict=False
+            )
+
+        # Free memory
+        del state_dict, transformer_weights, vae_weights, text_encoder_weights
+        gc.collect()
+        if device == "cuda":
+            torch.cuda.empty_cache()
+
+        print("Weights injected successfully")
+
     # Find images
     formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
     image_files = get_image_files(input_dir, formats)
@@ -613,6 +681,12 @@ def main():
         "--model",
         default="Qwen/Qwen-Image-Edit-2511",
         help="Model to use (default: Qwen/Qwen-Image-Edit-2511)"
+    )
+    synthetic_parser.add_argument(
+        "--weights",
+        default=None,
+        help="Fine-tuned weights as 'repo_id:filename' "
+        "(e.g., 'Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/model.safetensors')"
     )
     synthetic_parser.add_argument(
         "--device",

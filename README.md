@@ -116,20 +116,21 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 
 **Options:**
 
-| Option              | Description                         | Default                     |
-| ------------------- | ----------------------------------- | --------------------------- |
-| `--input`, `-i`     | Input directory                     | (required)                  |
-| `--output`, `-o`    | Output directory                    | (required)                  |
-| `--prompt`, `-p`    | Edit prompt                         | (required)                  |
-| `--model`           | Model to use                        | `Qwen/Qwen-Image-Edit-2511` |
-| `--device`          | `cpu` or `cuda`                     | `cuda`                      |
-| `--steps`           | Number of inference steps           | `40`                        |
-| `--cfg-scale`       | Guidance scale                      | `1.0`                       |
-| `--true-cfg-scale`  | True CFG scale                      | `4.0`                       |
-| `--negative-prompt` | Negative prompt                     | `" "`                       |
-| `--num-images`      | Images to generate per input        | `1`                         |
-| `--seed`            | Random seed for reproducibility     | (random)                    |
-| `--output-format`   | Output format: `png`, `jpg`, `webp` | `png`                       |
+| Option              | Description                                          | Default                      |
+| ------------------- | ---------------------------------------------------- | ---------------------------- |
+| `--input`, `-i`     | Input directory                                      | (required)                   |
+| `--output`, `-o`    | Output directory                                     | (required)                   |
+| `--prompt`, `-p`    | Edit prompt                                          | (required)                   |
+| `--model`           | Model to use                                         | `Qwen/Qwen-Image-Edit-2511` |
+| `--weights`         | Fine-tuned weights as `repo_id:filename`             | (none)                       |
+| `--device`          | `cpu` or `cuda`                                      | `cuda`                       |
+| `--steps`           | Number of inference steps                            | `40`                         |
+| `--cfg-scale`       | Guidance scale                                       | `1.0`                        |
+| `--true-cfg-scale`  | True CFG scale                                       | `4.0`                        |
+| `--negative-prompt` | Negative prompt                                      | `" "`                        |
+| `--num-images`      | Images to generate per input                         | `1`                          |
+| `--seed`            | Random seed for reproducibility                      | (random)                     |
+| `--output-format`   | Output format: `png`, `jpg`, `webp`                  | `png`                        |
 
 **Examples:**
 
@@ -143,11 +144,11 @@ datasety synthetic \
     --true-cfg-scale 4.0 \
     --seed 42
 
-# Use a fine-tuned model with fewer steps
+# Use fine-tuned weights on the base pipeline (fewer steps, less VRAM)
 datasety synthetic \
     --input ./dataset \
     --output ./synthetic \
-    --model "Phr00t/Qwen-Image-Edit-Rapid-AIO" \
+    --weights "Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/Qwen-Rapid-AIO-NSFW-v23.safetensors" \
     --prompt "add a winter hat" \
     --steps 4 \
     --output-format jpg
