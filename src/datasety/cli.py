@@ -168,12 +168,64 @@ def cmd_resize(args):
     print(f"Done! Processed: {processed}, Skipped: {skipped}")
 
 
+def _load_caption_model_native(model_name, torch_dtype, device):
+    """Load Florence-2 using native transformers support (>= 4.50)."""
+    from transformers import AutoProcessor, Florence2ForConditionalGeneration
+
+    # Map microsoft/ model names to florence-community/ for native support
+    native_map = {
+        "microsoft/Florence-2-base": "florence-community/Florence-2-base",
+        "microsoft/Florence-2-large": "florence-community/Florence-2-large",
+        "microsoft/Florence-2-base-ft": "florence-community/Florence-2-base-ft",
+        "microsoft/Florence-2-large-ft": "florence-community/Florence-2-large-ft",
+    }
+    native_name = native_map.get(model_name, model_name)
+
+    model = Florence2ForConditionalGeneration.from_pretrained(
+        native_name, dtype=torch_dtype
+    ).to(device).eval()
+    processor = AutoProcessor.from_pretrained(native_name)
+    return model, processor
+
+
+def _load_caption_model_legacy(model_name, torch_dtype, device):
+    """Load Florence-2 using trust_remote_code (older transformers)."""
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoProcessor
+
+    config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+
+    # Patch forced_bos_token_id on config classes so re-instantiated objects get it
+    for cfg in [config] + (
+        [config.text_config] if hasattr(config, "text_config") else []
+    ):
+        if not hasattr(cfg, "forced_bos_token_id"):
+            cfg.forced_bos_token_id = 1
+        cfg_cls = type(cfg)
+        if not hasattr(cfg_cls, "_datasety_patched"):
+            original_init = cfg_cls.__init__
+
+            def make_patched(orig):
+                def patched_init(self, *args, **kwargs):
+                    orig(self, *args, **kwargs)
+                    if not hasattr(self, "forced_bos_token_id"):
+                        self.forced_bos_token_id = 1
+                return patched_init
+
+            cfg_cls.__init__ = make_patched(original_init)
+            cfg_cls._datasety_patched = True
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, config=config, torch_dtype=torch_dtype, trust_remote_code=True,
+    ).to(device).eval()
+    processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
+    return model, processor
+
+
 def cmd_caption(args):
     """Execute the caption command."""
     # Lazy import for faster CLI startup when not using caption
     try:
         import torch
-        from transformers import AutoConfig, AutoModelForCausalLM, AutoProcessor
     except ImportError:
         print("Error: Required packages not installed.")
         print("Run: pip install torch transformers")
@@ -209,46 +261,18 @@ def cmd_caption(args):
     print(f"Device: {device}")
 
     try:
-        # Patch Florence-2 config classes to add forced_bos_token_id.
-        # We monkey-patch the class __init__ so any re-instantiated config objects
-        # (which happens inside from_pretrained) also get the attribute.
-        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-        for cfg in [config] + (
-            [config.text_config] if hasattr(config, "text_config") else []
-        ):
-            if not hasattr(cfg, "forced_bos_token_id"):
-                cfg.forced_bos_token_id = 1
-            cfg_cls = type(cfg)
-            if not hasattr(cfg_cls, "_datasety_patched"):
-                original_init = cfg_cls.__init__
-
-                def make_patched(orig):
-                    def patched_init(self, *args, **kwargs):
-                        orig(self, *args, **kwargs)
-                        if not hasattr(self, "forced_bos_token_id"):
-                            self.forced_bos_token_id = 1
-                    return patched_init
-
-                cfg_cls.__init__ = make_patched(original_init)
-                cfg_cls._datasety_patched = True
-
-        # Fix _supports_sdpa error on newer transformers by setting on config
-        config._attn_implementation = "eager"
-
-        # Load model — newer Florence-2 code uses dtype, older uses torch_dtype
-        load_kwargs = {"config": config, "trust_remote_code": True}
+        # Try native transformers Florence-2 support (>= 4.50, no trust_remote_code)
+        model, processor = _load_caption_model_native(model_name, torch_dtype, device)
+        print("Using native Florence-2 support")
+    except (ImportError, OSError, ValueError):
+        # Fall back to legacy trust_remote_code approach for older transformers
+        # or non-standard model repos
         try:
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name, dtype=torch_dtype, **load_kwargs
-            ).to(device).eval()
-        except TypeError:
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name, torch_dtype=torch_dtype, **load_kwargs
-            ).to(device).eval()
-        processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        sys.exit(1)
+            model, processor = _load_caption_model_legacy(model_name, torch_dtype, device)
+            print("Using legacy Florence-2 support (trust_remote_code)")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            sys.exit(1)
 
     # Find images (common formats)
     formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]

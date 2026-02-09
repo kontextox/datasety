@@ -76,6 +76,7 @@ datasety caption --input ./images --output ./captions --florence-2-large
 | `--trigger-word`     | Text to prepend to captions                        | (none)                    |
 | `--prompt`           | Florence-2 task prompt                             | `<MORE_DETAILED_CAPTION>` |
 | `--model`            | Any HuggingFace model (overrides base/large flags) | (none)                    |
+| `--num-beams`        | Beam search width (1 = greedy)                     | `3`                       |
 | `--florence-2-base`  | Use base model (0.23B, faster)                     |                           |
 | `--florence-2-large` | Use large model (0.77B, better)                    | (default)                 |
 
