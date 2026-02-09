@@ -209,11 +209,10 @@ def cmd_caption(args):
     print(f"Device: {device}")
 
     try:
-        # Load config first to patch potential issues
+        # Patch Florence-2 config classes to add forced_bos_token_id.
+        # We monkey-patch the class __init__ so any re-instantiated config objects
+        # (which happens inside from_pretrained) also get the attribute.
         config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-
-        # Fix for "forced_bos_token_id" error in some Florence-2 / transformers versions.
-        # Monkey-patch the config class so re-instantiated objects also get the attribute.
         for cfg in [config] + (
             [config.text_config] if hasattr(config, "text_config") else []
         ):
@@ -233,20 +232,16 @@ def cmd_caption(args):
                 cfg_cls.__init__ = make_patched(original_init)
                 cfg_cls._datasety_patched = True
 
-        model_kwargs = {
-            "config": config,
-            "trust_remote_code": True,
-            "attn_implementation": "eager",
-        }
-        try:
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name, dtype=torch_dtype, **model_kwargs
-            ).to(device).eval()
-        except TypeError:
-            # Older Florence-2 code uses torch_dtype instead of dtype
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name, torch_dtype=torch_dtype, **model_kwargs
-            ).to(device).eval()
+        # Fix _supports_sdpa error on newer transformers by setting on config
+        config._attn_implementation = "eager"
+
+        # Load model — match HF README: pass torch_dtype, trust_remote_code
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            config=config,
+            torch_dtype=torch_dtype,
+            trust_remote_code=True,
+        ).to(device).eval()
         processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
     except Exception as e:
         print(f"Error loading model: {e}")
@@ -311,7 +306,12 @@ def cmd_caption(args):
                 processed += 1
 
         except Exception as e:
+            import traceback
             print(f"[ERROR] {img_path.name}: {e}")
+            traceback.print_exc()
+            if processed == 0:
+                print("Hint: if all images fail, this is likely a model/transformers issue.")
+                break
 
     print("-" * 50)
     print(f"Done! Processed: {processed} images")
