@@ -158,6 +158,66 @@ class TestShuffleDistribution:
         assert "x:" in result.stdout
 
 
+class TestShuffleFileSource:
+    """Test loading variants from .txt files."""
+
+    def test_group_from_file(self, setup_dirs, tmp_path):
+        input_dir, output_dir = setup_dirs
+        phrases_file = tmp_path / "greetings.txt"
+        phrases_file.write_text("Hello.\nHey!\nBonjour.\n")
+
+        result = run_shuffle(
+            "-i", str(input_dir), "-o", str(output_dir),
+            "--group", str(phrases_file), "--seed", "42",
+        )
+        assert result.returncode == 0
+        assert "3 variants from file" in result.stdout
+
+        for txt_file in output_dir.glob("*.txt"):
+            assert txt_file.read_text() in ("Hello.", "Hey!", "Bonjour.")
+
+    def test_group_from_file_with_blank_lines(self, setup_dirs, tmp_path):
+        input_dir, output_dir = setup_dirs
+        phrases_file = tmp_path / "sparse.txt"
+        phrases_file.write_text("\nA\n\n\nB\n\nC\n\n")
+
+        result = run_shuffle(
+            "-i", str(input_dir), "-o", str(output_dir),
+            "--group", str(phrases_file), "--seed", "42",
+        )
+        assert result.returncode == 0
+        assert "3 variants from file" in result.stdout
+
+    def test_mixed_file_and_inline(self, setup_dirs, tmp_path):
+        input_dir, output_dir = setup_dirs
+        phrases_file = tmp_path / "parts.txt"
+        phrases_file.write_text("X\nY\nZ\n")
+
+        result = run_shuffle(
+            "-i", str(input_dir), "-o", str(output_dir),
+            "--group", "A|B", "--group", str(phrases_file),
+            "--seed", "42",
+        )
+        assert result.returncode == 0
+
+        for txt_file in output_dir.glob("*.txt"):
+            parts = txt_file.read_text().split(" ")
+            assert len(parts) == 2
+            assert parts[0] in ("A", "B")
+            assert parts[1] in ("X", "Y", "Z")
+
+    def test_empty_file(self, setup_dirs, tmp_path):
+        input_dir, output_dir = setup_dirs
+        empty_file = tmp_path / "empty.txt"
+        empty_file.write_text("")
+
+        result = run_shuffle(
+            "-i", str(input_dir), "-o", str(output_dir),
+            "--group", str(empty_file),
+        )
+        assert result.returncode != 0
+
+
 class TestShuffleErrors:
     """Test error handling."""
 

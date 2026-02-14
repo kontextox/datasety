@@ -156,21 +156,41 @@ datasety shuffle -i ./images -o ./captions \
     --group "Foo Bar!"
 ```
 
-Each `--group` defines alternatives separated by `|`. For each image, one variant is randomly picked from each group and joined together.
+Each `--group` picks one random variant per image. Groups support three sources:
+
+- **Inline**: `"Hello.|Hey!|Bonjour."` (pipe-separated)
+- **File**: `phrases.txt` (one variant per line)
+- **URL**: `https://example.com/phrases.txt` (fetched, one variant per line)
 
 **Options:**
 
-| Option                | Description                                | Default    |
-| --------------------- | ------------------------------------------ | ---------- |
-| `--input`, `-i`       | Input directory containing images          | (required) |
-| `--output`, `-o`      | Output directory for .txt files            | (required) |
-| `--group`, `-g`       | Text group with `\|`-separated variants    | (required) |
-| `--separator`         | Separator between groups                   | `" "`      |
-| `--seed`              | Random seed for reproducibility            | (random)   |
-| `--dry-run`           | Preview captions without writing files     | `false`    |
-| `--show-distribution` | Show caption distribution after generation | `false`    |
+| Option                | Description                                       | Default    |
+| --------------------- | ------------------------------------------------- | ---------- |
+| `--input`, `-i`       | Input directory containing images                 | (required) |
+| `--output`, `-o`      | Output directory for .txt files                   | (required) |
+| `--group`, `-g`       | Inline `\|`-separated, `.txt` file path, or URL   | (required) |
+| `--separator`         | Separator between groups                          | `" "`      |
+| `--seed`              | Random seed for reproducibility                   | (random)   |
+| `--dry-run`           | Preview captions without writing files            | `false`    |
+| `--show-distribution` | Show caption distribution after generation        | `false`    |
 
-**Example output** (with groups above):
+**Examples:**
+
+```bash
+# Inline groups
+datasety shuffle -i ./images -o ./captions \
+    --group "Hello.|Hey!|Bonjour." \
+    --group "How to..|Wow.." \
+    --group "Foo Bar!"
+
+# Mix file, URL, and inline
+datasety shuffle -i ./images -o ./captions \
+    --group starts.txt \
+    --group https://example.com/middles.txt \
+    --group "ending A|ending B"
+```
+
+**Example output:**
 
 - `Hello. Wow.. Foo Bar!`
 - `Bonjour. How to.. Foo Bar!`
@@ -250,11 +270,19 @@ datasety caption -i ./target -o ./target --device cuda
 ### Generate Varied Captions for Training
 
 ```bash
+# Using inline groups
 datasety shuffle -i ./dataset -o ./dataset \
     --group "A photo of a person.|Portrait of someone.|Image of a figure." \
     --group "Remove the hat.|Take off the hat.|Strip the hat away." \
     --group "Show natural ears.|Reveal the ears.|Expose realistic ears." \
     --seed 42 --show-distribution
+
+# Using text files (one variant per line)
+datasety shuffle -i ./dataset -o ./dataset \
+    --group subjects.txt \
+    --group actions.txt \
+    --group details.txt \
+    --seed 42
 ```
 
 ### Augment Dataset with Synthetic Variations

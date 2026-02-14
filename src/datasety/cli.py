@@ -517,6 +517,43 @@ def cmd_align(args):
         print(f"\nRun without --dry-run to apply {fixed} fixes.")
 
 
+def _parse_group(value: str) -> list[str]:
+    """Parse a group value into a list of variants.
+
+    Supports:
+      - URL (https://... or http://...) -> fetch lines
+      - File path (existing .txt file) -> read lines
+      - Inline "A|B|C" -> split by pipe
+    """
+    if value.startswith(("https://", "http://")):
+        import urllib.request
+        try:
+            with urllib.request.urlopen(value, timeout=15) as resp:
+                text = resp.read().decode("utf-8")
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            if lines:
+                print(f"  Loaded {len(lines)} variants from URL: {value}")
+                return lines
+            print(f"Warning: URL returned no lines: {value}")
+            return []
+        except Exception as e:
+            print(f"Error fetching URL '{value}': {e}")
+            sys.exit(1)
+
+    path = Path(value)
+    if path.is_file():
+        text = path.read_text(encoding="utf-8")
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if lines:
+            print(f"  Loaded {len(lines)} variants from file: {value}")
+            return lines
+        print(f"Warning: File has no lines: {value}")
+        return []
+
+    # Inline: split by pipe
+    return [v.strip() for v in value.split("|") if v.strip()]
+
+
 def cmd_shuffle(args):
     """Generate random captions by picking one variant from each group."""
     import random
@@ -534,10 +571,10 @@ def cmd_shuffle(args):
         print("Error: At least one --group is required.")
         sys.exit(1)
 
-    # Parse groups: each is "variant1|variant2|variant3"
+    # Parse groups: file, URL, or inline "variant1|variant2|variant3"
     groups: list[list[str]] = []
     for g in args.group:
-        variants = [v.strip() for v in g.split("|") if v.strip()]
+        variants = _parse_group(g)
         if not variants:
             print(f"Error: Empty group: '{g}'")
             sys.exit(1)
