@@ -1,6 +1,6 @@
 # datasety
 
-CLI tool for dataset preparation: resize, caption, and synthetic image generation.
+CLI tool for dataset preparation: resize, align, caption, shuffle, and synthetic image generation.
 
 ## Installation
 
@@ -106,6 +106,76 @@ datasety caption \
 
 This creates a `.txt` file for each image with the generated caption.
 
+### Align Control/Target Pairs
+
+Align control and target image pairs for training (e.g., ai-toolkit LoRA with control images). Ensures matching dimensions, multiples of 32, and consistent formats:
+
+```bash
+datasety align --target ./target --control ./control --dry-run
+```
+
+**Options:**
+
+| Option            | Description                                        | Default         |
+| ----------------- | -------------------------------------------------- | --------------- |
+| `--target`, `-t`  | Target images directory                            | (required)      |
+| `--control`, `-c` | Control images directory                           | (required)      |
+| `--multiple-of`   | Align dimensions to this multiple                  | `32`            |
+| `--output-format` | Convert all images to format: `jpg`, `png`, `webp` | (keep original) |
+| `--dry-run`       | Preview changes without modifying files            | `false`         |
+
+**Examples:**
+
+```bash
+# Preview what needs fixing
+datasety align -t ./target -c ./control --dry-run
+
+# Fix all pairs in place
+datasety align -t ./target -c ./control
+
+# Fix and convert everything to jpg
+datasety align -t ./target -c ./control --output-format jpg
+```
+
+**How it works:**
+
+1. Matches pairs by filename stem (target `001.jpg` ↔ control `001.png`)
+2. Crops target dimensions to the nearest multiple of 32 (center crop)
+3. Resizes control images to match target dimensions (LANCZOS)
+4. Optionally converts all images to a single format
+5. Reports missing pairs, orphan controls, and dimension issues
+
+### Shuffle Captions
+
+Generate random captions by picking one variant from each text group:
+
+```bash
+datasety shuffle -i ./images -o ./captions \
+    --group "Hello.|Hey!|Bonjour." \
+    --group "How to..|Wow.." \
+    --group "Foo Bar!"
+```
+
+Each `--group` defines alternatives separated by `|`. For each image, one variant is randomly picked from each group and joined together.
+
+**Options:**
+
+| Option                | Description                                | Default    |
+| --------------------- | ------------------------------------------ | ---------- |
+| `--input`, `-i`       | Input directory containing images          | (required) |
+| `--output`, `-o`      | Output directory for .txt files            | (required) |
+| `--group`, `-g`       | Text group with `\|`-separated variants    | (required) |
+| `--separator`         | Separator between groups                   | `" "`      |
+| `--seed`              | Random seed for reproducibility            | (random)   |
+| `--dry-run`           | Preview captions without writing files     | `false`    |
+| `--show-distribution` | Show caption distribution after generation | `false`    |
+
+**Example output** (with groups above):
+
+- `Hello. Wow.. Foo Bar!`
+- `Bonjour. How to.. Foo Bar!`
+- `Hey! Wow.. Foo Bar!`
+
 ### Generate Synthetic Images
 
 Generate synthetic variations of images using Qwen-Image-Edit:
@@ -116,21 +186,21 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 
 **Options:**
 
-| Option              | Description                                          | Default                      |
-| ------------------- | ---------------------------------------------------- | ---------------------------- |
-| `--input`, `-i`     | Input directory                                      | (required)                   |
-| `--output`, `-o`    | Output directory                                     | (required)                   |
-| `--prompt`, `-p`    | Edit prompt                                          | (required)                   |
-| `--model`           | Model to use                                         | `Qwen/Qwen-Image-Edit-2511` |
-| `--weights`         | Fine-tuned weights as `repo_id:filename`             | (none)                       |
-| `--device`          | `cpu` or `cuda`                                      | `cuda`                       |
-| `--steps`           | Number of inference steps                            | `40`                         |
-| `--cfg-scale`       | Guidance scale                                       | `1.0`                        |
-| `--true-cfg-scale`  | True CFG scale                                       | `4.0`                        |
-| `--negative-prompt` | Negative prompt                                      | `" "`                        |
-| `--num-images`      | Images to generate per input                         | `1`                          |
-| `--seed`            | Random seed for reproducibility                      | (random)                     |
-| `--output-format`   | Output format: `png`, `jpg`, `webp`                  | `png`                        |
+| Option              | Description                              | Default                     |
+| ------------------- | ---------------------------------------- | --------------------------- |
+| `--input`, `-i`     | Input directory                          | (required)                  |
+| `--output`, `-o`    | Output directory                         | (required)                  |
+| `--prompt`, `-p`    | Edit prompt                              | (required)                  |
+| `--model`           | Model to use                             | `Qwen/Qwen-Image-Edit-2511` |
+| `--weights`         | Fine-tuned weights as `repo_id:filename` | (none)                      |
+| `--device`          | `auto`, `cpu`, or `cuda`                 | `auto`                      |
+| `--steps`           | Number of inference steps                | `40`                        |
+| `--cfg-scale`       | Guidance scale                           | `1.0`                       |
+| `--true-cfg-scale`  | True CFG scale                           | `4.0`                       |
+| `--negative-prompt` | Negative prompt                          | `" "`                       |
+| `--num-images`      | Images to generate per input             | `1`                         |
+| `--seed`            | Random seed for reproducibility          | (random)                    |
+| `--output-format`   | Output format: `png`, `jpg`, `webp`      | `png`                       |
 
 **Examples:**
 
@@ -166,6 +236,27 @@ datasety resize -i ./raw -o ./dataset -r 1024x1024 --crop-position center
 datasety caption -i ./dataset -o ./dataset --trigger-word "[trigger]" --device cuda
 ```
 
+### Prepare Control/Target Pairs for LoRA Training
+
+```bash
+# 1. Align pairs (dimensions to multiple of 32, match sizes)
+datasety align -t ./target -c ./control --dry-run
+datasety align -t ./target -c ./control
+
+# 2. Generate captions for target images
+datasety caption -i ./target -o ./target --device cuda
+```
+
+### Generate Varied Captions for Training
+
+```bash
+datasety shuffle -i ./dataset -o ./dataset \
+    --group "A photo of a person.|Portrait of someone.|Image of a figure." \
+    --group "Remove the hat.|Take off the hat.|Strip the hat away." \
+    --group "Show natural ears.|Reveal the ears.|Expose realistic ears." \
+    --seed 42 --show-distribution
+```
+
 ### Augment Dataset with Synthetic Variations
 
 ```bash
@@ -192,7 +283,7 @@ datasety resize \
 ## Requirements
 
 - Python 3.10+
-- Pillow (for resize)
+- Pillow (for resize, align, shuffle)
 - PyTorch + Transformers (for caption: `pip install datasety[caption]`)
 - PyTorch + Diffusers (for synthetic: `pip install datasety[synthetic]`)
 

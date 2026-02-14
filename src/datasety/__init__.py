@@ -1,3 +1,3 @@
-"""datasety - CLI tool for dataset preparation: image resizing and captioning."""
+"""datasety - dataset preparation: resize, align, caption, shuffle, synthetic."""
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
