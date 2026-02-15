@@ -638,7 +638,7 @@ def cmd_shuffle(args):
 
 
 _MODEL_VRAM_GB = {
-    "qwen": 16,
+    "qwen": 32,
     "flux-kontext": 33,
     "flux2-klein": 8,
     "sdxl": 7,
@@ -687,16 +687,27 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         pipeline = FluxKontextPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "flux2-klein":
-        from diffusers import Flux2KleinPipeline
         kwargs = {"torch_dtype": torch_dtype}
-        if gguf_path:
-            from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
-            transformer = Flux2Transformer2DModel.from_single_file(
-                gguf_path,
-                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
-            )
-            kwargs["transformer"] = transformer
-        pipeline = Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
+        try:
+            from diffusers import Flux2KleinPipeline
+            if gguf_path:
+                from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
+                transformer = Flux2Transformer2DModel.from_single_file(
+                    gguf_path,
+                    quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+                )
+                kwargs["transformer"] = transformer
+            pipeline = Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
+        except ImportError:
+            from diffusers import FluxImg2ImgPipeline
+            if gguf_path:
+                from diffusers import FluxTransformer2DModel, GGUFQuantizationConfig
+                transformer = FluxTransformer2DModel.from_single_file(
+                    gguf_path,
+                    quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+                )
+                kwargs["transformer"] = transformer
+            pipeline = FluxImg2ImgPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "sdxl":
         from diffusers import StableDiffusionXLImg2ImgPipeline
@@ -756,8 +767,12 @@ def _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload):
         gen_kwargs["guidance_scale"] = args.cfg_scale
 
     elif family == "flux2-klein":
-        gen_kwargs["image"] = [image]
         gen_kwargs["guidance_scale"] = args.cfg_scale
+        if "Img2Img" in type(pipeline).__name__:
+            gen_kwargs["image"] = image
+            gen_kwargs["strength"] = args.strength
+        else:
+            gen_kwargs["image"] = [image]
 
     elif family == "sdxl":
         gen_kwargs["image"] = image
@@ -1045,6 +1060,10 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     # Grounding DINO: detect boxes for all keywords at once
     text = ". ".join(keywords) + "."
     inputs = dino_processor(images=image, text=text, return_tensors="pt").to(device)
+    # Cast float tensors to match model dtype (processor outputs float32)
+    for key in inputs:
+        if inputs[key].is_floating_point():
+            inputs[key] = inputs[key].to(dino_model.dtype)
     with torch.no_grad():
         outputs = dino_model(**inputs)
 
@@ -1063,6 +1082,9 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     sam2_inputs = sam2_processor(
         images=image, input_boxes=[boxes.tolist()], return_tensors="pt",
     ).to(device)
+    for key in sam2_inputs:
+        if sam2_inputs[key].is_floating_point():
+            sam2_inputs[key] = sam2_inputs[key].to(sam2_model.dtype)
     with torch.no_grad():
         sam2_outputs = sam2_model(**sam2_inputs)
     masks = sam2_processor.post_process_masks(

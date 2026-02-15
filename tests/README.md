@@ -26,7 +26,7 @@ How to run on your server
 
 ```bash
 pip install -e '.[all,dev]'
-hf auth login # needed for FLUX Kontext + SAM 3
+hf auth login # needed for FLUX Kontext + FLUX 2 Klein + SAM 3
 ```
 
 # All GPU tests
