@@ -695,31 +695,18 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
             )
             kwargs["transformer"] = transformer
-        # Flux2KleinPipeline may not be a top-level export in all diffusers versions
-        _Flux2KleinPipeline = None
+        # Flux2KleinPipeline requires diffusers >= 0.37.0
         try:
-            from diffusers import Flux2KleinPipeline as _Flux2KleinPipeline
+            from diffusers import Flux2KleinPipeline
         except ImportError:
-            # Search all pipeline submodules for the class
-            import importlib
-            import pkgutil
-
-            import diffusers.pipelines
-            for _finder, _name, _ispkg in pkgutil.walk_packages(
-                diffusers.pipelines.__path__, prefix="diffusers.pipelines."
-            ):
-                try:
-                    _mod = importlib.import_module(_name)
-                    _Flux2KleinPipeline = getattr(_mod, "Flux2KleinPipeline", None)
-                    if _Flux2KleinPipeline is not None:
-                        break
-                except Exception:
-                    continue
-        if _Flux2KleinPipeline is None:
-            raise ImportError(
-                "Flux2KleinPipeline not found. Try: pip install -U diffusers"
-            )
-        pipeline = _Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
+            import subprocess
+            print("Flux2KleinPipeline not found, upgrading diffusers...")
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install", "-q",
+                "git+https://github.com/huggingface/diffusers.git",
+            ])
+            from diffusers import Flux2KleinPipeline
+        pipeline = Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "sdxl":
         from diffusers import StableDiffusionXLImg2ImgPipeline
