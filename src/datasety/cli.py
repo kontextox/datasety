@@ -934,9 +934,20 @@ def cmd_synthetic(args):
 def _load_mask_model_sam3(device, torch_dtype):
     """Load SAM 3 for text-prompted segmentation."""
     from transformers import AutoModel, AutoProcessor
-    processor = AutoProcessor.from_pretrained("facebook/sam3", trust_remote_code=True)
+
+    primary = "facebook/sam3"
+    fallback = "jetjodh/sam3"
+    try:
+        processor = AutoProcessor.from_pretrained(primary, trust_remote_code=True)
+        model = AutoModel.from_pretrained(
+            primary, torch_dtype=torch_dtype, trust_remote_code=True,
+        ).to(device).eval()
+        return model, processor
+    except (OSError, Exception) as e:
+        print(f"Could not load {primary} ({e}), falling back to {fallback}")
+    processor = AutoProcessor.from_pretrained(fallback, trust_remote_code=True)
     model = AutoModel.from_pretrained(
-        "facebook/sam3", torch_dtype=torch_dtype, trust_remote_code=True,
+        fallback, torch_dtype=torch_dtype, trust_remote_code=True,
     ).to(device).eval()
     return model, processor
 
