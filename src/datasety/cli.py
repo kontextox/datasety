@@ -700,19 +700,20 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         try:
             from diffusers import Flux2KleinPipeline as _Flux2KleinPipeline
         except ImportError:
+            # Search all pipeline submodules for the class
             import importlib
-            for _submod in [
-                "diffusers.pipelines.flux2_klein",
-                "diffusers.pipelines.flux2_klein.pipeline_flux2_klein",
-                "diffusers.pipelines.flux2",
-                "diffusers.pipelines.flux2.pipeline_flux2_klein",
-            ]:
+            import pkgutil
+
+            import diffusers.pipelines
+            for _finder, _name, _ispkg in pkgutil.walk_packages(
+                diffusers.pipelines.__path__, prefix="diffusers.pipelines."
+            ):
                 try:
-                    _mod = importlib.import_module(_submod)
+                    _mod = importlib.import_module(_name)
                     _Flux2KleinPipeline = getattr(_mod, "Flux2KleinPipeline", None)
                     if _Flux2KleinPipeline is not None:
                         break
-                except ImportError:
+                except Exception:
                     continue
         if _Flux2KleinPipeline is None:
             raise ImportError(
