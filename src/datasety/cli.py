@@ -639,7 +639,7 @@ def cmd_shuffle(args):
 
 _MODEL_VRAM_GB = {
     "qwen": 16,
-    "flux-kontext": 24,
+    "flux-kontext": 33,
     "flux2-klein": 8,
     "sdxl": 7,
     "hunyuan": 48,
@@ -687,16 +687,16 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         pipeline = FluxKontextPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "flux2-klein":
-        from diffusers import FluxImg2ImgPipeline
+        from diffusers import Flux2KleinPipeline
         kwargs = {"torch_dtype": torch_dtype}
         if gguf_path:
-            from diffusers import FluxTransformer2DModel, GGUFQuantizationConfig
-            transformer = FluxTransformer2DModel.from_single_file(
+            from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
+            transformer = Flux2Transformer2DModel.from_single_file(
                 gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
             )
             kwargs["transformer"] = transformer
-        pipeline = FluxImg2ImgPipeline.from_pretrained(model_name, **kwargs)
+        pipeline = Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "sdxl":
         from diffusers import StableDiffusionXLImg2ImgPipeline
@@ -756,9 +756,8 @@ def _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload):
         gen_kwargs["guidance_scale"] = args.cfg_scale
 
     elif family == "flux2-klein":
-        gen_kwargs["image"] = image
+        gen_kwargs["image"] = [image]
         gen_kwargs["guidance_scale"] = args.cfg_scale
-        gen_kwargs["strength"] = args.strength
 
     elif family == "sdxl":
         gen_kwargs["image"] = image
@@ -952,24 +951,28 @@ def cmd_synthetic(args):
     print("-" * 50)
     print(f"Done! Processed: {processed} images")
 
+    if processed == 0 and image_files:
+        print("Error: All images failed to process.")
+        sys.exit(1)
+
 
 def _load_mask_model_sam3(device, torch_dtype):
     """Load SAM 3 for text-prompted segmentation."""
-    from transformers import AutoModel, AutoProcessor
+    from transformers import Sam3Model, Sam3Processor
 
     primary = "facebook/sam3"
     fallback = "jetjodh/sam3"
     try:
-        processor = AutoProcessor.from_pretrained(primary, trust_remote_code=True)
-        model = AutoModel.from_pretrained(
-            primary, torch_dtype=torch_dtype, trust_remote_code=True,
+        processor = Sam3Processor.from_pretrained(primary)
+        model = Sam3Model.from_pretrained(
+            primary, torch_dtype=torch_dtype,
         ).to(device).eval()
         return model, processor
     except (OSError, Exception) as e:
         print(f"Could not load {primary} ({e}), falling back to {fallback}")
-    processor = AutoProcessor.from_pretrained(fallback, trust_remote_code=True)
-    model = AutoModel.from_pretrained(
-        fallback, torch_dtype=torch_dtype, trust_remote_code=True,
+    processor = Sam3Processor.from_pretrained(fallback)
+    model = Sam3Model.from_pretrained(
+        fallback, torch_dtype=torch_dtype,
     ).to(device).eval()
     return model, processor
 
@@ -979,7 +982,8 @@ def _load_mask_model_grounded_sam2(device, torch_dtype):
     from transformers import (
         AutoModelForZeroShotObjectDetection,
         AutoProcessor,
-        SAM2ImageSegmentationPipeline,
+        Sam2Model,
+        Sam2Processor,
     )
 
     dino_id = "IDEA-Research/grounding-dino-base"
@@ -988,12 +992,12 @@ def _load_mask_model_grounded_sam2(device, torch_dtype):
         dino_id, torch_dtype=torch_dtype,
     ).to(device).eval()
 
-    sam2_pipeline = SAM2ImageSegmentationPipeline(
-        model="facebook/sam2-hiera-large",
-        device=device,
-        torch_dtype=torch_dtype,
-    )
-    return (dino_model, dino_processor, sam2_pipeline)
+    sam2_id = "facebook/sam2-hiera-large"
+    sam2_processor = Sam2Processor.from_pretrained(sam2_id)
+    sam2_model = Sam2Model.from_pretrained(
+        sam2_id, torch_dtype=torch_dtype,
+    ).to(device).eval()
+    return (dino_model, dino_processor, sam2_model, sam2_processor)
 
 
 def _load_mask_model_clipseg(device, torch_dtype):
@@ -1018,14 +1022,13 @@ def _segment_sam3(model, processor, image, keywords, threshold, device):
         inputs = processor(images=image, text=keyword, return_tensors="pt").to(device)
         with torch.no_grad():
             outputs = model(**inputs)
-        masks = processor.post_process_masks(
-            outputs.pred_masks, inputs["original_sizes"], inputs["reshaped_input_sizes"],
-        )
-        if len(masks) > 0 and len(masks[0]) > 0:
-            mask = masks[0][0].cpu().numpy()
-            if mask.ndim == 3:
-                mask = mask[0]
-            combined = np.maximum(combined, (mask > threshold).astype(np.uint8) * 255)
+        results = processor.post_process_instance_segmentation(
+            outputs, threshold=threshold,
+            target_sizes=inputs["original_sizes"].tolist(),
+        )[0]
+        for mask in results["masks"]:
+            m = mask.cpu().numpy()
+            combined = np.maximum(combined, m.astype(np.uint8) * 255)
 
     return combined
 
@@ -1035,7 +1038,7 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     import numpy as np
     import torch
 
-    dino_model, dino_processor, sam2_pipeline = models
+    dino_model, dino_processor, sam2_model, sam2_processor = models
     w, h = image.size
     combined = np.zeros((h, w), dtype=np.uint8)
 
@@ -1052,23 +1055,27 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
         target_sizes=[(h, w)],
     )[0]
 
-    boxes = results["boxes"].cpu().numpy()
+    boxes = results["boxes"].cpu()
     if len(boxes) == 0:
         return combined
 
     # SAM 2: segment within each detected box
-    box_list = boxes.tolist()
-    sam_output = sam2_pipeline(image, points_per_batch=None, input_boxes=[box_list])
-
-    for mask_data in sam_output:
-        mask = mask_data["mask"]
-        if hasattr(mask, "numpy"):
-            mask = mask.numpy()
-        if isinstance(mask, Image.Image):
-            mask = np.array(mask)
-        if mask.ndim == 3:
-            mask = mask[0]
-        combined = np.maximum(combined, (mask > 0).astype(np.uint8) * 255)
+    sam2_inputs = sam2_processor(
+        images=image, input_boxes=[boxes.tolist()], return_tensors="pt",
+    ).to(device)
+    with torch.no_grad():
+        sam2_outputs = sam2_model(**sam2_inputs)
+    masks = sam2_processor.post_process_masks(
+        sam2_outputs.pred_masks,
+        sam2_inputs["original_sizes"],
+        sam2_inputs["reshaped_input_sizes"],
+    )
+    for mask_set in masks:
+        for mask in mask_set:
+            m = mask.cpu().numpy()
+            if m.ndim == 3:
+                m = m[0]
+            combined = np.maximum(combined, (m > 0).astype(np.uint8) * 255)
 
     return combined
 
@@ -1135,7 +1142,7 @@ def cmd_mask(args):
 
     print(f"Model: {args.model}")
     print(f"Device: {device}")
-    print(f"Keywords: {keywords}")
+    print(f"Found {len(keywords)} keywords: {keywords}")
     print(f"Threshold: {args.threshold}")
     if args.dry_run:
         print("=== DRY RUN (no files will be saved) ===")

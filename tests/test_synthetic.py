@@ -129,14 +129,22 @@ class TestRunSyntheticPipelineKwargs:
         call_kwargs = pipeline.call_args[1]
         assert "negative_prompt" not in call_kwargs
 
-    def test_flux2_klein_passes_strength(self):
+    def test_flux2_klein_no_strength(self):
         pipeline = self._make_pipeline()
         args = self._make_args(strength=0.5)
         _run_synthetic_pipeline(
             pipeline, "flux2-klein", Image.new("RGB", (64, 64)), args, "cpu", False
         )
         call_kwargs = pipeline.call_args[1]
-        assert call_kwargs["strength"] == 0.5
+        assert "strength" not in call_kwargs
+
+    def test_flux2_klein_wraps_image_in_list(self):
+        pipeline = self._make_pipeline()
+        args = self._make_args()
+        img = Image.new("RGB", (64, 64))
+        _run_synthetic_pipeline(pipeline, "flux2-klein", img, args, "cpu", False)
+        call_kwargs = pipeline.call_args[1]
+        assert call_kwargs["image"] == [img]
 
     def test_hunyuan_no_strength(self):
         pipeline = self._make_pipeline()
