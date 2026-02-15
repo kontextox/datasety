@@ -10,6 +10,15 @@ from PIL import Image
 
 from datasety.cli import _detect_model_family, _run_synthetic_pipeline
 
+
+def _torch_available():
+    try:
+        import torch  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 # ── Pure function tests (no models) ──
 
 
@@ -50,6 +59,10 @@ class TestDetectModelFamily:
         assert _detect_model_family("tencent/HunyuanImage-3.0-Distil") == "hunyuan"
 
 
+@pytest.mark.skipif(
+    not _torch_available(),
+    reason="torch not installed",
+)
 class TestRunSyntheticPipelineKwargs:
     """Test that _run_synthetic_pipeline passes the right kwargs per family."""
 
