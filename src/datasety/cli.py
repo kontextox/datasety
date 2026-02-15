@@ -637,6 +637,15 @@ def cmd_shuffle(args):
             print(f"  {count}x: {caption}")
 
 
+_MODEL_VRAM_GB = {
+    "qwen": 16,
+    "flux-kontext": 24,
+    "flux2-klein": 8,
+    "sdxl": 7,
+    "hunyuan": 48,
+}
+
+
 def _detect_model_family(model_name: str) -> str:
     """Detect model family from model name/path."""
     name_lower = model_name.lower()
@@ -719,11 +728,11 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
     return pipeline
 
 
-def _run_synthetic_pipeline(pipeline, family, image, args, device):
+def _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload):
     """Run the pipeline with family-specific parameter mapping."""
     import torch
 
-    gen_device = "cpu" if args.cpu_offload else device
+    gen_device = "cpu" if cpu_offload else device
 
     gen_kwargs = {
         "prompt": args.prompt,
@@ -804,10 +813,23 @@ def cmd_synthetic(args):
     print(f"Loading model: {args.model} (family: {family})")
     print(f"Device: {device}")
 
+    # Auto-detect cpu_offload if not explicitly set
+    if device == "cuda" and not args.cpu_offload:
+        free_vram_gb = torch.cuda.mem_get_info(0)[0] / (1024 ** 3)
+        needed_gb = _MODEL_VRAM_GB.get(family, 16)
+        if free_vram_gb < needed_gb + 2:
+            cpu_offload = True
+            print(f"Auto-enabling CPU offload: {free_vram_gb:.1f} GB free, "
+                  f"model needs ~{needed_gb} GB")
+        else:
+            cpu_offload = False
+    else:
+        cpu_offload = args.cpu_offload
+
     try:
         pipeline = _load_synthetic_pipeline(
             args.model, family, device, torch_dtype,
-            getattr(args, "gguf", None), args.cpu_offload,
+            getattr(args, "gguf", None), cpu_offload,
         )
     except ImportError as e:
         print(f"Error: Missing dependency for {family} pipeline: {e}")
@@ -909,7 +931,7 @@ def cmd_synthetic(args):
             with Image.open(img_path) as img:
                 image = img.convert("RGB").copy()
 
-            output = _run_synthetic_pipeline(pipeline, family, image, args, device)
+            output = _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload)
 
             # Save output image(s)
             for idx, out_img in enumerate(output.images):
@@ -1453,7 +1475,7 @@ def main():
     synthetic_parser.add_argument(
         "--cpu-offload",
         action="store_true",
-        help="Offload model components to CPU when not in use (saves VRAM)"
+        help="Force CPU offload (auto-detected by default based on available VRAM)"
     )
     synthetic_parser.add_argument(
         "--steps",

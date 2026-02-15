@@ -4,9 +4,9 @@
   ├──────────────────────────┼────────────────────────┼───────┼─────────────────────────────┤
   │ TestCaptionFlorence2     │ Florence-2-base        │ 4     │ ~1 GB                       │
   ├──────────────────────────┼────────────────────────┼───────┼─────────────────────────────┤
-  │ TestSyntheticQwen        │ Qwen-Image-Edit-2511   │ 4     │ ~16 GB (cpu-offload)        │
+  │ TestSyntheticQwen        │ Qwen-Image-Edit-2511   │ 4     │ ~16 GB                      │
   ├──────────────────────────┼────────────────────────┼───────┼─────────────────────────────┤
-  │ TestSyntheticFluxKontext │ FLUX.1-Kontext-dev     │ 2     │ ~24 GB (cpu-offload, gated) │
+  │ TestSyntheticFluxKontext │ FLUX.1-Kontext-dev     │ 2     │ ~24 GB (gated)              │
   ├──────────────────────────┼────────────────────────┼───────┼─────────────────────────────┤
   │ TestSyntheticFlux2Klein  │ FLUX.2-klein-4B        │ 2     │ ~8 GB                       │
   ├──────────────────────────┼────────────────────────┼───────┼─────────────────────────────┤
@@ -26,7 +26,7 @@ How to run on your server
 
 ```bash
 pip install -e '.[all,dev]'
-huggingface-cli login # needed for FLUX Kontext + SAM 3
+hf auth login # needed for FLUX Kontext + SAM 3
 ```
 
 # All GPU tests
@@ -55,5 +55,5 @@ pytest -m gpu -v -k "not (flux_kontext or sam3)"
 ```
 
 > The RTX 5090 (32 GB) at $0.3/hr handles all of these comfortably.
-> An RTX 4090 (24 GB) works too — the largest non-gated model (Qwen)
-> uses cpu-offload and peaks at ~16 GB.
+> An RTX 4090 (24 GB) works too — cpu-offload is auto-detected
+> based on available VRAM.

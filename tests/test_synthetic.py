@@ -91,7 +91,7 @@ class TestRunSyntheticPipelineKwargs:
     def test_qwen_passes_true_cfg(self):
         pipeline = self._make_pipeline()
         args = self._make_args(true_cfg_scale=5.0)
-        _run_synthetic_pipeline(pipeline, "qwen", Image.new("RGB", (64, 64)), args, "cpu")
+        _run_synthetic_pipeline(pipeline, "qwen", Image.new("RGB", (64, 64)), args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert "true_cfg_scale" in call_kwargs
         assert call_kwargs["true_cfg_scale"] == 5.0
@@ -101,7 +101,7 @@ class TestRunSyntheticPipelineKwargs:
         pipeline = self._make_pipeline()
         args = self._make_args()
         _run_synthetic_pipeline(
-            pipeline, "flux-kontext", Image.new("RGB", (64, 64)), args, "cpu"
+            pipeline, "flux-kontext", Image.new("RGB", (64, 64)), args, "cpu", False
         )
         call_kwargs = pipeline.call_args[1]
         assert "true_cfg_scale" not in call_kwargs
@@ -110,7 +110,7 @@ class TestRunSyntheticPipelineKwargs:
     def test_sdxl_passes_strength(self):
         pipeline = self._make_pipeline()
         args = self._make_args(strength=0.8)
-        _run_synthetic_pipeline(pipeline, "sdxl", Image.new("RGB", (64, 64)), args, "cpu")
+        _run_synthetic_pipeline(pipeline, "sdxl", Image.new("RGB", (64, 64)), args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert call_kwargs["strength"] == 0.8
         assert "true_cfg_scale" not in call_kwargs
@@ -118,14 +118,14 @@ class TestRunSyntheticPipelineKwargs:
     def test_sdxl_passes_negative_prompt(self):
         pipeline = self._make_pipeline()
         args = self._make_args(negative_prompt="ugly, bad")
-        _run_synthetic_pipeline(pipeline, "sdxl", Image.new("RGB", (64, 64)), args, "cpu")
+        _run_synthetic_pipeline(pipeline, "sdxl", Image.new("RGB", (64, 64)), args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert call_kwargs["negative_prompt"] == "ugly, bad"
 
     def test_sdxl_skips_empty_negative_prompt(self):
         pipeline = self._make_pipeline()
         args = self._make_args(negative_prompt="  ")
-        _run_synthetic_pipeline(pipeline, "sdxl", Image.new("RGB", (64, 64)), args, "cpu")
+        _run_synthetic_pipeline(pipeline, "sdxl", Image.new("RGB", (64, 64)), args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert "negative_prompt" not in call_kwargs
 
@@ -133,7 +133,7 @@ class TestRunSyntheticPipelineKwargs:
         pipeline = self._make_pipeline()
         args = self._make_args(strength=0.5)
         _run_synthetic_pipeline(
-            pipeline, "flux2-klein", Image.new("RGB", (64, 64)), args, "cpu"
+            pipeline, "flux2-klein", Image.new("RGB", (64, 64)), args, "cpu", False
         )
         call_kwargs = pipeline.call_args[1]
         assert call_kwargs["strength"] == 0.5
@@ -142,7 +142,7 @@ class TestRunSyntheticPipelineKwargs:
         pipeline = self._make_pipeline()
         args = self._make_args()
         _run_synthetic_pipeline(
-            pipeline, "hunyuan", Image.new("RGB", (64, 64)), args, "cpu"
+            pipeline, "hunyuan", Image.new("RGB", (64, 64)), args, "cpu", False
         )
         call_kwargs = pipeline.call_args[1]
         assert "strength" not in call_kwargs
@@ -151,14 +151,14 @@ class TestRunSyntheticPipelineKwargs:
     def test_seed_creates_generator(self):
         pipeline = self._make_pipeline()
         args = self._make_args(seed=42)
-        _run_synthetic_pipeline(pipeline, "qwen", Image.new("RGB", (64, 64)), args, "cpu")
+        _run_synthetic_pipeline(pipeline, "qwen", Image.new("RGB", (64, 64)), args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert "generator" in call_kwargs
 
     def test_no_seed_no_generator(self):
         pipeline = self._make_pipeline()
         args = self._make_args(seed=None)
-        _run_synthetic_pipeline(pipeline, "qwen", Image.new("RGB", (64, 64)), args, "cpu")
+        _run_synthetic_pipeline(pipeline, "qwen", Image.new("RGB", (64, 64)), args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert "generator" not in call_kwargs
 
@@ -166,7 +166,7 @@ class TestRunSyntheticPipelineKwargs:
         pipeline = self._make_pipeline()
         args = self._make_args()
         img = Image.new("RGB", (64, 64))
-        _run_synthetic_pipeline(pipeline, "qwen", img, args, "cpu")
+        _run_synthetic_pipeline(pipeline, "qwen", img, args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert call_kwargs["image"] == [img]
 
@@ -174,7 +174,7 @@ class TestRunSyntheticPipelineKwargs:
         pipeline = self._make_pipeline()
         args = self._make_args()
         img = Image.new("RGB", (64, 64))
-        _run_synthetic_pipeline(pipeline, "flux-kontext", img, args, "cpu")
+        _run_synthetic_pipeline(pipeline, "flux-kontext", img, args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert call_kwargs["image"] is img
 

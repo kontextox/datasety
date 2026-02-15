@@ -11,8 +11,8 @@ GPU model tests — run on a server with 24-32 GB VRAM.
 VRAM budget (peak per test, bf16/fp16):
 
     Caption  | Florence-2-base       |  ~1 GB
-    Synthetic| Qwen-Image-Edit       | ~16 GB  (cpu-offload)
-    Synthetic| FLUX.1-Kontext-dev    | ~24 GB  (cpu-offload, gated model)
+    Synthetic| Qwen-Image-Edit       | ~16 GB
+    Synthetic| FLUX.1-Kontext-dev    | ~24 GB  (auto cpu-offload, gated model)
     Synthetic| FLUX.2-klein-4B       |  ~8 GB
     Synthetic| SDXL base             |  ~7 GB
     Synthetic| HunyuanImage          |  SKIPPED (needs 48 GB)
@@ -132,12 +132,12 @@ class TestCaptionFlorence2:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  SYNTHETIC — Qwen (~16 GB VRAM with cpu-offload)
+#  SYNTHETIC — Qwen (~16 GB VRAM)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSyntheticQwen:
-    """Qwen/Qwen-Image-Edit-2511 (~16 GB bf16, uses cpu-offload)."""
+    """Qwen/Qwen-Image-Edit-2511 (~16 GB bf16)."""
 
     def test_qwen_generates_image(self, tmp_path):
         input_dir, output_dir = make_test_images(tmp_path, n=1)
@@ -149,7 +149,6 @@ class TestSyntheticQwen:
             "-p", "add a small red hat",
             "--model", "Qwen/Qwen-Image-Edit-2511",
             "--device", "auto",
-            "--cpu-offload",
             "--steps", "2",
             "--seed", "42",
         )
@@ -168,7 +167,6 @@ class TestSyntheticQwen:
             "-p", "make it brighter",
             "--model", "Qwen/Qwen-Image-Edit-2511",
             "--device", "auto",
-            "--cpu-offload",
             "--steps", "2",
             "--seed", "42",
             "--output-format", "jpg",
@@ -186,7 +184,6 @@ class TestSyntheticQwen:
             "-p", "add sunglasses",
             "--model", "Qwen/Qwen-Image-Edit-2511",
             "--device", "auto",
-            "--cpu-offload",
             "--steps", "2",
             "--seed", "42",
             "--num-images", "2",
@@ -205,7 +202,6 @@ class TestSyntheticQwen:
             "-p", "test",
             "--model", "Qwen/Qwen-Image-Edit-2511",
             "--device", "auto",
-            "--cpu-offload",
             "--steps", "2",
             "--true-cfg-scale", "3.0",
         )
@@ -214,12 +210,12 @@ class TestSyntheticQwen:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  SYNTHETIC — FLUX Kontext (~24 GB VRAM with cpu-offload, gated model)
+#  SYNTHETIC — FLUX Kontext (~24 GB VRAM, gated model)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSyntheticFluxKontext:
-    """black-forest-labs/FLUX.1-Kontext-dev (~24 GB bf16, cpu-offload).
+    """black-forest-labs/FLUX.1-Kontext-dev (~24 GB bf16, auto cpu-offload).
 
     This model is GATED — you must accept the license at
     https://huggingface.co/black-forest-labs/FLUX.1-Kontext-dev
@@ -236,7 +232,6 @@ class TestSyntheticFluxKontext:
             "-p", "add a blue scarf",
             "--model", "black-forest-labs/FLUX.1-Kontext-dev",
             "--device", "auto",
-            "--cpu-offload",
             "--steps", "2",
             "--cfg-scale", "2.5",
             "--seed", "42",
@@ -255,7 +250,6 @@ class TestSyntheticFluxKontext:
             "-p", "test",
             "--model", "black-forest-labs/FLUX.1-Kontext-dev",
             "--device", "auto",
-            "--cpu-offload",
             "--steps", "2",
         )
         assert result.returncode == 0, result.stdout + result.stderr
