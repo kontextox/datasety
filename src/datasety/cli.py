@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-datasety - dataset preparation: resize, align, caption, shuffle, synthetic.
+datasety - dataset preparation: resize, align, caption, shuffle, synthetic, mask.
 
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
@@ -8,6 +8,7 @@ Usage:
     datasety caption --input ./in --output ./out --trigger-word "[trigger]" --florence-2-large
     datasety shuffle --input ./in --output ./out --group "Hello.|Hey!" --group "World.|Earth!"
     datasety synthetic --input ./in --output ./out --prompt "add a winter hat"
+    datasety mask --input ./in --output ./masks --keywords "face,hair" --model clipseg
 """
 
 import argparse
@@ -636,6 +637,137 @@ def cmd_shuffle(args):
             print(f"  {count}x: {caption}")
 
 
+def _detect_model_family(model_name: str) -> str:
+    """Detect model family from model name/path."""
+    name_lower = model_name.lower()
+    if "kontext" in name_lower:
+        return "flux-kontext"
+    if "flux.2" in name_lower or "flux2" in name_lower or "klein" in name_lower:
+        return "flux2-klein"
+    if "stable-diffusion-xl" in name_lower or "sdxl" in name_lower:
+        return "sdxl"
+    if "hunyuan" in name_lower:
+        return "hunyuan"
+    return "qwen"
+
+
+def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path, cpu_offload):
+    """Load the appropriate diffusion pipeline for the model family."""
+    if family == "qwen":
+        from diffusers import QwenImageEditPlusPipeline
+        kwargs = {"torch_dtype": torch_dtype}
+        if gguf_path:
+            from diffusers import GGUFQuantizationConfig, QwenVLTransformer2DModel
+            transformer = QwenVLTransformer2DModel.from_single_file(
+                gguf_path,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+            )
+            kwargs["transformer"] = transformer
+        pipeline = QwenImageEditPlusPipeline.from_pretrained(model_name, **kwargs)
+
+    elif family == "flux-kontext":
+        from diffusers import FluxKontextPipeline
+        kwargs = {"torch_dtype": torch_dtype}
+        if gguf_path:
+            from diffusers import FluxTransformer2DModel, GGUFQuantizationConfig
+            transformer = FluxTransformer2DModel.from_single_file(
+                gguf_path,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+            )
+            kwargs["transformer"] = transformer
+        pipeline = FluxKontextPipeline.from_pretrained(model_name, **kwargs)
+
+    elif family == "flux2-klein":
+        from diffusers import FluxImg2ImgPipeline
+        kwargs = {"torch_dtype": torch_dtype}
+        if gguf_path:
+            from diffusers import FluxTransformer2DModel, GGUFQuantizationConfig
+            transformer = FluxTransformer2DModel.from_single_file(
+                gguf_path,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+            )
+            kwargs["transformer"] = transformer
+        pipeline = FluxImg2ImgPipeline.from_pretrained(model_name, **kwargs)
+
+    elif family == "sdxl":
+        from diffusers import StableDiffusionXLImg2ImgPipeline
+        pipeline = StableDiffusionXLImg2ImgPipeline.from_pretrained(
+            model_name, torch_dtype=torch_dtype
+        )
+
+    elif family == "hunyuan":
+        from diffusers import HunyuanImagePipeline
+        kwargs = {"torch_dtype": torch_dtype}
+        if gguf_path:
+            from diffusers import GGUFQuantizationConfig, HunyuanVideo3DTransformerModel
+            transformer = HunyuanVideo3DTransformerModel.from_single_file(
+                gguf_path,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+            )
+            kwargs["transformer"] = transformer
+        pipeline = HunyuanImagePipeline.from_pretrained(model_name, **kwargs)
+
+    else:
+        raise ValueError(f"Unknown model family: {family}")
+
+    if cpu_offload:
+        pipeline.enable_model_cpu_offload()
+        print("Model CPU offload enabled")
+    else:
+        pipeline.to(device)
+    pipeline.set_progress_bar_config(disable=False)
+    return pipeline
+
+
+def _run_synthetic_pipeline(pipeline, family, image, args, device):
+    """Run the pipeline with family-specific parameter mapping."""
+    import torch
+
+    gen_device = "cpu" if args.cpu_offload else device
+
+    gen_kwargs = {
+        "prompt": args.prompt,
+        "num_inference_steps": args.steps,
+        "num_images_per_prompt": args.num_images,
+    }
+
+    if args.seed is not None:
+        gen_kwargs["generator"] = torch.Generator(
+            device=gen_device
+        ).manual_seed(args.seed)
+
+    if family == "qwen":
+        gen_kwargs["image"] = [image]
+        gen_kwargs["negative_prompt"] = args.negative_prompt
+        gen_kwargs["guidance_scale"] = args.cfg_scale
+        gen_kwargs["true_cfg_scale"] = args.true_cfg_scale
+
+    elif family == "flux-kontext":
+        gen_kwargs["image"] = image
+        gen_kwargs["guidance_scale"] = args.cfg_scale
+
+    elif family == "flux2-klein":
+        gen_kwargs["image"] = image
+        gen_kwargs["guidance_scale"] = args.cfg_scale
+        gen_kwargs["strength"] = args.strength
+
+    elif family == "sdxl":
+        gen_kwargs["image"] = image
+        gen_kwargs["guidance_scale"] = args.cfg_scale
+        gen_kwargs["strength"] = args.strength
+        if args.negative_prompt and args.negative_prompt.strip():
+            gen_kwargs["negative_prompt"] = args.negative_prompt
+
+    elif family == "hunyuan":
+        gen_kwargs["image"] = image
+        gen_kwargs["guidance_scale"] = args.cfg_scale
+
+    with torch.inference_mode():
+        output = pipeline(**gen_kwargs)
+
+    return output
+
+
 def cmd_synthetic(args):
     """Execute the synthetic image generation command."""
     # Lazy import for faster CLI startup
@@ -664,102 +796,94 @@ def cmd_synthetic(args):
     else:
         device = args.device
 
-    # Import the correct pipeline based on model
-    try:
-        from diffusers import QwenImageEditPlusPipeline
-        pipeline_class = QwenImageEditPlusPipeline
-    except ImportError:
-        print("Error: QwenImageEditPlusPipeline not found.")
-        print("Make sure you have the latest diffusers: pip install -U diffusers")
-        sys.exit(1)
-
-    print(f"Loading model: {args.model}")
-    print(f"Device: {device}")
-
     torch_dtype = torch.bfloat16 if device == "cuda" else torch.float32
 
+    # Detect model family
+    family = _detect_model_family(args.model)
+
+    print(f"Loading model: {args.model} (family: {family})")
+    print(f"Device: {device}")
+
     try:
-        pipeline = pipeline_class.from_pretrained(
-            args.model,
-            torch_dtype=torch_dtype
+        pipeline = _load_synthetic_pipeline(
+            args.model, family, device, torch_dtype,
+            getattr(args, "gguf", None), args.cpu_offload,
         )
-        if args.cpu_offload:
-            pipeline.enable_model_cpu_offload()
-            print("Model CPU offload enabled")
-        else:
-            pipeline.to(device)
-        pipeline.set_progress_bar_config(disable=False)
+    except ImportError as e:
+        print(f"Error: Missing dependency for {family} pipeline: {e}")
+        print("Make sure you have the latest diffusers: pip install -U diffusers")
+        sys.exit(1)
     except Exception as e:
         print(f"Error loading model: {e}")
         sys.exit(1)
 
-    # Inject fine-tuned weights if specified
+    # Inject fine-tuned weights if specified (Qwen-specific)
     if args.weights:
-        import gc
+        if family != "qwen":
+            print("Warning: --weights is only supported for Qwen models, ignoring.")
+        else:
+            import gc
 
-        try:
-            from huggingface_hub import hf_hub_download
-            from safetensors.torch import load_file
-        except ImportError:
-            print("Error: huggingface_hub and safetensors are required for --weights.")
-            print("Run: pip install huggingface_hub safetensors")
-            sys.exit(1)
+            try:
+                from huggingface_hub import hf_hub_download
+                from safetensors.torch import load_file
+            except ImportError:
+                print("Error: huggingface_hub and safetensors are required for --weights.")
+                print("Run: pip install huggingface_hub safetensors")
+                sys.exit(1)
 
-        # Parse repo_id:filename
-        if ":" not in args.weights:
-            print("Error: --weights must be in 'repo_id:filename' format")
-            print("Example: Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/model.safetensors")
-            sys.exit(1)
+            # Parse repo_id:filename
+            if ":" not in args.weights:
+                print("Error: --weights must be in 'repo_id:filename' format")
+                print("Example: Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/model.safetensors")
+                sys.exit(1)
 
-        repo_id, filename = args.weights.split(":", 1)
-        print(f"Downloading weights: {repo_id} / {filename}")
-        weight_path = hf_hub_download(repo_id, filename)
+            repo_id, filename = args.weights.split(":", 1)
+            print(f"Downloading weights: {repo_id} / {filename}")
+            weight_path = hf_hub_download(repo_id, filename)
 
-        print("Loading weight file...")
-        state_dict = load_file(weight_path)
+            print("Loading weight file...")
+            state_dict = load_file(weight_path)
 
-        # Sort weights by key prefix into component dicts
-        transformer_weights = {}
-        vae_weights = {}
-        text_encoder_weights = {}
+            # Sort weights by key prefix into component dicts
+            transformer_weights = {}
+            vae_weights = {}
+            text_encoder_weights = {}
 
-        for key, value in state_dict.items():
-            if key.startswith(("model.diffusion_model.", "transformer.")):
-                # Strip the prefix for loading into the component
-                for prefix in ("model.diffusion_model.", "transformer."):
-                    if key.startswith(prefix):
-                        transformer_weights[key[len(prefix):]] = value
-                        break
-            elif key.startswith(("first_stage_model.", "vae.")):
-                for prefix in ("first_stage_model.", "vae."):
-                    if key.startswith(prefix):
-                        vae_weights[key[len(prefix):]] = value
-                        break
-            elif "text_encoder" in key or "conditioner" in key:
-                text_encoder_weights[key] = value
+            for key, value in state_dict.items():
+                if key.startswith(("model.diffusion_model.", "transformer.")):
+                    for prefix in ("model.diffusion_model.", "transformer."):
+                        if key.startswith(prefix):
+                            transformer_weights[key[len(prefix):]] = value
+                            break
+                elif key.startswith(("first_stage_model.", "vae.")):
+                    for prefix in ("first_stage_model.", "vae."):
+                        if key.startswith(prefix):
+                            vae_weights[key[len(prefix):]] = value
+                            break
+                elif "text_encoder" in key or "conditioner" in key:
+                    text_encoder_weights[key] = value
 
-        # Inject into pipeline components
-        if transformer_weights:
-            print(f"Injecting {len(transformer_weights)} transformer weights")
-            pipeline.transformer.load_state_dict(transformer_weights, strict=False)
+            if transformer_weights:
+                print(f"Injecting {len(transformer_weights)} transformer weights")
+                pipeline.transformer.load_state_dict(transformer_weights, strict=False)
 
-        if vae_weights:
-            print(f"Injecting {len(vae_weights)} VAE weights")
-            pipeline.vae.load_state_dict(vae_weights, strict=False)
+            if vae_weights:
+                print(f"Injecting {len(vae_weights)} VAE weights")
+                pipeline.vae.load_state_dict(vae_weights, strict=False)
 
-        if text_encoder_weights:
-            print(f"Injecting {len(text_encoder_weights)} text encoder weights")
-            pipeline.text_encoder.load_state_dict(
-                text_encoder_weights, strict=False
-            )
+            if text_encoder_weights:
+                print(f"Injecting {len(text_encoder_weights)} text encoder weights")
+                pipeline.text_encoder.load_state_dict(
+                    text_encoder_weights, strict=False
+                )
 
-        # Free memory
-        del state_dict, transformer_weights, vae_weights, text_encoder_weights
-        gc.collect()
-        if device == "cuda":
-            torch.cuda.empty_cache()
+            del state_dict, transformer_weights, vae_weights, text_encoder_weights
+            gc.collect()
+            if device == "cuda":
+                torch.cuda.empty_cache()
 
-        print("Weights injected successfully")
+            print("Weights injected successfully")
 
     # Find images
     formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
@@ -771,7 +895,9 @@ def cmd_synthetic(args):
 
     print(f"Found {len(image_files)} images")
     print(f"Prompt: {args.prompt}")
-    print(f"Steps: {args.steps}, CFG: {args.cfg_scale}, True CFG: {args.true_cfg_scale}")
+    print(f"Steps: {args.steps}, CFG: {args.cfg_scale}")
+    if family == "qwen":
+        print(f"True CFG: {args.true_cfg_scale}")
     print("-" * 50)
 
     processed = 0
@@ -783,26 +909,7 @@ def cmd_synthetic(args):
             with Image.open(img_path) as img:
                 image = img.convert("RGB").copy()
 
-            # Set up generation parameters
-            gen_kwargs = {
-                "image": [image],
-                "prompt": args.prompt,
-                "negative_prompt": args.negative_prompt,
-                "num_inference_steps": args.steps,
-                "guidance_scale": args.cfg_scale,
-                "true_cfg_scale": args.true_cfg_scale,
-                "num_images_per_prompt": args.num_images,
-            }
-
-            # Add seed if specified
-            if args.seed is not None:
-                gen_device = "cpu" if args.cpu_offload else device
-                gen_kwargs["generator"] = torch.Generator(
-                    device=gen_device
-                ).manual_seed(args.seed)
-
-            with torch.inference_mode():
-                output = pipeline(**gen_kwargs)
+            output = _run_synthetic_pipeline(pipeline, family, image, args, device)
 
             # Save output image(s)
             for idx, out_img in enumerate(output.images):
@@ -815,6 +922,285 @@ def cmd_synthetic(args):
                 out_img.save(out_path)
 
             print(f"[OK] {img_path.name} -> {len(output.images)} image(s)")
+            processed += 1
+
+        except Exception as e:
+            print(f"[ERROR] {img_path.name}: {e}")
+
+    print("-" * 50)
+    print(f"Done! Processed: {processed} images")
+
+
+def _load_mask_model_sam3(device, torch_dtype):
+    """Load SAM 3 for text-prompted segmentation."""
+    from transformers import AutoModel, AutoProcessor
+    processor = AutoProcessor.from_pretrained("facebook/sam3", trust_remote_code=True)
+    model = AutoModel.from_pretrained(
+        "facebook/sam3", torch_dtype=torch_dtype, trust_remote_code=True,
+    ).to(device).eval()
+    return model, processor
+
+
+def _load_mask_model_grounded_sam2(device, torch_dtype):
+    """Load Grounding DINO + SAM 2 for grounded segmentation."""
+    from transformers import (
+        AutoModelForZeroShotObjectDetection,
+        AutoProcessor,
+        SAM2ImageSegmentationPipeline,
+    )
+
+    dino_id = "IDEA-Research/grounding-dino-base"
+    dino_processor = AutoProcessor.from_pretrained(dino_id)
+    dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
+        dino_id, torch_dtype=torch_dtype,
+    ).to(device).eval()
+
+    sam2_pipeline = SAM2ImageSegmentationPipeline(
+        model="facebook/sam2-hiera-large",
+        device=device,
+        torch_dtype=torch_dtype,
+    )
+    return (dino_model, dino_processor, sam2_pipeline)
+
+
+def _load_mask_model_clipseg(device, torch_dtype):
+    """Load CLIPSeg for text-based segmentation."""
+    from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
+    processor = CLIPSegProcessor.from_pretrained("CIDAS/clipseg-rd64-refined")
+    model = CLIPSegForImageSegmentation.from_pretrained(
+        "CIDAS/clipseg-rd64-refined",
+    ).to(device).eval()
+    return model, processor
+
+
+def _segment_sam3(model, processor, image, keywords, threshold, device):
+    """Run SAM 3 segmentation for each keyword and return combined mask."""
+    import numpy as np
+    import torch
+
+    w, h = image.size
+    combined = np.zeros((h, w), dtype=np.uint8)
+
+    for keyword in keywords:
+        inputs = processor(images=image, text=keyword, return_tensors="pt").to(device)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        masks = processor.post_process_masks(
+            outputs.pred_masks, inputs["original_sizes"], inputs["reshaped_input_sizes"],
+        )
+        if len(masks) > 0 and len(masks[0]) > 0:
+            mask = masks[0][0].cpu().numpy()
+            if mask.ndim == 3:
+                mask = mask[0]
+            combined = np.maximum(combined, (mask > threshold).astype(np.uint8) * 255)
+
+    return combined
+
+
+def _segment_grounded_sam2(models, image, keywords, threshold, device):
+    """Run Grounding DINO + SAM 2 segmentation."""
+    import numpy as np
+    import torch
+
+    dino_model, dino_processor, sam2_pipeline = models
+    w, h = image.size
+    combined = np.zeros((h, w), dtype=np.uint8)
+
+    # Grounding DINO: detect boxes for all keywords at once
+    text = ". ".join(keywords) + "."
+    inputs = dino_processor(images=image, text=text, return_tensors="pt").to(device)
+    with torch.no_grad():
+        outputs = dino_model(**inputs)
+
+    results = dino_processor.post_process_grounded_object_detection(
+        outputs,
+        inputs.input_ids,
+        threshold=threshold,
+        target_sizes=[(h, w)],
+    )[0]
+
+    boxes = results["boxes"].cpu().numpy()
+    if len(boxes) == 0:
+        return combined
+
+    # SAM 2: segment within each detected box
+    box_list = boxes.tolist()
+    sam_output = sam2_pipeline(image, points_per_batch=None, input_boxes=[box_list])
+
+    for mask_data in sam_output:
+        mask = mask_data["mask"]
+        if hasattr(mask, "numpy"):
+            mask = mask.numpy()
+        if isinstance(mask, Image.Image):
+            mask = np.array(mask)
+        if mask.ndim == 3:
+            mask = mask[0]
+        combined = np.maximum(combined, (mask > 0).astype(np.uint8) * 255)
+
+    return combined
+
+
+def _segment_clipseg(model, processor, image, keywords, threshold, device):
+    """Run CLIPSeg segmentation for each keyword."""
+    import numpy as np
+    import torch
+
+    w, h = image.size
+    combined = np.zeros((h, w), dtype=np.float32)
+
+    for keyword in keywords:
+        inputs = processor(
+            text=[keyword], images=[image], return_tensors="pt", padding=True,
+        ).to(device)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        logits = outputs.logits[0]  # (H_clip, W_clip)
+        probs = torch.sigmoid(logits).cpu().numpy()
+        # Resize to full resolution
+        prob_img = Image.fromarray(probs).resize((w, h), Image.BILINEAR)
+        combined = np.maximum(combined, np.array(prob_img))
+
+    return ((combined >= threshold) * 255).astype(np.uint8)
+
+
+def cmd_mask(args):
+    """Generate binary masks from images using text keywords."""
+    try:
+        import numpy as np
+        import torch
+    except ImportError:
+        print("Error: Required packages not installed.")
+        print("Run: pip install 'datasety[mask]'")
+        sys.exit(1)
+
+    input_dir = Path(args.input)
+    output_dir = Path(args.output) if args.naming == "folder" else input_dir
+
+    if not input_dir.exists():
+        print(f"Error: Input directory '{input_dir}' does not exist.")
+        sys.exit(1)
+
+    if args.naming == "folder":
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine device
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif args.device == "cuda" and not torch.cuda.is_available():
+        print("Warning: CUDA not available, falling back to CPU")
+        device = "cpu"
+    else:
+        device = args.device
+
+    torch_dtype = torch.float16 if device == "cuda" else torch.float32
+
+    # Parse keywords
+    keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
+    if not keywords:
+        print("Error: No valid keywords provided.")
+        sys.exit(1)
+
+    print(f"Model: {args.model}")
+    print(f"Device: {device}")
+    print(f"Keywords: {keywords}")
+    print(f"Threshold: {args.threshold}")
+    if args.dry_run:
+        print("=== DRY RUN (no files will be saved) ===")
+    print("-" * 50)
+
+    # Load model
+    print("Loading segmentation model...")
+    try:
+        if args.model == "sam3":
+            models = _load_mask_model_sam3(device, torch_dtype)
+        elif args.model == "grounded-sam2":
+            models = _load_mask_model_grounded_sam2(device, torch_dtype)
+        elif args.model == "clipseg":
+            models = _load_mask_model_clipseg(device, torch_dtype)
+        else:
+            print(f"Error: Unknown model '{args.model}'. Use: sam3, grounded-sam2, clipseg")
+            sys.exit(1)
+    except ImportError as e:
+        print(f"Error: Missing dependency: {e}")
+        print("Run: pip install 'datasety[mask]'")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        sys.exit(1)
+
+    # Find images
+    formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
+    image_files = get_image_files(input_dir, formats)
+
+    if not image_files:
+        print(f"No images found in '{input_dir}'")
+        sys.exit(0)
+
+    print(f"Found {len(image_files)} images")
+    print("-" * 50)
+
+    processed = 0
+    out_fmt = args.output_format
+
+    for img_path in image_files:
+        try:
+            with Image.open(img_path) as img:
+                image = img.convert("RGB")
+                w, h = image.size
+
+                # Run segmentation
+                if args.model == "sam3":
+                    mask_array = _segment_sam3(
+                        models[0], models[1], image, keywords, args.threshold, device,
+                    )
+                elif args.model == "grounded-sam2":
+                    mask_array = _segment_grounded_sam2(
+                        models, image, keywords, args.threshold, device,
+                    )
+                elif args.model == "clipseg":
+                    mask_array = _segment_clipseg(
+                        models[0], models[1], image, keywords, args.threshold, device,
+                    )
+
+            # Apply padding (dilation)
+            if args.padding > 0:
+                from PIL import ImageFilter
+                mask_img = Image.fromarray(mask_array, mode="L")
+                mask_img = mask_img.filter(
+                    ImageFilter.MaxFilter(size=args.padding * 2 + 1)
+                )
+                mask_array = np.array(mask_img)
+
+            # Apply blur
+            if args.blur > 0:
+                from PIL import ImageFilter
+                mask_img = Image.fromarray(mask_array, mode="L")
+                mask_img = mask_img.filter(
+                    ImageFilter.GaussianBlur(radius=args.blur)
+                )
+                mask_array = np.array(mask_img)
+
+            # Invert if requested
+            if args.invert:
+                mask_array = 255 - mask_array
+
+            # Determine output path
+            if args.naming == "folder":
+                out_path = output_dir / f"{img_path.stem}.{out_fmt}"
+            else:
+                out_path = input_dir / f"{img_path.stem}_mask.{out_fmt}"
+
+            pixel_count = int(np.sum(mask_array > 127))
+            coverage = pixel_count / (w * h) * 100
+
+            if args.dry_run:
+                print(f"  {img_path.name}: {len(keywords)} keywords, "
+                      f"{coverage:.1f}% coverage -> {out_path.name}")
+            else:
+                mask_img = Image.fromarray(mask_array, mode="L")
+                mask_img.save(out_path)
+                print(f"[OK] {img_path.name} -> {out_path.name} ({coverage:.1f}% coverage)")
+
             processed += 1
 
         except Exception as e:
@@ -1094,12 +1480,98 @@ def main():
         help="Random seed for reproducibility"
     )
     synthetic_parser.add_argument(
+        "--gguf",
+        default=None,
+        help="Path or URL to GGUF file for quantized transformer loading"
+    )
+    synthetic_parser.add_argument(
+        "--strength",
+        type=float,
+        default=0.7,
+        help="Img2img strength for SDXL/FLUX.2 (0.0-1.0, default: 0.7)"
+    )
+    synthetic_parser.add_argument(
         "--output-format",
         choices=["png", "jpg", "webp"],
         default="png",
         help="Output image format (default: png)"
     )
     synthetic_parser.set_defaults(func=cmd_synthetic)
+
+    # === MASK command ===
+    mask_parser = subparsers.add_parser(
+        "mask",
+        help="Generate binary masks from images using text keywords"
+    )
+    mask_parser.add_argument(
+        "--input", "-i",
+        required=True,
+        help="Input directory containing images"
+    )
+    mask_parser.add_argument(
+        "--output", "-o",
+        required=True,
+        help="Output directory for mask images"
+    )
+    mask_parser.add_argument(
+        "--keywords", "-k",
+        required=True,
+        help="Comma-separated keywords to segment (e.g., 'face,hair,hat')"
+    )
+    mask_parser.add_argument(
+        "--model",
+        choices=["sam3", "grounded-sam2", "clipseg"],
+        default="sam3",
+        help="Segmentation model (default: sam3)"
+    )
+    mask_parser.add_argument(
+        "--device",
+        choices=["auto", "cpu", "cuda"],
+        default="auto",
+        help="Device to run model on (default: auto-detect GPU)"
+    )
+    mask_parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.3,
+        help="Confidence threshold for detection (0.0-1.0, default: 0.3)"
+    )
+    mask_parser.add_argument(
+        "--padding",
+        type=int,
+        default=0,
+        help="Pixels to expand mask by (dilation, default: 0)"
+    )
+    mask_parser.add_argument(
+        "--blur",
+        type=int,
+        default=0,
+        help="Gaussian blur radius for mask edges (0=sharp, default: 0)"
+    )
+    mask_parser.add_argument(
+        "--invert",
+        action="store_true",
+        help="Invert mask (black=ROI, white=ignore)"
+    )
+    mask_parser.add_argument(
+        "--naming",
+        choices=["folder", "suffix"],
+        default="folder",
+        help="Output naming: 'folder' (same name in output dir) or "
+        "'suffix' (_mask suffix in input dir) (default: folder)"
+    )
+    mask_parser.add_argument(
+        "--output-format",
+        choices=["png", "jpg", "webp"],
+        default="png",
+        help="Output image format (default: png)"
+    )
+    mask_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview detections without saving masks"
+    )
+    mask_parser.set_defaults(func=cmd_mask)
 
     # Parse and execute
     args = parser.parse_args()

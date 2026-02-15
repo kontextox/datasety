@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "datasety"
 dynamic = ["version"]
-description = "CLI tool for dataset preparation: resize, align, caption, shuffle, and synthetic image generation."
+description = "CLI tool for dataset preparation: resize, align, caption, shuffle, synthetic, and mask generation."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -21,6 +21,8 @@ keywords = [
     "image-editing",
     "diffusers",
     "machine-learning",
+    "segmentation",
+    "masking",
     "cli",
 ]
 classifiers = [
@@ -55,8 +57,13 @@ synthetic = [
     "accelerate",
     "sentencepiece",
 ]
+mask = [
+    "torch>=2.0.0",
+    "transformers>=4.45.0",
+    "sam2>=1.0",
+]
 all = [
-    "datasety[caption,synthetic]",
+    "datasety[caption,synthetic,mask]",
 ]
 dev = [
     "pytest>=7.0.0",

@@ -1,6 +1,6 @@
 # datasety
 
-CLI tool for dataset preparation: resize, align, caption, shuffle, and synthetic image generation.
+CLI tool for dataset preparation: resize, align, caption, shuffle, synthetic, and mask generation.
 
 ## Installation
 
@@ -12,7 +12,8 @@ Install with specific features:
 
 ```bash
 pip install datasety[caption]     # Florence-2 captioning
-pip install datasety[synthetic]   # Qwen image editing
+pip install datasety[synthetic]   # Image editing (Qwen, FLUX, SDXL, Hunyuan)
+pip install datasety[mask]        # Mask generation (SAM 3, Grounded SAM 2, CLIPSeg)
 pip install datasety[all]         # All features
 ```
 
@@ -72,7 +73,7 @@ datasety caption --input ./images --output ./captions --florence-2-large
 | -------------------- | -------------------------------------------------- | ------------------------- |
 | `--input`, `-i`      | Input directory                                    | (required)                |
 | `--output`, `-o`     | Output directory for .txt files                    | (required)                |
-| `--device`           | `cpu` or `cuda`                                    | `cpu`                     |
+| `--device`           | `auto`, `cpu`, or `cuda`                           | `auto`                    |
 | `--trigger-word`     | Text to prepend to captions                        | (none)                    |
 | `--prompt`           | Florence-2 task prompt                             | `<MORE_DETAILED_CAPTION>` |
 | `--model`            | Any HuggingFace model (overrides base/large flags) | (none)                    |
@@ -164,15 +165,15 @@ Each `--group` picks one random variant per image. Groups support three sources:
 
 **Options:**
 
-| Option                | Description                                       | Default    |
-| --------------------- | ------------------------------------------------- | ---------- |
-| `--input`, `-i`       | Input directory containing images                 | (required) |
-| `--output`, `-o`      | Output directory for .txt files                   | (required) |
-| `--group`, `-g`       | Inline `\|`-separated, `.txt` file path, or URL   | (required) |
-| `--separator`         | Separator between groups                          | `" "`      |
-| `--seed`              | Random seed for reproducibility                   | (random)   |
-| `--dry-run`           | Preview captions without writing files            | `false`    |
-| `--show-distribution` | Show caption distribution after generation        | `false`    |
+| Option                | Description                                     | Default    |
+| --------------------- | ----------------------------------------------- | ---------- |
+| `--input`, `-i`       | Input directory containing images               | (required) |
+| `--output`, `-o`      | Output directory for .txt files                 | (required) |
+| `--group`, `-g`       | Inline `\|`-separated, `.txt` file path, or URL | (required) |
+| `--separator`         | Separator between groups                        | `" "`      |
+| `--seed`              | Random seed for reproducibility                 | (random)   |
+| `--dry-run`           | Preview captions without writing files          | `false`    |
+| `--show-distribution` | Show caption distribution after generation      | `false`    |
 
 **Examples:**
 
@@ -198,43 +199,84 @@ datasety shuffle -i ./images -o ./captions \
 
 ### Generate Synthetic Images
 
-Generate synthetic variations of images using Qwen-Image-Edit:
+Generate synthetic variations of images using image editing models:
 
 ```bash
 datasety synthetic --input ./images --output ./synthetic --prompt "add a winter hat"
 ```
 
+The model family is auto-detected from the `--model` name:
+
+| Model Family       | Example Model IDs                      | Key Params                   |
+| ------------------ | -------------------------------------- | ---------------------------- |
+| **Qwen** (default) | `Qwen/Qwen-Image-Edit-2511`            | `--true-cfg-scale`, steps=40 |
+| **FLUX Kontext**   | `black-forest-labs/FLUX.1-Kontext-dev` | steps=28                     |
+| **FLUX.2 klein**   | `black-forest-labs/FLUX.2-klein-9B`    | `--strength`, steps=4        |
+| **SDXL**           | `stabilityai/stable-diffusion-xl-*`    | `--strength`, steps=30       |
+| **HunyuanImage**   | `tencent/HunyuanImage-3.0`             | steps=50                     |
+
 **Options:**
 
-| Option              | Description                              | Default                     |
-| ------------------- | ---------------------------------------- | --------------------------- |
-| `--input`, `-i`     | Input directory                          | (required)                  |
-| `--output`, `-o`    | Output directory                         | (required)                  |
-| `--prompt`, `-p`    | Edit prompt                              | (required)                  |
-| `--model`           | Model to use                             | `Qwen/Qwen-Image-Edit-2511` |
-| `--weights`         | Fine-tuned weights as `repo_id:filename` | (none)                      |
-| `--device`          | `auto`, `cpu`, or `cuda`                 | `auto`                      |
-| `--steps`           | Number of inference steps                | `40`                        |
-| `--cfg-scale`       | Guidance scale                           | `1.0`                       |
-| `--true-cfg-scale`  | True CFG scale                           | `4.0`                       |
-| `--negative-prompt` | Negative prompt                          | `" "`                       |
-| `--num-images`      | Images to generate per input             | `1`                         |
-| `--seed`            | Random seed for reproducibility          | (random)                    |
-| `--output-format`   | Output format: `png`, `jpg`, `webp`      | `png`                       |
+| Option              | Description                                 | Default                     |
+| ------------------- | ------------------------------------------- | --------------------------- |
+| `--input`, `-i`     | Input directory                             | (required)                  |
+| `--output`, `-o`    | Output directory                            | (required)                  |
+| `--prompt`, `-p`    | Edit prompt                                 | (required)                  |
+| `--model`           | Model to use (auto-detects family)          | `Qwen/Qwen-Image-Edit-2511` |
+| `--weights`         | Fine-tuned weights as `repo_id:filename`    | (none)                      |
+| `--device`          | `auto`, `cpu`, or `cuda`                    | `auto`                      |
+| `--cpu-offload`     | Offload model to CPU when not in use        | `false`                     |
+| `--steps`           | Number of inference steps                   | `40`                        |
+| `--cfg-scale`       | Guidance scale                              | `1.0`                       |
+| `--true-cfg-scale`  | True CFG scale (Qwen only)                  | `4.0`                       |
+| `--negative-prompt` | Negative prompt                             | `" "`                       |
+| `--num-images`      | Images to generate per input                | `1`                         |
+| `--seed`            | Random seed for reproducibility             | (random)                    |
+| `--gguf`            | Path/URL to GGUF file for quantized loading | (none)                      |
+| `--strength`        | Img2img strength for SDXL/FLUX.2 (0.0-1.0)  | `0.7`                       |
+| `--output-format`   | Output format: `png`, `jpg`, `webp`         | `png`                       |
 
 **Examples:**
 
 ```bash
+# Qwen (default)
 datasety synthetic \
     --input ./dataset \
     --output ./synthetic \
-    --prompt "add sunglasses to the person, keep everything else the same" \
+    --prompt "add sunglasses to the person" \
     --device cuda \
     --steps 40 \
-    --true-cfg-scale 4.0 \
-    --seed 42
+    --true-cfg-scale 4.0
 
-# Use fine-tuned weights on the base pipeline (fewer steps, less VRAM)
+# FLUX Kontext
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --model "black-forest-labs/FLUX.1-Kontext-dev" \
+    --prompt "add a winter hat" \
+    --steps 28 \
+    --cfg-scale 2.5
+
+# FLUX Kontext with GGUF quantization
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --model "black-forest-labs/FLUX.1-Kontext-dev" \
+    --gguf "https://huggingface.co/user/model/resolve/main/model-Q4_K_S.gguf" \
+    --prompt "add a winter hat" \
+    --cpu-offload
+
+# SDXL img2img
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --model "stabilityai/stable-diffusion-xl-base-1.0" \
+    --prompt "a photo with a red scarf, high quality" \
+    --strength 0.7 \
+    --cfg-scale 7.5 \
+    --steps 30
+
+# Qwen with fine-tuned weights (fewer steps, less VRAM)
 datasety synthetic \
     --input ./dataset \
     --output ./synthetic \
@@ -243,6 +285,89 @@ datasety synthetic \
     --steps 4 \
     --output-format jpg
 ```
+
+### Generate Masks
+
+Generate binary masks from images using text keywords for LoRA training:
+
+```bash
+datasety mask --input ./dataset --output ./masks --keywords "face,hair"
+```
+
+Masks are white (255) for the region of interest and black (0) for ignore. Multiple keywords are combined (union) into a single mask.
+
+**Supported models:**
+
+| Model            | Description                                              |
+| ---------------- | -------------------------------------------------------- |
+| `sam3` (default) | SAM 3 — native text prompting, best quality              |
+| `grounded-sam2`  | Grounding DINO + SAM 2 — most battle-tested              |
+| `clipseg`        | CLIPSeg — lightweight, no extra deps beyond transformers |
+
+**Options:**
+
+| Option             | Description                                              | Default    |
+| ------------------ | -------------------------------------------------------- | ---------- |
+| `--input`, `-i`    | Input directory containing images                        | (required) |
+| `--output`, `-o`   | Output directory for mask images                         | (required) |
+| `--keywords`, `-k` | Comma-separated keywords (e.g., `"face,hair,hat"`)       | (required) |
+| `--model`          | Segmentation model: `sam3`, `grounded-sam2`, `clipseg`   | `sam3`     |
+| `--device`         | `auto`, `cpu`, or `cuda`                                 | `auto`     |
+| `--threshold`      | Confidence threshold (0.0-1.0)                           | `0.3`      |
+| `--padding`        | Pixels to expand mask by (dilation)                      | `0`        |
+| `--blur`           | Gaussian blur radius for mask edges (0=sharp)            | `0`        |
+| `--invert`         | Invert mask (black=ROI, white=ignore)                    | `false`    |
+| `--naming`         | `folder` (same name in output dir) or `suffix` (`_mask`) | `folder`   |
+| `--output-format`  | `png`, `jpg`, `webp`                                     | `png`      |
+| `--dry-run`        | Preview detections without saving masks                  | `false`    |
+
+**Examples:**
+
+```bash
+# SAM 3 (default, best quality)
+datasety mask \
+    --input ./dataset \
+    --output ./masks \
+    --keywords "face,hair" \
+    --device cuda
+
+# CLIPSeg (lightweight, CPU-friendly)
+datasety mask \
+    --input ./dataset \
+    --output ./masks \
+    --keywords "face" \
+    --model clipseg \
+    --threshold 0.5 \
+    --device cpu
+
+# Grounded SAM 2 with mask refinement
+datasety mask \
+    --input ./dataset \
+    --output ./masks \
+    --keywords "hat,glasses" \
+    --model grounded-sam2 \
+    --padding 5 \
+    --blur 3
+
+# Suffix mode (saves masks alongside source images)
+datasety mask \
+    --input ./dataset \
+    --output ./dataset \
+    --keywords "face" \
+    --naming suffix
+
+# Preview without saving
+datasety mask \
+    --input ./dataset \
+    --output ./masks \
+    --keywords "person" \
+    --dry-run
+```
+
+**Output formats:**
+
+- **Folder mode** (default): `./masks/photo.png` for `./dataset/photo.jpg` — use with ai-toolkit `mask_path` folder config
+- **Suffix mode**: `./dataset/photo_mask.png` alongside source images
 
 ## Common Workflows
 
@@ -297,6 +422,15 @@ datasety synthetic \
     --device cuda
 ```
 
+### Generate Masks for Focused LoRA Training
+
+```bash
+# 1. Generate face masks for your dataset
+datasety mask -i ./dataset -o ./masks -k "face" --device cuda
+
+# 2. Use with ai-toolkit: set mask_path to ./masks in your config
+```
+
 ### Batch Process with Numbered Files
 
 ```bash
@@ -314,6 +448,7 @@ datasety resize \
 - Pillow (for resize, align, shuffle)
 - PyTorch + Transformers (for caption: `pip install datasety[caption]`)
 - PyTorch + Diffusers (for synthetic: `pip install datasety[synthetic]`)
+- PyTorch + Transformers + SAM 2 (for mask: `pip install datasety[mask]`)
 
 ## License
 
