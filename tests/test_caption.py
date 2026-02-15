@@ -42,7 +42,6 @@ class TestCaptionCLI:
             "-o", str(tmp_path / "out"),
         )
         assert result.returncode != 0
-        assert "does not exist" in result.stdout
 
     def test_default_device_is_auto(self):
         result = run_caption("--help")

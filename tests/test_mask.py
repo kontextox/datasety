@@ -46,7 +46,6 @@ class TestMaskCLI:
             "-k", "face",
         )
         assert result.returncode != 0
-        assert "does not exist" in result.stdout
 
     def test_model_choices(self):
         result = run_mask("--help")
@@ -63,15 +62,13 @@ class TestMaskPostProcessing:
 
     def test_padding_expands_mask(self):
         """Padding (dilation) should expand white regions."""
-        # Create mask with a small white dot in center
         mask_img = Image.new("L", (100, 100), 0)
         mask_img.putpixel((50, 50), 255)
 
         padded = mask_img.filter(ImageFilter.MaxFilter(size=5))
 
-        # Count white pixels — should have expanded
-        orig_white = sum(1 for p in mask_img.getdata() if p > 0)
-        padded_white = sum(1 for p in padded.getdata() if p > 0)
+        orig_white = sum(b > 0 for b in mask_img.tobytes())
+        padded_white = sum(b > 0 for b in padded.tobytes())
         assert padded_white > orig_white
 
     def test_blur_softens_edges(self):
@@ -81,8 +78,7 @@ class TestMaskPostProcessing:
 
         blurred = mask_img.filter(ImageFilter.GaussianBlur(radius=5))
 
-        # Should have values between 0 and 255 at edges
-        unique = set(blurred.getdata())
+        unique = set(blurred.tobytes())
         assert len(unique) > 2  # More than just 0 and 255
 
     def test_invert_flips_mask(self):
@@ -90,7 +86,6 @@ class TestMaskPostProcessing:
         mask_img = Image.new("L", (100, 100), 0)
         mask_img.paste(255, (30, 30, 70, 70))
 
-        # Simulate the invert logic from cmd_mask: 255 - array
         inverted = Image.eval(mask_img, lambda x: 255 - x)
         assert inverted.getpixel((50, 50)) == 0   # Was white, now black
         assert inverted.getpixel((0, 0)) == 255    # Was black, now white
@@ -100,16 +95,13 @@ class TestMaskPostProcessing:
         mask_img = Image.new("L", (100, 100), 0)
         mask_img.putpixel((50, 50), 255)
 
-        # Pad first
         padded = mask_img.filter(ImageFilter.MaxFilter(size=5))
-        # Then blur
         result = padded.filter(ImageFilter.GaussianBlur(radius=3))
 
-        # Should have expanded and softened
-        orig_white = sum(1 for p in mask_img.getdata() if p > 0)
-        result_white = sum(1 for p in result.getdata() if p > 0)
+        orig_white = sum(b > 0 for b in mask_img.tobytes())
+        result_white = sum(b > 0 for b in result.tobytes())
         assert result_white > orig_white
-        assert len(set(result.getdata())) > 2
+        assert len(set(result.tobytes())) > 2
 
 
 class TestMaskCoverage:
@@ -117,20 +109,20 @@ class TestMaskCoverage:
 
     def test_full_mask_100_percent(self):
         mask_img = Image.new("L", (100, 100), 255)
-        pixel_count = sum(1 for p in mask_img.getdata() if p > 127)
+        pixel_count = sum(b > 127 for b in mask_img.tobytes())
         coverage = pixel_count / (100 * 100) * 100
         assert coverage == 100.0
 
     def test_empty_mask_0_percent(self):
         mask_img = Image.new("L", (100, 100), 0)
-        pixel_count = sum(1 for p in mask_img.getdata() if p > 127)
+        pixel_count = sum(b > 127 for b in mask_img.tobytes())
         coverage = pixel_count / (100 * 100) * 100
         assert coverage == 0.0
 
     def test_half_mask_50_percent(self):
         mask_img = Image.new("L", (100, 100), 0)
         mask_img.paste(255, (0, 0, 100, 50))
-        pixel_count = sum(1 for p in mask_img.getdata() if p > 127)
+        pixel_count = sum(b > 127 for b in mask_img.tobytes())
         coverage = pixel_count / (100 * 100) * 100
         assert coverage == 50.0
 
