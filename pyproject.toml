@@ -84,6 +84,12 @@ path = "src/datasety/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/datasety"]
 
+[tool.pytest.ini_options]
+addopts = "-m 'not gpu'"
+markers = [
+    "gpu: tests that require loading heavy models (run with: pytest -m gpu)",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
