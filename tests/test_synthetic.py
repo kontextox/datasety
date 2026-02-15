@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from PIL import Image
 
-from datasety.cli import _detect_model_family, _run_synthetic_pipeline
+from datasety.cli import _detect_model_family, _resolve_gguf_path, _run_synthetic_pipeline
 
 
 def _torch_available():
@@ -57,6 +57,19 @@ class TestDetectModelFamily:
 
     def test_hunyuan_distil(self):
         assert _detect_model_family("tencent/HunyuanImage-3.0-Distil") == "hunyuan"
+
+    def test_flux2_dev(self):
+        assert _detect_model_family("black-forest-labs/FLUX.2-dev") == "flux2-dev"
+
+    def test_flux2_dev_not_klein(self):
+        """FLUX.2-dev should NOT map to flux2-klein."""
+        assert _detect_model_family("black-forest-labs/FLUX.2-dev") != "flux2-klein"
+
+    def test_firered_maps_to_qwen(self):
+        assert _detect_model_family("FireRedTeam/FireRed-Image-Edit-1.0") == "qwen"
+
+    def test_longcat(self):
+        assert _detect_model_family("meituan-longcat/LongCat-Image-Edit-Turbo") == "longcat"
 
 
 @pytest.mark.skipif(
@@ -185,6 +198,49 @@ class TestRunSyntheticPipelineKwargs:
         _run_synthetic_pipeline(pipeline, "flux-kontext", img, args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert call_kwargs["image"] is img
+
+    def test_flux2_dev_passes_strength(self):
+        pipeline = self._make_pipeline()
+        args = self._make_args(strength=0.6)
+        img = Image.new("RGB", (64, 64))
+        _run_synthetic_pipeline(pipeline, "flux2-dev", img, args, "cpu", False)
+        call_kwargs = pipeline.call_args[1]
+        assert call_kwargs["strength"] == 0.6
+        assert call_kwargs["image"] is img  # not wrapped in list
+
+    def test_longcat_passes_negative_prompt(self):
+        pipeline = self._make_pipeline()
+        args = self._make_args(negative_prompt="ugly, bad")
+        img = Image.new("RGB", (64, 64))
+        _run_synthetic_pipeline(pipeline, "longcat", img, args, "cpu", False)
+        call_kwargs = pipeline.call_args[1]
+        assert call_kwargs["negative_prompt"] == "ugly, bad"
+        assert "true_cfg_scale" not in call_kwargs
+
+    def test_longcat_skips_empty_negative_prompt(self):
+        pipeline = self._make_pipeline()
+        args = self._make_args(negative_prompt="  ")
+        img = Image.new("RGB", (64, 64))
+        _run_synthetic_pipeline(pipeline, "longcat", img, args, "cpu", False)
+        call_kwargs = pipeline.call_args[1]
+        assert "negative_prompt" not in call_kwargs
+
+
+# ── GGUF resolver tests ──
+
+
+class TestResolveGgufPath:
+    """Test _resolve_gguf_path helper."""
+
+    def test_none_returns_none(self):
+        assert _resolve_gguf_path(None) is None
+
+    def test_local_path_unchanged(self):
+        assert _resolve_gguf_path("/tmp/model.gguf") == "/tmp/model.gguf"
+
+    def test_non_hf_url_unchanged(self):
+        url = "https://example.com/model.gguf"
+        assert _resolve_gguf_path(url) == url
 
 
 # ── CLI integration tests (no models) ──

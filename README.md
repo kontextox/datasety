@@ -31,8 +31,10 @@ datasety resize --input ./images --output ./resized --resolution 768x1024
 
 | Option                  | Description                                               | Default             |
 | ----------------------- | --------------------------------------------------------- | ------------------- |
-| `--input`, `-i`         | Input directory                                           | (required)          |
-| `--output`, `-o`        | Output directory                                          | (required)          |
+| `--input`, `-i`         | Input directory                                           | (required\*)        |
+| `--output`, `-o`        | Output directory                                          | (required\*)        |
+| `--input-image`         | Single input image (alternative to `--input`)             |                     |
+| `--output-image`        | Single output image (use with `--input-image`)            |                     |
 | `--resolution`, `-r`    | Target resolution (WIDTHxHEIGHT)                          | (required)          |
 | `--crop-position`       | Crop position: `top`, `center`, `bottom`, `left`, `right` | `center`            |
 | `--input-format`        | Comma-separated formats                                   | `jpg,jpeg,png,webp` |
@@ -49,6 +51,12 @@ datasety resize \
     --crop-position top \
     --output-format jpg \
     --output-name-numbers
+
+# Single-image mode
+datasety resize \
+    --input-image photo.jpg \
+    --output-image resized.jpg \
+    --resolution 512x512
 ```
 
 **How it works:**
@@ -71,8 +79,10 @@ datasety caption --input ./images --output ./captions --florence-2-large
 
 | Option               | Description                                        | Default                   |
 | -------------------- | -------------------------------------------------- | ------------------------- |
-| `--input`, `-i`      | Input directory                                    | (required)                |
-| `--output`, `-o`     | Output directory for .txt files                    | (required)                |
+| `--input`, `-i`      | Input directory                                    | (required\*)              |
+| `--output`, `-o`     | Output directory for .txt files                    | (required\*)              |
+| `--input-image`      | Single input image (alternative to `--input`)      |                           |
+| `--output-caption`   | Single output .txt path (use with `--input-image`) |                           |
 | `--device`           | `auto`, `cpu`, or `cuda`                           | `auto`                    |
 | `--trigger-word`     | Text to prepend to captions                        | (none)                    |
 | `--prompt`           | Florence-2 task prompt                             | `<MORE_DETAILED_CAPTION>` |
@@ -103,6 +113,12 @@ datasety caption \
     --output ./dataset \
     --device cuda \
     --model "microsoft/Florence-2-large"
+
+# Single-image mode
+datasety caption \
+    --input-image photo.jpg \
+    --output-caption photo.txt \
+    --device cuda
 ```
 
 This creates a `.txt` file for each image with the generated caption.
@@ -202,69 +218,98 @@ datasety shuffle -i ./images -o ./captions \
 Generate synthetic variations of images using image editing models:
 
 ```bash
-datasety synthetic --input ./images --output ./synthetic --prompt "add a winter hat"
+datasety synthetic --input ./images --output ./synthetic --prompt "add a winter hat" --steps 4
 ```
 
-The model family is auto-detected from the `--model` name:
+The default model is **FLUX.2-klein** (fast, 8 GB VRAM). The model family is auto-detected from the `--model` name:
 
-| Model Family       | Example Model IDs                      | Key Params                   |
-| ------------------ | -------------------------------------- | ---------------------------- |
-| **Qwen** (default) | `Qwen/Qwen-Image-Edit-2511`            | `--true-cfg-scale`, steps=40 |
-| **FLUX Kontext**   | `black-forest-labs/FLUX.1-Kontext-dev` | steps=28                     |
-| **FLUX.2 klein**   | `black-forest-labs/FLUX.2-klein-9B`    | `--strength`, steps=4        |
-| **SDXL**           | `stabilityai/stable-diffusion-xl-*`    | `--strength`, steps=30       |
-| **HunyuanImage**   | `tencent/HunyuanImage-3.0`             | steps=50                     |
+| Model Family                 | Example Model IDs                          | Key Params                   |
+| ---------------------------- | ------------------------------------------ | ---------------------------- |
+| **FLUX.2 klein** (default)   | `black-forest-labs/FLUX.2-klein-4B`        | `--strength`, steps=4        |
+| **FLUX.2 dev**               | `black-forest-labs/FLUX.2-dev`             | `--strength`, steps=28       |
+| **Qwen**                     | `Qwen/Qwen-Image-Edit-2511`                | `--true-cfg-scale`, steps=40 |
+| **FireRed** (uses Qwen pipe) | `FireRedTeam/FireRed-Image-Edit-1.0`       | `--true-cfg-scale`, steps=40 |
+| **FLUX Kontext**             | `black-forest-labs/FLUX.1-Kontext-dev`     | steps=28                     |
+| **LongCat**                  | `meituan-longcat/LongCat-Image-Edit-Turbo` | steps=50                     |
+| **SDXL**                     | `stabilityai/stable-diffusion-xl-*`        | `--strength`, steps=30       |
+| **HunyuanImage**             | `tencent/HunyuanImage-3.0`                 | steps=50                     |
 
 **Options:**
 
-| Option              | Description                                 | Default                     |
-| ------------------- | ------------------------------------------- | --------------------------- |
-| `--input`, `-i`     | Input directory                             | (required)                  |
-| `--output`, `-o`    | Output directory                            | (required)                  |
-| `--prompt`, `-p`    | Edit prompt                                 | (required)                  |
-| `--model`           | Model to use (auto-detects family)          | `Qwen/Qwen-Image-Edit-2511` |
-| `--weights`         | Fine-tuned weights as `repo_id:filename`    | (none)                      |
-| `--device`          | `auto`, `cpu`, or `cuda`                    | `auto`                      |
-| `--cpu-offload`     | Offload model to CPU when not in use        | `false`                     |
-| `--steps`           | Number of inference steps                   | `40`                        |
-| `--cfg-scale`       | Guidance scale                              | `1.0`                       |
-| `--true-cfg-scale`  | True CFG scale (Qwen only)                  | `4.0`                       |
-| `--negative-prompt` | Negative prompt                             | `" "`                       |
-| `--num-images`      | Images to generate per input                | `1`                         |
-| `--seed`            | Random seed for reproducibility             | (random)                    |
-| `--gguf`            | Path/URL to GGUF file for quantized loading | (none)                      |
-| `--strength`        | Img2img strength for SDXL/FLUX.2 (0.0-1.0)  | `0.7`                       |
-| `--output-format`   | Output format: `png`, `jpg`, `webp`         | `png`                       |
+| Option              | Description                                    | Default                             |
+| ------------------- | ---------------------------------------------- | ----------------------------------- |
+| `--input`, `-i`     | Input directory                                | (required\*)                        |
+| `--output`, `-o`    | Output directory                               | (required\*)                        |
+| `--input-image`     | Single input image (alternative to `--input`)  |                                     |
+| `--output-image`    | Single output image (use with `--input-image`) |                                     |
+| `--prompt`, `-p`    | Edit prompt                                    | (required)                          |
+| `--model`           | Model to use (auto-detects family)             | `black-forest-labs/FLUX.2-klein-4B` |
+| `--weights`         | Fine-tuned weights as `repo_id:filename`       | (none)                              |
+| `--device`          | `auto`, `cpu`, or `cuda`                       | `auto`                              |
+| `--cpu-offload`     | Offload model to CPU when not in use           | `false`                             |
+| `--steps`           | Number of inference steps                      | `40`                                |
+| `--cfg-scale`       | Guidance scale                                 | `1.0`                               |
+| `--true-cfg-scale`  | True CFG scale (Qwen only)                     | `4.0`                               |
+| `--negative-prompt` | Negative prompt                                | `" "`                               |
+| `--num-images`      | Images to generate per input                   | `1`                                 |
+| `--seed`            | Random seed for reproducibility                | (random)                            |
+| `--gguf`            | Path/URL to GGUF file for quantized loading    | (none)                              |
+| `--strength`        | Img2img strength for SDXL/FLUX.2 (0.0-1.0)     | `0.7`                               |
+| `--output-format`   | Output format: `png`, `jpg`, `webp`            | `png`                               |
 
 **Examples:**
 
 ```bash
-# Qwen (default)
+# FLUX.2 klein (default — fast, 8 GB VRAM)
 datasety synthetic \
     --input ./dataset \
     --output ./synthetic \
+    --prompt "add a winter hat" \
+    --steps 4 \
+    --cfg-scale 2.5
+
+# Single-image mode
+datasety synthetic \
+    --input-image photo.jpg \
+    --output-image edited.png \
+    --prompt "add sunglasses" \
+    --steps 4
+
+# FLUX.2 dev (higher quality, 24 GB VRAM)
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --model "black-forest-labs/FLUX.2-dev" \
+    --prompt "add a winter hat" \
+    --strength 0.7 \
+    --steps 28
+
+# Qwen
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --model "Qwen/Qwen-Image-Edit-2511" \
     --prompt "add sunglasses to the person" \
     --device cuda \
     --steps 40 \
     --true-cfg-scale 4.0
 
-# FLUX Kontext
+# FLUX Kontext with GGUF quantization (auto-downloads from HF URL)
 datasety synthetic \
     --input ./dataset \
     --output ./synthetic \
     --model "black-forest-labs/FLUX.1-Kontext-dev" \
-    --prompt "add a winter hat" \
-    --steps 28 \
-    --cfg-scale 2.5
-
-# FLUX Kontext with GGUF quantization
-datasety synthetic \
-    --input ./dataset \
-    --output ./synthetic \
-    --model "black-forest-labs/FLUX.1-Kontext-dev" \
-    --gguf "https://huggingface.co/user/model/resolve/main/model-Q4_K_S.gguf" \
+    --gguf "https://huggingface.co/unsloth/FLUX.1-Kontext-dev-GGUF/resolve/main/flux1-kontext-dev-Q4_K_S.gguf" \
     --prompt "add a winter hat" \
     --cpu-offload
+
+# LongCat
+datasety synthetic \
+    --input ./dataset \
+    --output ./synthetic \
+    --model "meituan-longcat/LongCat-Image-Edit-Turbo" \
+    --prompt "add a winter hat" \
+    --steps 50
 
 # SDXL img2img
 datasety synthetic \
@@ -280,9 +325,10 @@ datasety synthetic \
 datasety synthetic \
     --input ./dataset \
     --output ./synthetic \
+    --model "Qwen/Qwen-Image-Edit-2511" \
     --weights "Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/Qwen-Rapid-AIO-NSFW-v23.safetensors" \
     --prompt "add a winter hat" \
-    --steps 4 \
+    --steps 20 \
     --output-format jpg
 ```
 
@@ -306,20 +352,22 @@ Masks are white (255) for the region of interest and black (0) for ignore. Multi
 
 **Options:**
 
-| Option             | Description                                              | Default    |
-| ------------------ | -------------------------------------------------------- | ---------- |
-| `--input`, `-i`    | Input directory containing images                        | (required) |
-| `--output`, `-o`   | Output directory for mask images                         | (required) |
-| `--keywords`, `-k` | Comma-separated keywords (e.g., `"face,hair,hat"`)       | (required) |
-| `--model`          | Segmentation model: `sam3`, `grounded-sam2`, `clipseg`   | `sam3`     |
-| `--device`         | `auto`, `cpu`, or `cuda`                                 | `auto`     |
-| `--threshold`      | Confidence threshold (0.0-1.0)                           | `0.3`      |
-| `--padding`        | Pixels to expand mask by (dilation)                      | `0`        |
-| `--blur`           | Gaussian blur radius for mask edges (0=sharp)            | `0`        |
-| `--invert`         | Invert mask (black=ROI, white=ignore)                    | `false`    |
-| `--naming`         | `folder` (same name in output dir) or `suffix` (`_mask`) | `folder`   |
-| `--output-format`  | `png`, `jpg`, `webp`                                     | `png`      |
-| `--dry-run`        | Preview detections without saving masks                  | `false`    |
+| Option             | Description                                              | Default      |
+| ------------------ | -------------------------------------------------------- | ------------ |
+| `--input`, `-i`    | Input directory containing images                        | (required\*) |
+| `--output`, `-o`   | Output directory for mask images                         | (required\*) |
+| `--input-image`    | Single input image (alternative to `--input`)            |              |
+| `--output-image`   | Single output mask path (use with `--input-image`)       |              |
+| `--keywords`, `-k` | Comma-separated keywords (e.g., `"face,hair,hat"`)       | (required)   |
+| `--model`          | Segmentation model: `sam3`, `grounded-sam2`, `clipseg`   | `sam3`       |
+| `--device`         | `auto`, `cpu`, or `cuda`                                 | `auto`       |
+| `--threshold`      | Confidence threshold (0.0-1.0)                           | `0.3`        |
+| `--padding`        | Pixels to expand mask by (dilation)                      | `0`          |
+| `--blur`           | Gaussian blur radius for mask edges (0=sharp)            | `0`          |
+| `--invert`         | Invert mask (black=ROI, white=ignore)                    | `false`      |
+| `--naming`         | `folder` (same name in output dir) or `suffix` (`_mask`) | `folder`     |
+| `--output-format`  | `png`, `jpg`, `webp`                                     | `png`        |
+| `--dry-run`        | Preview detections without saving masks                  | `false`      |
 
 **Examples:**
 
@@ -362,6 +410,12 @@ datasety mask \
     --output ./masks \
     --keywords "person" \
     --dry-run
+
+# Single-image mode
+datasety mask \
+    --input-image photo.jpg \
+    --output-image photo_mask.png \
+    --keywords "face,hair"
 ```
 
 **Output formats:**

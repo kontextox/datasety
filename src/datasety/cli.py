@@ -18,6 +18,37 @@ from pathlib import Path
 from PIL import Image
 
 
+def _resolve_io_mode(args):
+    """Resolve directory mode vs single-image mode.
+
+    Returns (image_files, output_path, is_single) where output_path is a
+    directory in dir mode or the explicit output file path in single mode.
+    """
+    has_dir = getattr(args, "input", None) and getattr(args, "output", None)
+    has_single = getattr(args, "input_image", None)
+
+    if has_single:
+        if has_dir and (args.input or args.output):
+            # User supplied both modes — but argparse defaults are empty strings
+            # Only error if they explicitly provided --input/--output too
+            pass
+        input_path = Path(args.input_image)
+        if not input_path.exists():
+            print(f"Error: Input image '{input_path}' does not exist.")
+            sys.exit(1)
+        # Caption uses --output-caption; all others use --output-image
+        raw = getattr(args, "output_image", None) or getattr(args, "output_caption", None)
+        output_path = Path(raw) if raw else None
+        return [input_path], output_path, True
+
+    if not has_dir or not args.input or not args.output:
+        print("Error: Either --input/--output (directory mode) or "
+              "--input-image/--output-image (single-image mode) is required.")
+        sys.exit(1)
+
+    return None, Path(args.output), False
+
+
 def get_image_files(input_dir: Path, formats: list[str]) -> list[Path]:
     """Find all images matching the specified formats."""
     files = []
@@ -82,14 +113,29 @@ def calculate_resize_and_crop(
 
 def cmd_resize(args):
     """Execute the resize command."""
-    input_dir = Path(args.input)
-    output_dir = Path(args.output)
+    single_files, output_path, is_single = _resolve_io_mode(args)
 
-    if not input_dir.exists():
-        print(f"Error: Input directory '{input_dir}' does not exist.")
-        sys.exit(1)
+    if is_single:
+        image_files = single_files
+        output_dir = output_path.parent if output_path else Path(".")
+        output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        input_dir = Path(args.input)
+        output_dir = output_path
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+        if not input_dir.exists():
+            print(f"Error: Input directory '{input_dir}' does not exist.")
+            sys.exit(1)
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Parse input formats
+        formats = [f.strip() for f in args.input_format.split(",")]
+        image_files = get_image_files(input_dir, formats)
+
+        if not image_files:
+            print(f"No images found in '{input_dir}' with formats: {formats}")
+            sys.exit(0)
 
     # Parse resolution
     try:
@@ -97,16 +143,6 @@ def cmd_resize(args):
     except ValueError:
         print(f"Error: Invalid resolution '{args.resolution}'. Use WIDTHxHEIGHT (e.g., 768x1024)")
         sys.exit(1)
-
-    # Parse input formats
-    formats = [f.strip() for f in args.input_format.split(",")]
-
-    # Get image files
-    image_files = get_image_files(input_dir, formats)
-
-    if not image_files:
-        print(f"No images found in '{input_dir}' with formats: {formats}")
-        sys.exit(0)
 
     print(f"Found {len(image_files)} images")
     print(f"Target resolution: {width}x{height}")
@@ -141,12 +177,12 @@ def cmd_resize(args):
                 img_cropped = img_resized.crop(crop_box)
 
                 # Determine output filename
-                if args.output_name_numbers:
-                    out_name = f"{processed + 1}.{args.output_format}"
+                if is_single and output_path:
+                    out_path = output_path
+                elif args.output_name_numbers:
+                    out_path = output_dir / f"{processed + 1}.{args.output_format}"
                 else:
-                    out_name = f"{img_path.stem}.{args.output_format}"
-
-                out_path = output_dir / out_name
+                    out_path = output_dir / f"{img_path.stem}.{args.output_format}"
 
                 # Save with quality settings
                 save_kwargs = {}
@@ -160,7 +196,8 @@ def cmd_resize(args):
 
                 img_cropped.save(out_path, **save_kwargs)
 
-                print(f"[OK] {img_path.name} ({orig_w}x{orig_h}) -> {out_name} ({width}x{height})")
+                print(f"[OK] {img_path.name} ({orig_w}x{orig_h}) "
+                      f"-> {out_path.name} ({width}x{height})")
                 processed += 1
 
         except Exception as e:
@@ -234,14 +271,21 @@ def cmd_caption(args):
         print("Run: pip install torch transformers")
         sys.exit(1)
 
-    input_dir = Path(args.input)
-    output_dir = Path(args.output)
+    single_files, output_path, is_single = _resolve_io_mode(args)
 
-    if not input_dir.exists():
-        print(f"Error: Input directory '{input_dir}' does not exist.")
-        sys.exit(1)
+    if is_single:
+        image_files = single_files
+        output_dir = output_path.parent if output_path else Path(".")
+        output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        input_dir = Path(args.input)
+        output_dir = output_path
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+        if not input_dir.exists():
+            print(f"Error: Input directory '{input_dir}' does not exist.")
+            sys.exit(1)
+
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine model: --model takes priority, then --florence-2-base/--florence-2-large flags
     if args.model:
@@ -279,13 +323,14 @@ def cmd_caption(args):
             print(f"Error loading model: {e}")
             sys.exit(1)
 
-    # Find images (common formats)
-    formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
-    image_files = get_image_files(input_dir, formats)
+    # Find images
+    if not is_single:
+        formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
+        image_files = get_image_files(Path(args.input), formats)
 
-    if not image_files:
-        print(f"No images found in '{input_dir}'")
-        sys.exit(0)
+        if not image_files:
+            print(f"No images found in '{args.input}'")
+            sys.exit(0)
 
     print(f"Found {len(image_files)} images")
     print(f"Prompt: {args.prompt}")
@@ -344,7 +389,10 @@ def cmd_caption(args):
                 if args.trigger_word:
                     caption = f"{args.trigger_word} {caption}"
 
-                caption_path = output_dir / f"{img_path.stem}.txt"
+                if is_single and output_path:
+                    caption_path = output_path
+                else:
+                    caption_path = output_dir / f"{img_path.stem}.txt"
                 caption_path.write_text(caption.strip())
 
                 print(f"[OK] {img_path.name}")
@@ -638,9 +686,11 @@ def cmd_shuffle(args):
 
 
 _MODEL_VRAM_GB = {
-    "qwen": 32,
-    "flux-kontext": 33,
+    "qwen": 32,          # ~31 GB peak with offload; needs sequential offload on 32 GB
+    "flux-kontext": 33,   # ~33 GB non-offloaded; triggers offload on 32 GB cards
     "flux2-klein": 8,
+    "flux2-dev": 24,
+    "longcat": 18,
     "sdxl": 7,
     "hunyuan": 48,
 }
@@ -651,13 +701,42 @@ def _detect_model_family(model_name: str) -> str:
     name_lower = model_name.lower()
     if "kontext" in name_lower:
         return "flux-kontext"
-    if "flux.2" in name_lower or "flux2" in name_lower or "klein" in name_lower:
+    if "klein" in name_lower:
         return "flux2-klein"
+    if "flux.2" in name_lower or "flux2" in name_lower:
+        if "dev" in name_lower:
+            return "flux2-dev"
+        return "flux2-klein"
+    if "longcat" in name_lower:
+        return "longcat"
+    if "firered" in name_lower:
+        return "qwen"
     if "stable-diffusion-xl" in name_lower or "sdxl" in name_lower:
         return "sdxl"
     if "hunyuan" in name_lower:
         return "hunyuan"
     return "qwen"
+
+
+def _resolve_gguf_path(gguf_path):
+    """Resolve a GGUF path: local paths pass through, HF URLs are downloaded."""
+    import re
+
+    if gguf_path is None:
+        return None
+    if not gguf_path.startswith(("https://", "http://")):
+        return gguf_path
+    # Match HF URL: https://huggingface.co/{org}/{repo}/(resolve|blob)/{rev}/{path}
+    m = re.match(
+        r"https?://huggingface\.co/([^/]+/[^/]+)/(?:resolve|blob)/([^/]+)/(.+)",
+        gguf_path,
+    )
+    if not m:
+        return gguf_path
+    repo_id, revision, filename = m.group(1), m.group(2), m.group(3)
+    from huggingface_hub import hf_hub_download
+    print(f"Downloading GGUF: {repo_id} / {filename} (rev={revision})")
+    return hf_hub_download(repo_id, filename, revision=revision)
 
 
 def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path, cpu_offload):
@@ -712,6 +791,24 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
             importlib.invalidate_caches()
             from diffusers import Flux2KleinPipeline
         pipeline = Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
+
+    elif family == "flux2-dev":
+        kwargs = {"torch_dtype": torch_dtype}
+        if gguf_path:
+            from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
+            transformer = Flux2Transformer2DModel.from_single_file(
+                gguf_path,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+            )
+            kwargs["transformer"] = transformer
+        from diffusers import Flux2Pipeline
+        pipeline = Flux2Pipeline.from_pretrained(model_name, **kwargs)
+
+    elif family == "longcat":
+        from diffusers import LongCatImageEditPipeline
+        pipeline = LongCatImageEditPipeline.from_pretrained(
+            model_name, torch_dtype=torch_dtype
+        )
 
     elif family == "sdxl":
         from diffusers import StableDiffusionXLImg2ImgPipeline
@@ -778,12 +875,19 @@ def _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload):
         gen_kwargs["guidance_scale"] = args.cfg_scale
 
     elif family == "flux2-klein":
+        gen_kwargs["image"] = [image]
         gen_kwargs["guidance_scale"] = args.cfg_scale
-        if "Img2Img" in type(pipeline).__name__:
-            gen_kwargs["image"] = image
-            gen_kwargs["strength"] = args.strength
-        else:
-            gen_kwargs["image"] = [image]
+
+    elif family == "flux2-dev":
+        gen_kwargs["image"] = image
+        gen_kwargs["guidance_scale"] = args.cfg_scale
+        gen_kwargs["strength"] = args.strength
+
+    elif family == "longcat":
+        gen_kwargs["image"] = image
+        gen_kwargs["guidance_scale"] = args.cfg_scale
+        if args.negative_prompt and args.negative_prompt.strip():
+            gen_kwargs["negative_prompt"] = args.negative_prompt
 
     elif family == "sdxl":
         gen_kwargs["image"] = image
@@ -812,14 +916,21 @@ def cmd_synthetic(args):
         print("Run: pip install 'datasety[synthetic]'")
         sys.exit(1)
 
-    input_dir = Path(args.input)
-    output_dir = Path(args.output)
+    single_files, output_path, is_single = _resolve_io_mode(args)
 
-    if not input_dir.exists():
-        print(f"Error: Input directory '{input_dir}' does not exist.")
-        sys.exit(1)
+    if is_single:
+        image_files = single_files
+        output_dir = output_path.parent if output_path else Path(".")
+        output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        input_dir = Path(args.input)
+        output_dir = output_path
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+        if not input_dir.exists():
+            print(f"Error: Input directory '{input_dir}' does not exist.")
+            sys.exit(1)
+
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine device
     if args.device == "auto":
@@ -851,10 +962,12 @@ def cmd_synthetic(args):
     else:
         cpu_offload = args.cpu_offload
 
+    gguf_path = _resolve_gguf_path(getattr(args, "gguf", None))
+
     try:
         pipeline = _load_synthetic_pipeline(
             args.model, family, device, torch_dtype,
-            getattr(args, "gguf", None), cpu_offload,
+            gguf_path, cpu_offload,
         )
     except ImportError as e:
         print(f"Error: Missing dependency for {family} pipeline: {e}")
@@ -933,12 +1046,13 @@ def cmd_synthetic(args):
             print("Weights injected successfully")
 
     # Find images
-    formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
-    image_files = get_image_files(input_dir, formats)
+    if not is_single:
+        formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
+        image_files = get_image_files(Path(args.input), formats)
 
-    if not image_files:
-        print(f"No images found in '{input_dir}'")
-        sys.exit(0)
+        if not image_files:
+            print(f"No images found in '{args.input}'")
+            sys.exit(0)
 
     print(f"Found {len(image_files)} images")
     print(f"Prompt: {args.prompt}")
@@ -960,12 +1074,13 @@ def cmd_synthetic(args):
 
             # Save output image(s)
             for idx, out_img in enumerate(output.images):
-                if args.num_images > 1:
-                    out_name = f"{img_path.stem}_{idx + 1}.{out_ext}"
+                if is_single and output_path:
+                    out_path = output_path
+                elif args.num_images > 1:
+                    out_path = output_dir / f"{img_path.stem}_{idx + 1}.{out_ext}"
                 else:
-                    out_name = f"{img_path.stem}.{out_ext}"
+                    out_path = output_dir / f"{img_path.stem}.{out_ext}"
 
-                out_path = output_dir / out_name
                 out_img.save(out_path)
 
             print(f"[OK] {img_path.name} -> {len(output.images)} image(s)")
@@ -994,7 +1109,7 @@ def _load_mask_model_sam3(device, torch_dtype):
             primary, torch_dtype=torch_dtype,
         ).to(device).eval()
         return model, processor
-    except (OSError, Exception) as e:
+    except Exception as e:
         print(f"Could not load {primary} ({e}), falling back to {fallback}")
     processor = Sam3Processor.from_pretrained(fallback)
     model = Sam3Model.from_pretrained(
@@ -1004,7 +1119,11 @@ def _load_mask_model_sam3(device, torch_dtype):
 
 
 def _load_mask_model_grounded_sam2(device, torch_dtype):
-    """Load Grounding DINO + SAM 2 for grounded segmentation."""
+    """Load Grounding DINO + SAM 2 for grounded segmentation.
+
+    Note: torch_dtype is accepted for API consistency but both models are
+    loaded in float32 to avoid dtype mismatches with processor outputs.
+    """
     from transformers import (
         AutoModelForZeroShotObjectDetection,
         AutoProcessor,
@@ -1012,7 +1131,9 @@ def _load_mask_model_grounded_sam2(device, torch_dtype):
         Sam2Processor,
     )
 
-    # Load in float32 to avoid dtype mismatches with processor outputs
+    # Load both models in float32: the processor outputs float32 tensors and
+    # mixed-precision (float16 model + float32 inputs) causes dtype errors in
+    # Grounding DINO's cross-attention layers.
     dino_id = "IDEA-Research/grounding-dino-base"
     dino_processor = AutoProcessor.from_pretrained(dino_id)
     dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
@@ -1092,7 +1213,9 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     ).to(device)
     with torch.no_grad():
         sam2_outputs = sam2_model(**sam2_inputs)
-    # Threshold and resize pred_masks directly (post_process_masks API is unreliable)
+    # Process pred_masks directly instead of sam2_processor.post_process_masks(),
+    # which requires a 'reshaped_input_sizes' key that Sam2Processor doesn't
+    # always include in its output (depends on image dimensions).
     pred_masks = sam2_outputs.pred_masks.cpu().numpy()
     # Flatten to list of 2D masks regardless of batch/channel dimensions
     # pred_masks can be (B, N, C, H, W), (N, C, H, W), (N, H, W), etc.
@@ -1139,15 +1262,22 @@ def cmd_mask(args):
         print("Run: pip install 'datasety[mask]'")
         sys.exit(1)
 
-    input_dir = Path(args.input)
-    output_dir = Path(args.output) if args.naming == "folder" else input_dir
+    single_files, output_path_resolved, is_single = _resolve_io_mode(args)
 
-    if not input_dir.exists():
-        print(f"Error: Input directory '{input_dir}' does not exist.")
-        sys.exit(1)
-
-    if args.naming == "folder":
+    if is_single:
+        image_files = single_files
+        output_dir = output_path_resolved.parent if output_path_resolved else Path(".")
         output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        input_dir = Path(args.input)
+        output_dir = Path(args.output) if args.naming == "folder" else input_dir
+
+        if not input_dir.exists():
+            print(f"Error: Input directory '{input_dir}' does not exist.")
+            sys.exit(1)
+
+        if args.naming == "folder":
+            output_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine device
     if args.device == "auto":
@@ -1195,12 +1325,13 @@ def cmd_mask(args):
         sys.exit(1)
 
     # Find images
-    formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
-    image_files = get_image_files(input_dir, formats)
+    if not is_single:
+        formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
+        image_files = get_image_files(Path(args.input), formats)
 
-    if not image_files:
-        print(f"No images found in '{input_dir}'")
-        sys.exit(0)
+        if not image_files:
+            print(f"No images found in '{args.input}'")
+            sys.exit(0)
 
     print(f"Found {len(image_files)} images")
     print("-" * 50)
@@ -1251,10 +1382,12 @@ def cmd_mask(args):
                 mask_array = 255 - mask_array
 
             # Determine output path
-            if args.naming == "folder":
+            if is_single and output_path_resolved:
+                out_path = output_path_resolved
+            elif args.naming == "folder":
                 out_path = output_dir / f"{img_path.stem}.{out_fmt}"
             else:
-                out_path = input_dir / f"{img_path.stem}_mask.{out_fmt}"
+                out_path = Path(args.input) / f"{img_path.stem}_mask.{out_fmt}"
 
             pixel_count = int(np.sum(mask_array > 127))
             coverage = pixel_count / (w * h) * 100
@@ -1297,13 +1430,23 @@ def main():
     )
     resize_parser.add_argument(
         "--input", "-i",
-        required=True,
+        default="",
         help="Input directory containing images"
     )
     resize_parser.add_argument(
         "--output", "-o",
-        required=True,
+        default="",
         help="Output directory for processed images"
+    )
+    resize_parser.add_argument(
+        "--input-image",
+        default=None,
+        help="Single input image path (alternative to --input dir)"
+    )
+    resize_parser.add_argument(
+        "--output-image",
+        default=None,
+        help="Single output image path (use with --input-image)"
     )
     resize_parser.add_argument(
         "--resolution", "-r",
@@ -1341,13 +1484,23 @@ def main():
     )
     caption_parser.add_argument(
         "--input", "-i",
-        required=True,
+        default="",
         help="Input directory containing images"
     )
     caption_parser.add_argument(
         "--output", "-o",
-        required=True,
+        default="",
         help="Output directory for caption text files"
+    )
+    caption_parser.add_argument(
+        "--input-image",
+        default=None,
+        help="Single input image path (alternative to --input dir)"
+    )
+    caption_parser.add_argument(
+        "--output-caption",
+        default=None,
+        help="Single output .txt path (use with --input-image)"
     )
     caption_parser.add_argument(
         "--device",
@@ -1475,13 +1628,23 @@ def main():
     )
     synthetic_parser.add_argument(
         "--input", "-i",
-        required=True,
+        default="",
         help="Input directory containing images"
     )
     synthetic_parser.add_argument(
         "--output", "-o",
-        required=True,
+        default="",
         help="Output directory for generated images"
+    )
+    synthetic_parser.add_argument(
+        "--input-image",
+        default=None,
+        help="Single input image path (alternative to --input dir)"
+    )
+    synthetic_parser.add_argument(
+        "--output-image",
+        default=None,
+        help="Single output image path (use with --input-image)"
     )
     synthetic_parser.add_argument(
         "--prompt", "-p",
@@ -1490,8 +1653,8 @@ def main():
     )
     synthetic_parser.add_argument(
         "--model",
-        default="Qwen/Qwen-Image-Edit-2511",
-        help="Model to use (default: Qwen/Qwen-Image-Edit-2511)"
+        default="black-forest-labs/FLUX.2-klein-4B",
+        help="Model to use (default: black-forest-labs/FLUX.2-klein-4B)"
     )
     synthetic_parser.add_argument(
         "--weights",
@@ -1571,13 +1734,23 @@ def main():
     )
     mask_parser.add_argument(
         "--input", "-i",
-        required=True,
+        default="",
         help="Input directory containing images"
     )
     mask_parser.add_argument(
         "--output", "-o",
-        required=True,
+        default="",
         help="Output directory for mask images"
+    )
+    mask_parser.add_argument(
+        "--input-image",
+        default=None,
+        help="Single input image path (alternative to --input dir)"
+    )
+    mask_parser.add_argument(
+        "--output-image",
+        default=None,
+        help="Single output mask path (use with --input-image)"
     )
     mask_parser.add_argument(
         "--keywords", "-k",

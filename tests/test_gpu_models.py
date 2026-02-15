@@ -11,9 +11,11 @@ GPU model tests — run on a server with 24-32 GB VRAM.
 VRAM budget (peak per test, bf16/fp16):
 
     Caption  | Florence-2-base       |  ~1 GB
-    Synthetic| Qwen-Image-Edit       | ~16 GB
-    Synthetic| FLUX.1-Kontext-dev    | ~24 GB  (auto cpu-offload, gated model)
+    Synthetic| Qwen-Image-Edit       | ~32 GB  (auto sequential cpu-offload)
+    Synthetic| FLUX.1-Kontext-dev    | ~33 GB  (auto cpu-offload, gated model)
     Synthetic| FLUX.2-klein-4B       |  ~8 GB
+    Synthetic| FLUX.2-dev            | ~24 GB
+    Synthetic| LongCat               | ~18 GB
     Synthetic| SDXL base             |  ~7 GB
     Synthetic| HunyuanImage          |  SKIPPED (needs 48 GB)
     Mask     | CLIPSeg               |  ~0.5 GB
@@ -21,7 +23,7 @@ VRAM budget (peak per test, bf16/fp16):
     Mask     | SAM 3                 |  ~5 GB  (gated model)
 
 Gated models (FLUX Kontext, SAM 3) require:
-    huggingface-cli login
+    hf auth login
     # then accept the license on the model page
 """
 
@@ -132,12 +134,12 @@ class TestCaptionFlorence2:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  SYNTHETIC — Qwen (~16 GB VRAM)
+#  SYNTHETIC — Qwen (~32 GB VRAM)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSyntheticQwen:
-    """Qwen/Qwen-Image-Edit-2511 (~16 GB bf16)."""
+    """Qwen/Qwen-Image-Edit-2511 (~32 GB bf16, auto sequential cpu-offload)."""
 
     def test_qwen_generates_image(self, tmp_path):
         input_dir, output_dir = make_test_images(tmp_path, n=1)
@@ -210,16 +212,16 @@ class TestSyntheticQwen:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  SYNTHETIC — FLUX Kontext (~24 GB VRAM, gated model)
+#  SYNTHETIC — FLUX Kontext (~33 GB VRAM, gated model)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSyntheticFluxKontext:
-    """black-forest-labs/FLUX.1-Kontext-dev (~24 GB bf16, auto cpu-offload).
+    """black-forest-labs/FLUX.1-Kontext-dev (~33 GB bf16, auto cpu-offload).
 
     This model is GATED — you must accept the license at
     https://huggingface.co/black-forest-labs/FLUX.1-Kontext-dev
-    and run: huggingface-cli login
+    and run: hf auth login
     """
 
     def test_flux_kontext_generates_image(self, tmp_path):
@@ -565,7 +567,7 @@ class TestMaskSAM3:
     """facebook/sam3 (~5 GB). Gated — requires Meta access approval.
 
     Request access at: https://huggingface.co/facebook/sam3
-    Then: huggingface-cli login
+    Then: hf auth login
     """
 
     def test_sam3_generates_mask(self, tmp_path):
