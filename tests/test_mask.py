@@ -3,7 +3,6 @@
 import subprocess
 import sys
 
-import numpy as np
 import pytest
 from PIL import Image, ImageFilter
 
@@ -56,83 +55,82 @@ class TestMaskCLI:
         assert "clipseg" in result.stdout
 
 
-# ── Post-processing tests (no models) ──
+# ── Post-processing tests (no models, no numpy) ──
 
 
 class TestMaskPostProcessing:
-    """Test mask post-processing: padding, blur, invert."""
+    """Test mask post-processing: padding, blur, invert using only Pillow."""
 
     def test_padding_expands_mask(self):
         """Padding (dilation) should expand white regions."""
         # Create mask with a small white dot in center
-        mask = np.zeros((100, 100), dtype=np.uint8)
-        mask[50, 50] = 255
+        mask_img = Image.new("L", (100, 100), 0)
+        mask_img.putpixel((50, 50), 255)
 
-        mask_img = Image.fromarray(mask, mode="L")
         padded = mask_img.filter(ImageFilter.MaxFilter(size=5))
-        padded_arr = np.array(padded)
 
-        # The dot should have expanded
-        assert np.sum(padded_arr > 0) > np.sum(mask > 0)
+        # Count white pixels — should have expanded
+        orig_white = sum(1 for p in mask_img.getdata() if p > 0)
+        padded_white = sum(1 for p in padded.getdata() if p > 0)
+        assert padded_white > orig_white
 
     def test_blur_softens_edges(self):
         """Blur should create intermediate values at edges."""
-        mask = np.zeros((100, 100), dtype=np.uint8)
-        mask[30:70, 30:70] = 255
+        mask_img = Image.new("L", (100, 100), 0)
+        mask_img.paste(255, (30, 30, 70, 70))
 
-        mask_img = Image.fromarray(mask, mode="L")
         blurred = mask_img.filter(ImageFilter.GaussianBlur(radius=5))
-        blurred_arr = np.array(blurred)
 
         # Should have values between 0 and 255 at edges
-        unique = np.unique(blurred_arr)
+        unique = set(blurred.getdata())
         assert len(unique) > 2  # More than just 0 and 255
 
     def test_invert_flips_mask(self):
         """Invert should swap black and white."""
-        mask = np.zeros((100, 100), dtype=np.uint8)
-        mask[30:70, 30:70] = 255
+        mask_img = Image.new("L", (100, 100), 0)
+        mask_img.paste(255, (30, 30, 70, 70))
 
-        inverted = 255 - mask
-        assert inverted[50, 50] == 0  # Was white, now black
-        assert inverted[0, 0] == 255  # Was black, now white
+        # Simulate the invert logic from cmd_mask: 255 - array
+        inverted = Image.eval(mask_img, lambda x: 255 - x)
+        assert inverted.getpixel((50, 50)) == 0   # Was white, now black
+        assert inverted.getpixel((0, 0)) == 255    # Was black, now white
 
     def test_padding_then_blur_order(self):
         """Padding should be applied before blur (matches cmd_mask logic)."""
-        mask = np.zeros((100, 100), dtype=np.uint8)
-        mask[50, 50] = 255
+        mask_img = Image.new("L", (100, 100), 0)
+        mask_img.putpixel((50, 50), 255)
 
         # Pad first
-        mask_img = Image.fromarray(mask, mode="L")
         padded = mask_img.filter(ImageFilter.MaxFilter(size=5))
         # Then blur
         result = padded.filter(ImageFilter.GaussianBlur(radius=3))
-        result_arr = np.array(result)
 
         # Should have expanded and softened
-        assert np.sum(result_arr > 0) > np.sum(mask > 0)
-        assert len(np.unique(result_arr)) > 2
+        orig_white = sum(1 for p in mask_img.getdata() if p > 0)
+        result_white = sum(1 for p in result.getdata() if p > 0)
+        assert result_white > orig_white
+        assert len(set(result.getdata())) > 2
 
 
 class TestMaskCoverage:
     """Test mask coverage calculation."""
 
     def test_full_mask_100_percent(self):
-        mask = np.full((100, 100), 255, dtype=np.uint8)
-        pixel_count = int(np.sum(mask > 127))
+        mask_img = Image.new("L", (100, 100), 255)
+        pixel_count = sum(1 for p in mask_img.getdata() if p > 127)
         coverage = pixel_count / (100 * 100) * 100
         assert coverage == 100.0
 
     def test_empty_mask_0_percent(self):
-        mask = np.zeros((100, 100), dtype=np.uint8)
-        pixel_count = int(np.sum(mask > 127))
+        mask_img = Image.new("L", (100, 100), 0)
+        pixel_count = sum(1 for p in mask_img.getdata() if p > 127)
         coverage = pixel_count / (100 * 100) * 100
         assert coverage == 0.0
 
     def test_half_mask_50_percent(self):
-        mask = np.zeros((100, 100), dtype=np.uint8)
-        mask[:50, :] = 255
-        pixel_count = int(np.sum(mask > 127))
+        mask_img = Image.new("L", (100, 100), 0)
+        mask_img.paste(255, (0, 0, 100, 50))
+        pixel_count = sum(1 for p in mask_img.getdata() if p > 127)
         coverage = pixel_count / (100 * 100) * 100
         assert coverage == 50.0
 
@@ -141,12 +139,9 @@ class TestMaskOutputNaming:
     """Test folder vs suffix naming modes."""
 
     def test_folder_naming(self, tmp_path):
-        input_dir = tmp_path / "input"
         output_dir = tmp_path / "masks"
-        input_dir.mkdir()
         output_dir.mkdir()
 
-        # Simulate the naming logic from cmd_mask
         img_stem = "photo001"
         out_fmt = "png"
         out_path = output_dir / f"{img_stem}.{out_fmt}"
@@ -194,11 +189,11 @@ class TestMaskWithCLIPSeg:
     """Tests that load CLIPSeg model. Run with: pytest -m gpu"""
 
     def test_clipseg_generates_masks(self, tmp_path):
+
         input_dir = tmp_path / "images"
         output_dir = tmp_path / "masks"
         input_dir.mkdir()
 
-        # Create test images
         make_image(input_dir / "001.jpg", 256, 256)
         make_image(input_dir / "002.jpg", 256, 256)
 
@@ -213,7 +208,6 @@ class TestMaskWithCLIPSeg:
         masks = list(output_dir.glob("*.png"))
         assert len(masks) == 2
 
-        # Masks should be same dimensions as input
         with Image.open(masks[0]) as mask:
             assert mask.size == (256, 256)
             assert mask.mode == "L"
@@ -234,7 +228,6 @@ class TestMaskWithCLIPSeg:
         )
         assert result.returncode == 0
         assert "DRY RUN" in result.stdout
-        # Output dir should not be created or should be empty
         masks = list(output_dir.glob("*.png")) if output_dir.exists() else []
         assert len(masks) == 0
 
@@ -255,13 +248,14 @@ class TestMaskWithCLIPSeg:
         assert (input_dir / "photo_mask.png").exists()
 
     def test_clipseg_invert(self, tmp_path):
+        import numpy as np
+
         input_dir = tmp_path / "images"
         output_dir = tmp_path / "masks"
         output_dir_inv = tmp_path / "masks_inv"
         input_dir.mkdir()
         make_image(input_dir / "001.jpg", 128, 128, color=(255, 0, 0))
 
-        # Normal
         run_mask(
             "-i", str(input_dir),
             "-o", str(output_dir),
@@ -269,7 +263,6 @@ class TestMaskWithCLIPSeg:
             "--model", "clipseg",
             "--device", "cpu",
         )
-        # Inverted
         run_mask(
             "-i", str(input_dir),
             "-o", str(output_dir_inv),
@@ -281,7 +274,6 @@ class TestMaskWithCLIPSeg:
 
         normal = np.array(Image.open(output_dir / "001.png"))
         inverted = np.array(Image.open(output_dir_inv / "001.png"))
-        # They should sum to 255 at every pixel
         assert np.allclose(normal.astype(int) + inverted.astype(int), 255)
 
     def test_clipseg_with_padding_and_blur(self, tmp_path):
