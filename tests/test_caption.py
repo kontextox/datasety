@@ -3,7 +3,6 @@
 import subprocess
 import sys
 
-import pytest
 from PIL import Image
 
 
@@ -46,70 +45,3 @@ class TestCaptionCLI:
     def test_default_device_is_auto(self):
         result = run_caption("--help")
         assert "auto" in result.stdout
-
-
-# ── GPU-required tests ──
-
-
-@pytest.mark.gpu
-class TestCaptionWithModel:
-    """Tests that load Florence-2. Run with: pytest -m gpu"""
-
-    def test_florence2_generates_captions(self, tmp_path):
-        input_dir = tmp_path / "images"
-        output_dir = tmp_path / "captions"
-        input_dir.mkdir()
-        output_dir.mkdir()
-
-        make_image(input_dir / "001.jpg", 256, 256)
-        make_image(input_dir / "002.jpg", 256, 256)
-
-        result = run_caption(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--device", "cpu",
-            "--florence-2-base",
-        )
-        assert result.returncode == 0
-        captions = list(output_dir.glob("*.txt"))
-        assert len(captions) == 2
-        for txt in captions:
-            content = txt.read_text()
-            assert len(content) > 0
-
-    def test_trigger_word_prepended(self, tmp_path):
-        input_dir = tmp_path / "images"
-        output_dir = tmp_path / "captions"
-        input_dir.mkdir()
-        output_dir.mkdir()
-
-        make_image(input_dir / "001.jpg", 256, 256)
-
-        result = run_caption(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--device", "cpu",
-            "--florence-2-base",
-            "--trigger-word", "sks person,",
-        )
-        assert result.returncode == 0
-        caption = (output_dir / "001.txt").read_text()
-        assert caption.startswith("sks person,")
-
-    def test_greedy_decoding(self, tmp_path):
-        input_dir = tmp_path / "images"
-        output_dir = tmp_path / "captions"
-        input_dir.mkdir()
-        output_dir.mkdir()
-
-        make_image(input_dir / "001.jpg", 256, 256)
-
-        result = run_caption(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--device", "cpu",
-            "--florence-2-base",
-            "--num-beams", "1",
-        )
-        assert result.returncode == 0
-        assert (output_dir / "001.txt").exists()

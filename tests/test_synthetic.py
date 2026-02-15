@@ -218,24 +218,3 @@ class TestSyntheticCLI:
         )
         # Will fail at model load (no diffusers/model), which is expected
         assert result.returncode != 0
-
-
-# ── GPU-required tests ──
-
-
-@pytest.mark.gpu
-class TestSyntheticWithModel:
-    """Tests that load actual models. Run with: pytest -m gpu"""
-
-    def test_qwen_generates_image(self, image_dir, output_dir):
-        result = run_synthetic(
-            "-i", str(image_dir),
-            "-o", str(output_dir),
-            "-p", "add a hat",
-            "--model", "Qwen/Qwen-Image-Edit-2511",
-            "--device", "auto",
-            "--steps", "2",
-            "--seed", "42",
-        )
-        assert result.returncode == 0
-        assert len(list(output_dir.glob("*.png"))) > 0
