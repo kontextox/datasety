@@ -28,9 +28,10 @@ Gated models (FLUX Kontext, SAM 3) require:
 import subprocess
 import sys
 
-import numpy as np
 import pytest
-from PIL import Image
+
+np = pytest.importorskip("numpy")
+Image = pytest.importorskip("PIL.Image")
 
 pytestmark = pytest.mark.gpu
 
