@@ -705,6 +705,11 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
                 sys.executable, "-m", "pip", "install", "-q",
                 "git+https://github.com/huggingface/diffusers.git",
             ])
+            # Clear cached diffusers modules so the upgraded version is loaded
+            import importlib
+            for _key in [k for k in sys.modules if k.startswith("diffusers")]:
+                del sys.modules[_key]
+            importlib.invalidate_caches()
             from diffusers import Flux2KleinPipeline
         pipeline = Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
 
