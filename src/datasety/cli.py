@@ -707,6 +707,11 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
                     quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
                 )
                 kwargs["transformer"] = transformer
+            # FLUX.2-klein only has 5 components; provide None for missing ones
+            kwargs.setdefault("text_encoder_2", None)
+            kwargs.setdefault("tokenizer_2", None)
+            kwargs.setdefault("image_encoder", None)
+            kwargs.setdefault("feature_extractor", None)
             pipeline = FluxImg2ImgPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "sdxl":
@@ -1001,16 +1006,17 @@ def _load_mask_model_grounded_sam2(device, torch_dtype):
         Sam2Processor,
     )
 
+    # Load in float32 to avoid dtype mismatches with processor outputs
     dino_id = "IDEA-Research/grounding-dino-base"
     dino_processor = AutoProcessor.from_pretrained(dino_id)
     dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
-        dino_id, torch_dtype=torch_dtype,
+        dino_id,
     ).to(device).eval()
 
     sam2_id = "facebook/sam2-hiera-large"
     sam2_processor = Sam2Processor.from_pretrained(sam2_id)
     sam2_model = Sam2Model.from_pretrained(
-        sam2_id, torch_dtype=torch_dtype,
+        sam2_id,
     ).to(device).eval()
     return (dino_model, dino_processor, sam2_model, sam2_processor)
 
@@ -1060,10 +1066,6 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     # Grounding DINO: detect boxes for all keywords at once
     text = ". ".join(keywords) + "."
     inputs = dino_processor(images=image, text=text, return_tensors="pt").to(device)
-    # Cast float tensors to match model dtype (processor outputs float32)
-    for key in inputs:
-        if inputs[key].is_floating_point():
-            inputs[key] = inputs[key].to(dino_model.dtype)
     with torch.no_grad():
         outputs = dino_model(**inputs)
 
@@ -1082,9 +1084,6 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     sam2_inputs = sam2_processor(
         images=image, input_boxes=[boxes.tolist()], return_tensors="pt",
     ).to(device)
-    for key in sam2_inputs:
-        if sam2_inputs[key].is_floating_point():
-            sam2_inputs[key] = sam2_inputs[key].to(sam2_model.dtype)
     with torch.no_grad():
         sam2_outputs = sam2_model(**sam2_inputs)
     masks = sam2_processor.post_process_masks(
