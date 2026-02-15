@@ -687,7 +687,6 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         pipeline = FluxKontextPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "flux2-klein":
-        from diffusers import DiffusionPipeline
         kwargs = {"torch_dtype": torch_dtype}
         if gguf_path:
             from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
@@ -696,7 +695,30 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
             )
             kwargs["transformer"] = transformer
-        pipeline = DiffusionPipeline.from_pretrained(model_name, **kwargs)
+        # Flux2KleinPipeline may not be a top-level export in all diffusers versions
+        _Flux2KleinPipeline = None
+        try:
+            from diffusers import Flux2KleinPipeline as _Flux2KleinPipeline
+        except ImportError:
+            import importlib
+            for _submod in [
+                "diffusers.pipelines.flux2_klein",
+                "diffusers.pipelines.flux2_klein.pipeline_flux2_klein",
+                "diffusers.pipelines.flux2",
+                "diffusers.pipelines.flux2.pipeline_flux2_klein",
+            ]:
+                try:
+                    _mod = importlib.import_module(_submod)
+                    _Flux2KleinPipeline = getattr(_mod, "Flux2KleinPipeline", None)
+                    if _Flux2KleinPipeline is not None:
+                        break
+                except ImportError:
+                    continue
+        if _Flux2KleinPipeline is None:
+            raise ImportError(
+                "Flux2KleinPipeline not found. Try: pip install -U diffusers"
+            )
+        pipeline = _Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "sdxl":
         from diffusers import StableDiffusionXLImg2ImgPipeline
@@ -721,7 +743,7 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
 
     if cpu_offload:
         import torch
-        total_gb = torch.cuda.get_device_properties(0).total_mem / (1024 ** 3)
+        total_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
         needed_gb = _MODEL_VRAM_GB.get(family, 16)
         if needed_gb >= total_gb:
             pipeline.enable_sequential_cpu_offload()
@@ -1078,13 +1100,12 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     with torch.no_grad():
         sam2_outputs = sam2_model(**sam2_inputs)
     # Threshold and resize pred_masks directly (post_process_masks API is unreliable)
-    pred_masks = sam2_outputs.pred_masks.cpu()
-    if pred_masks.ndim == 4:
-        pred_masks = pred_masks.squeeze(0)
-    for mask in pred_masks:
-        m = (mask.numpy() > 0).astype(np.uint8) * 255
-        if m.ndim == 3:
-            m = m[0]
+    pred_masks = sam2_outputs.pred_masks.cpu().numpy()
+    # Flatten to list of 2D masks regardless of batch/channel dimensions
+    # pred_masks can be (B, N, C, H, W), (N, C, H, W), (N, H, W), etc.
+    flat = pred_masks.reshape(-1, pred_masks.shape[-2], pred_masks.shape[-1])
+    for m in flat:
+        m = (m > 0).astype(np.uint8) * 255
         if m.shape != (h, w):
             m = np.array(Image.fromarray(m).resize((w, h), Image.NEAREST))
         combined = np.maximum(combined, m)
