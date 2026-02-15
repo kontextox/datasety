@@ -687,32 +687,16 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         pipeline = FluxKontextPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "flux2-klein":
+        from diffusers import DiffusionPipeline
         kwargs = {"torch_dtype": torch_dtype}
-        try:
-            from diffusers import Flux2KleinPipeline
-            if gguf_path:
-                from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
-                transformer = Flux2Transformer2DModel.from_single_file(
-                    gguf_path,
-                    quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
-                )
-                kwargs["transformer"] = transformer
-            pipeline = Flux2KleinPipeline.from_pretrained(model_name, **kwargs)
-        except ImportError:
-            from diffusers import FluxImg2ImgPipeline
-            if gguf_path:
-                from diffusers import FluxTransformer2DModel, GGUFQuantizationConfig
-                transformer = FluxTransformer2DModel.from_single_file(
-                    gguf_path,
-                    quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
-                )
-                kwargs["transformer"] = transformer
-            # FLUX.2-klein only has 5 components; provide None for missing ones
-            kwargs.setdefault("text_encoder_2", None)
-            kwargs.setdefault("tokenizer_2", None)
-            kwargs.setdefault("image_encoder", None)
-            kwargs.setdefault("feature_extractor", None)
-            pipeline = FluxImg2ImgPipeline.from_pretrained(model_name, **kwargs)
+        if gguf_path:
+            from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
+            transformer = Flux2Transformer2DModel.from_single_file(
+                gguf_path,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+            )
+            kwargs["transformer"] = transformer
+        pipeline = DiffusionPipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "sdxl":
         from diffusers import StableDiffusionXLImg2ImgPipeline
@@ -736,8 +720,15 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         raise ValueError(f"Unknown model family: {family}")
 
     if cpu_offload:
-        pipeline.enable_model_cpu_offload()
-        print("Model CPU offload enabled")
+        import torch
+        total_gb = torch.cuda.get_device_properties(0).total_mem / (1024 ** 3)
+        needed_gb = _MODEL_VRAM_GB.get(family, 16)
+        if needed_gb >= total_gb:
+            pipeline.enable_sequential_cpu_offload()
+            print("Sequential CPU offload enabled")
+        else:
+            pipeline.enable_model_cpu_offload()
+            print("Model CPU offload enabled")
     else:
         pipeline.to(device)
     pipeline.set_progress_bar_config(disable=False)
@@ -1086,17 +1077,17 @@ def _segment_grounded_sam2(models, image, keywords, threshold, device):
     ).to(device)
     with torch.no_grad():
         sam2_outputs = sam2_model(**sam2_inputs)
-    masks = sam2_processor.post_process_masks(
-        sam2_outputs.pred_masks,
-        sam2_inputs["original_sizes"],
-        sam2_inputs["reshaped_input_sizes"],
-    )
-    for mask_set in masks:
-        for mask in mask_set:
-            m = mask.cpu().numpy()
-            if m.ndim == 3:
-                m = m[0]
-            combined = np.maximum(combined, (m > 0).astype(np.uint8) * 255)
+    # Threshold and resize pred_masks directly (post_process_masks API is unreliable)
+    pred_masks = sam2_outputs.pred_masks.cpu()
+    if pred_masks.ndim == 4:
+        pred_masks = pred_masks.squeeze(0)
+    for mask in pred_masks:
+        m = (mask.numpy() > 0).astype(np.uint8) * 255
+        if m.ndim == 3:
+            m = m[0]
+        if m.shape != (h, w):
+            m = np.array(Image.fromarray(m).resize((w, h), Image.NEAREST))
+        combined = np.maximum(combined, m)
 
     return combined
 
