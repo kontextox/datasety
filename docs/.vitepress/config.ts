@@ -16,7 +16,7 @@ export default defineConfig({
         content: "Creating a AI dataset for LoRA/Fine-tuning (deep learning)",
       },
     ],
-    ["link", { rel: "icon", href: "favicon.ico" }],
+    ["link", { rel: "icon", href: "/favicon.ico" }],
   ],
 
   themeConfig: {

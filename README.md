@@ -8,7 +8,7 @@
 
 CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, and multi-step workflows.
 
-[Full documentation →](https://kontextox.github.io/datasety/commands/workflow)
+[Full documentation →](https://kontextox.github.io/datasety/)
 
 ## Installation
 
