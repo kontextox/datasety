@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-datasety - dataset preparation: resize, align, caption, shuffle, synthetic, mask, degrade, character, workflow.
+datasety - resize, align, caption, shuffle, synthetic, mask, degrade, character, workflow.
 
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
