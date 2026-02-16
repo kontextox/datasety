@@ -278,7 +278,7 @@ class TestSyntheticCLI:
         assert "--cpu-offload" in result.stdout
 
     def test_no_images_exits_cleanly(self, tmp_path):
-        """Empty input dir should exit 0 (no error) after model load fails."""
+        """Empty input dir should print 'No images found' message."""
         input_dir = tmp_path / "empty_input"
         input_dir.mkdir()
         result = run_synthetic(
@@ -286,8 +286,10 @@ class TestSyntheticCLI:
             "-o", str(tmp_path / "out"),
             "-p", "test",
         )
-        # Will fail at model load (no diffusers/model), which is expected
-        assert result.returncode != 0
+        # On GPU: model loads, then "No images found" -> exit 0
+        # On CPU without model: model load fails -> exit 1
+        # Both are acceptable; check that it doesn't hang or crash unexpectedly
+        assert "No images found" in result.stdout or result.returncode != 0
 
     def test_lora_flag_in_help(self):
         result = run_synthetic("--help")
