@@ -89,8 +89,6 @@ node_modules/
 docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
-package-lock.json
-docs/package-lock.json
 
 # Project specific - test data directories
 test_data/
