@@ -1,8 +1,14 @@
+<center>
+
 # datasety
+
+<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/mascot.png" width="120">
 
 [![PyPI](https://img.shields.io/pypi/v/datasety)](https://pypi.org/project/datasety/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
+</center>
 
 CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, and multi-step workflows.
 
@@ -35,17 +41,17 @@ datasety resize --input ./raw --output ./resized --resolution 768x1024 --crop-po
 <details>
 <summary>Options</summary>
 
-| Option                  | Description                                               | Default             |
-| ----------------------- | --------------------------------------------------------- | ------------------- |
-| `--input`, `-i`         | Input directory                                           | required*           |
-| `--output`, `-o`        | Output directory                                          | required*           |
-| `--input-image`         | Single input image (alternative to dir mode)              |                     |
-| `--output-image`        | Single output image (use with `--input-image`)            |                     |
-| `--resolution`, `-r`    | Target resolution (`WIDTHxHEIGHT`)                        | required            |
-| `--crop-position`       | `top`, `center`, `bottom`, `left`, `right`                | `center`            |
-| `--input-format`        | Comma-separated input formats                             | `jpg,jpeg,png,webp` |
-| `--output-format`       | `jpg`, `png`, `webp`                                      | `jpg`               |
-| `--output-name-numbers` | Rename output files to 1.jpg, 2.jpg, ...                  | off                 |
+| Option                  | Description                                    | Default             |
+| ----------------------- | ---------------------------------------------- | ------------------- |
+| `--input`, `-i`         | Input directory                                | required\*          |
+| `--output`, `-o`        | Output directory                               | required\*          |
+| `--input-image`         | Single input image (alternative to dir mode)   |                     |
+| `--output-image`        | Single output image (use with `--input-image`) |                     |
+| `--resolution`, `-r`    | Target resolution (`WIDTHxHEIGHT`)             | required            |
+| `--crop-position`       | `top`, `center`, `bottom`, `left`, `right`     | `center`            |
+| `--input-format`        | Comma-separated input formats                  | `jpg,jpeg,png,webp` |
+| `--output-format`       | `jpg`, `png`, `webp`                           | `jpg`               |
+| `--output-name-numbers` | Rename output files to 1.jpg, 2.jpg, ...       | off                 |
 
 </details>
 
@@ -74,22 +80,22 @@ datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
 <details>
 <summary>Options</summary>
 
-| Option               | Description                                          | Default                   |
-| -------------------- | ---------------------------------------------------- | ------------------------- |
-| `--input`, `-i`      | Input directory                                      | required*                 |
-| `--output`, `-o`     | Output directory for .txt files                      | required*                 |
-| `--input-image`      | Single input image                                   |                           |
-| `--output-caption`   | Single output .txt path                              |                           |
-| `--device`           | `auto`, `cpu`, `cuda`                                | `auto`                    |
-| `--trigger-word`     | Text to prepend to each caption                      |                           |
-| `--prompt`           | Florence-2 task prompt                               | `<MORE_DETAILED_CAPTION>` |
-| `--model`            | HF model name or API model ID                        |                           |
-| `--num-beams`        | Beam search width (1 = greedy)                       | `3`                       |
-| `--florence-2-base`  | Use Florence-2-base (0.23B, faster)                  | default                   |
-| `--florence-2-large` | Use Florence-2-large (0.77B, more accurate)          |                           |
-| `--llm-api`          | Use OpenAI-compatible vision API                     |                           |
-| `--max-tokens`       | Max response tokens (API mode)                       | `300`                     |
-| `--temperature`      | Temperature (API mode)                               | `0.3`                     |
+| Option               | Description                                 | Default                   |
+| -------------------- | ------------------------------------------- | ------------------------- |
+| `--input`, `-i`      | Input directory                             | required\*                |
+| `--output`, `-o`     | Output directory for .txt files             | required\*                |
+| `--input-image`      | Single input image                          |                           |
+| `--output-caption`   | Single output .txt path                     |                           |
+| `--device`           | `auto`, `cpu`, `cuda`                       | `auto`                    |
+| `--trigger-word`     | Text to prepend to each caption             |                           |
+| `--prompt`           | Florence-2 task prompt                      | `<MORE_DETAILED_CAPTION>` |
+| `--model`            | HF model name or API model ID               |                           |
+| `--num-beams`        | Beam search width (1 = greedy)              | `3`                       |
+| `--florence-2-base`  | Use Florence-2-base (0.23B, faster)         | default                   |
+| `--florence-2-large` | Use Florence-2-large (0.77B, more accurate) |                           |
+| `--llm-api`          | Use OpenAI-compatible vision API            |                           |
+| `--max-tokens`       | Max response tokens (API mode)              | `300`                     |
+| `--temperature`      | Temperature (API mode)                      | `0.3`                     |
 
 </details>
 
@@ -118,13 +124,13 @@ datasety align --target ./target --control ./control --dry-run
 <details>
 <summary>Options</summary>
 
-| Option            | Description                                | Default         |
-| ----------------- | ------------------------------------------ | --------------- |
-| `--target`, `-t`  | Target images directory                    | required        |
-| `--control`, `-c` | Control images directory                   | required        |
-| `--multiple-of`   | Align dimensions to this multiple          | `32`            |
-| `--output-format` | Convert all images: `jpg`, `png`, `webp`   | keep original   |
-| `--dry-run`       | Preview changes without modifying files    | off             |
+| Option            | Description                              | Default       |
+| ----------------- | ---------------------------------------- | ------------- |
+| `--target`, `-t`  | Target images directory                  | required      |
+| `--control`, `-c` | Control images directory                 | required      |
+| `--multiple-of`   | Align dimensions to this multiple        | `32`          |
+| `--output-format` | Convert all images: `jpg`, `png`, `webp` | keep original |
+| `--dry-run`       | Preview changes without modifying files  | off           |
 
 </details>
 
@@ -153,15 +159,15 @@ datasety shuffle -i ./images -o ./captions \
 <details>
 <summary>Options</summary>
 
-| Option                | Description                                     | Default  |
-| --------------------- | ----------------------------------------------- | -------- |
-| `--input`, `-i`       | Input directory containing images               | required |
-| `--output`, `-o`      | Output directory for .txt files                 | required |
-| `--group`, `-g`       | Inline `\|`-separated, `.txt` file, or URL      | required |
-| `--separator`         | Separator between groups                        | `" "`    |
-| `--seed`              | Random seed for reproducibility                 |          |
-| `--dry-run`           | Preview captions without writing                | off      |
-| `--show-distribution` | Show caption distribution after generation      | off      |
+| Option                | Description                                | Default  |
+| --------------------- | ------------------------------------------ | -------- |
+| `--input`, `-i`       | Input directory containing images          | required |
+| `--output`, `-o`      | Output directory for .txt files            | required |
+| `--group`, `-g`       | Inline `\|`-separated, `.txt` file, or URL | required |
+| `--separator`         | Separator between groups                   | `" "`    |
+| `--seed`              | Random seed for reproducibility            |          |
+| `--dry-run`           | Preview captions without writing           | off      |
+| `--show-distribution` | Show caption distribution after generation | off      |
 
 </details>
 
@@ -190,27 +196,27 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 <details>
 <summary>Options</summary>
 
-| Option              | Description                                | Default                             |
-| ------------------- | ------------------------------------------ | ----------------------------------- |
-| `--input`, `-i`     | Input directory                            | required*                           |
-| `--output`, `-o`    | Output directory                           | required*                           |
-| `--input-image`     | Single input image                         |                                     |
-| `--output-image`    | Single output image                        |                                     |
-| `--prompt`, `-p`    | Edit instruction                           | required                            |
-| `--model`           | Model (auto-detects family)                | `black-forest-labs/FLUX.2-klein-4B` |
-| `--weights`         | Fine-tuned weights file                    |                                     |
-| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)       |                                     |
-| `--device`          | `auto`, `cpu`, `cuda`                      | `auto`                              |
-| `--cpu-offload`     | Force CPU offload                          | auto                                |
-| `--steps`           | Inference steps                            | `40`                                |
-| `--cfg-scale`       | Guidance scale                             | `1.0`                               |
-| `--true-cfg-scale`  | True CFG (Qwen only)                       | `4.0`                               |
-| `--negative-prompt` | Negative prompt                            | `" "`                               |
-| `--num-images`      | Images per input                           | `1`                                 |
-| `--seed`            | Random seed                                |                                     |
-| `--gguf`            | GGUF path/URL for quantized loading        |                                     |
-| `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0)   | `0.7`                               |
-| `--output-format`   | `png`, `jpg`, `webp`                       | `png`                               |
+| Option              | Description                             | Default                             |
+| ------------------- | --------------------------------------- | ----------------------------------- |
+| `--input`, `-i`     | Input directory                         | required\*                          |
+| `--output`, `-o`    | Output directory                        | required\*                          |
+| `--input-image`     | Single input image                      |                                     |
+| `--output-image`    | Single output image                     |                                     |
+| `--prompt`, `-p`    | Edit instruction                        | required                            |
+| `--model`           | Model (auto-detects family)             | `black-forest-labs/FLUX.2-klein-4B` |
+| `--weights`         | Fine-tuned weights file                 |                                     |
+| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)    |                                     |
+| `--device`          | `auto`, `cpu`, `cuda`                   | `auto`                              |
+| `--cpu-offload`     | Force CPU offload                       | auto                                |
+| `--steps`           | Inference steps                         | `40`                                |
+| `--cfg-scale`       | Guidance scale                          | `1.0`                               |
+| `--true-cfg-scale`  | True CFG (Qwen only)                    | `4.0`                               |
+| `--negative-prompt` | Negative prompt                         | `" "`                               |
+| `--num-images`      | Images per input                        | `1`                                 |
+| `--seed`            | Random seed                             |                                     |
+| `--gguf`            | GGUF path/URL for quantized loading     |                                     |
+| `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0) | `0.7`                               |
+| `--output-format`   | `png`, `jpg`, `webp`                    | `png`                               |
 
 </details>
 
@@ -243,22 +249,22 @@ datasety mask --input ./dataset --output ./masks --keywords "face,hair" --device
 <details>
 <summary>Options</summary>
 
-| Option             | Description                                  | Default      |
-| ------------------ | -------------------------------------------- | ------------ |
-| `--input`, `-i`    | Input directory                              | required*    |
-| `--output`, `-o`   | Output directory for masks                   | required*    |
-| `--input-image`    | Single input image                           |              |
-| `--output-image`   | Single output mask                           |              |
-| `--keywords`, `-k` | Comma-separated keywords                     | required     |
-| `--model`          | `sam3`, `grounded-sam2`, `clipseg`            | `sam3`       |
-| `--device`         | `auto`, `cpu`, `cuda`                        | `auto`       |
-| `--threshold`      | Confidence threshold (0.0-1.0)               | `0.3`        |
-| `--padding`        | Pixels to expand mask (dilation)             | `0`          |
-| `--blur`           | Gaussian blur radius for edges               | `0`          |
-| `--invert`         | Invert mask colors                           | off          |
-| `--naming`         | `folder` or `suffix` (`_mask`)               | `folder`     |
-| `--output-format`  | `png`, `jpg`, `webp`                         | `png`        |
-| `--dry-run`        | Preview detections without saving            | off          |
+| Option             | Description                        | Default    |
+| ------------------ | ---------------------------------- | ---------- |
+| `--input`, `-i`    | Input directory                    | required\* |
+| `--output`, `-o`   | Output directory for masks         | required\* |
+| `--input-image`    | Single input image                 |            |
+| `--output-image`   | Single output mask                 |            |
+| `--keywords`, `-k` | Comma-separated keywords           | required   |
+| `--model`          | `sam3`, `grounded-sam2`, `clipseg` | `sam3`     |
+| `--device`         | `auto`, `cpu`, `cuda`              | `auto`     |
+| `--threshold`      | Confidence threshold (0.0-1.0)     | `0.3`      |
+| `--padding`        | Pixels to expand mask (dilation)   | `0`        |
+| `--blur`           | Gaussian blur radius for edges     | `0`        |
+| `--invert`         | Invert mask colors                 | off        |
+| `--naming`         | `folder` or `suffix` (`_mask`)     | `folder`   |
+| `--output-format`  | `png`, `jpg`, `webp`               | `png`      |
+| `--dry-run`        | Preview detections without saving  | off        |
 
 </details>
 
@@ -287,20 +293,20 @@ datasety degrade --input ./originals --output ./dataset --type random --intensit
 <details>
 <summary>Options</summary>
 
-| Option              | Description                                    | Default      |
-| ------------------- | ---------------------------------------------- | ------------ |
-| `--input`, `-i`     | Input directory                                | required*    |
-| `--output`, `-o`    | Output directory                               | required*    |
-| `--input-image`     | Single input image                             |              |
-| `--output-image`    | Single output image                            |              |
-| `--type`, `-t`      | Degradation type(s), repeatable                | `random`     |
-| `--intensity`       | Global intensity (0.0-1.0)                     | `0.5`        |
-| `--intensity-range` | Random range `MIN-MAX`                         |              |
-| `--chain`           | Apply multiple types sequentially              | off          |
-| `--num-variants`    | Variants per input image                       | `1`          |
-| `--paired`          | Create `control/` + `target/` subdirs          | off          |
-| `--seed`            | Random seed                                    |              |
-| `--output-format`   | `png`, `jpg`, `webp`                           | `png`        |
+| Option              | Description                           | Default    |
+| ------------------- | ------------------------------------- | ---------- |
+| `--input`, `-i`     | Input directory                       | required\* |
+| `--output`, `-o`    | Output directory                      | required\* |
+| `--input-image`     | Single input image                    |            |
+| `--output-image`    | Single output image                   |            |
+| `--type`, `-t`      | Degradation type(s), repeatable       | `random`   |
+| `--intensity`       | Global intensity (0.0-1.0)            | `0.5`      |
+| `--intensity-range` | Random range `MIN-MAX`                |            |
+| `--chain`           | Apply multiple types sequentially     | off        |
+| `--num-variants`    | Variants per input image              | `1`        |
+| `--paired`          | Create `control/` + `target/` subdirs | off        |
+| `--seed`            | Random seed                           |            |
+| `--output-format`   | `png`, `jpg`, `webp`                  | `png`      |
 
 **Degradation types:** `lowres`, `oversharpen`, `noise`, `blur`, `jpeg`, `motion-blur`, `pixelate`, `color-bands`, `upscale-sim`, `random`
 
@@ -381,10 +387,10 @@ datasety workflow --file datasety.yaml --dry-run
 <details>
 <summary>Options</summary>
 
-| Option         | Description                                     | Default     |
-| -------------- | ----------------------------------------------- | ----------- |
-| `--file`, `-f` | Path to workflow file                           | auto-detect |
-| `--dry-run`    | Validate steps without executing                | off         |
+| Option         | Description                      | Default     |
+| -------------- | -------------------------------- | ----------- |
+| `--file`, `-f` | Path to workflow file            | auto-detect |
+| `--dry-run`    | Validate steps without executing | off         |
 
 </details>
 

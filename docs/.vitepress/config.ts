@@ -1,8 +1,7 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  title:
-    "datasety - creating a AI dataset for LoRA/Fine-tuning (deep learning)",
+  title: "datasety",
   description:
     "CLI tool for dataset preparation: resize, caption, align, shuffle, synthetic, mask, degrade, character, workflow",
   base: "/datasety/",
@@ -12,7 +11,10 @@ export default defineConfig({
     ["meta", { name: "og:title", content: "datasety" }],
     [
       "meta",
-      { name: "og:description", content: "CLI tool for dataset preparation" },
+      {
+        name: "og:description",
+        content: "Creating a AI dataset for LoRA/Fine-tuning (deep learning)",
+      },
     ],
   ],
 

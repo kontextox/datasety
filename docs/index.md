@@ -3,10 +3,10 @@ layout: home
 
 hero:
   name: ~# datasety
-  text: Dataset - is easy!
+  text: Dataset - it's easy!
   tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, degrade, and automate with workflows.
   image:
-    src: /my-hero-image.png 
+    src: mascot.png
     alt: Full dataset pipeline
   actions:
     - theme: brand
