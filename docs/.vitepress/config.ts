@@ -1,0 +1,96 @@
+import { defineConfig } from "vitepress";
+
+export default defineConfig({
+  title:
+    "datasety - creating a AI dataset for LoRA/Fine-tuning (deep learning)",
+  description:
+    "CLI tool for dataset preparation: resize, caption, align, shuffle, synthetic, mask, degrade, character, workflow",
+  base: "/datasety/",
+  head: [
+    ["meta", { name: "theme-color", content: "#5b7ee5" }],
+    ["meta", { name: "og:type", content: "website" }],
+    ["meta", { name: "og:title", content: "datasety" }],
+    [
+      "meta",
+      { name: "og:description", content: "CLI tool for dataset preparation" },
+    ],
+  ],
+
+  themeConfig: {
+    logo: undefined,
+
+    nav: [
+      { text: "Guide", link: "/getting-started" },
+      {
+        text: "Commands",
+        items: [
+          { text: "resize", link: "/commands/resize" },
+          { text: "caption", link: "/commands/caption" },
+          { text: "align", link: "/commands/align" },
+          { text: "shuffle", link: "/commands/shuffle" },
+          { text: "synthetic", link: "/commands/synthetic" },
+          { text: "mask", link: "/commands/mask" },
+          { text: "degrade", link: "/commands/degrade" },
+          { text: "character", link: "/commands/character" },
+          { text: "workflow", link: "/commands/workflow" },
+        ],
+      },
+      { text: "Workflows", link: "/workflows" },
+    ],
+
+    sidebar: {
+      "/": [
+        {
+          text: "Guide",
+          items: [
+            { text: "Getting Started", link: "/getting-started" },
+            { text: "Workflows", link: "/workflows" },
+          ],
+        },
+        {
+          text: "Image Processing",
+          collapsed: false,
+          items: [
+            { text: "resize", link: "/commands/resize" },
+            { text: "caption", link: "/commands/caption" },
+            { text: "align", link: "/commands/align" },
+            { text: "mask", link: "/commands/mask" },
+            { text: "degrade", link: "/commands/degrade" },
+          ],
+        },
+        {
+          text: "Generation",
+          collapsed: false,
+          items: [
+            { text: "synthetic", link: "/commands/synthetic" },
+            { text: "character", link: "/commands/character" },
+            { text: "shuffle", link: "/commands/shuffle" },
+          ],
+        },
+        {
+          text: "Automation",
+          collapsed: false,
+          items: [{ text: "workflow", link: "/commands/workflow" }],
+        },
+      ],
+    },
+
+    socialLinks: [
+      { icon: "github", link: "https://github.com/kontextox/datasety" },
+    ],
+
+    footer: {
+      message: "Released under the MIT License.",
+      copyright: "Copyright KontextoX",
+    },
+
+    search: {
+      provider: "local",
+    },
+
+    editLink: {
+      pattern: "https://github.com/kontextox/datasety/edit/main/docs/:path",
+      text: "Edit this page on GitHub",
+    },
+  },
+});

@@ -3,7 +3,7 @@
 
 import pytest
 
-from datasety.cli import calculate_resize_and_crop
+from datasety.resize import calculate_resize_and_crop
 
 
 class TestCalculateResizeAndCrop:

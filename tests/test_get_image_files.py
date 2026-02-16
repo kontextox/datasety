@@ -2,7 +2,7 @@
 
 from PIL import Image
 
-from datasety.cli import get_image_files
+from datasety.common import get_image_files
 
 
 class TestGetImageFiles:

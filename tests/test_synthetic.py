@@ -8,7 +8,13 @@ from unittest.mock import MagicMock
 import pytest
 from PIL import Image
 
-from datasety.cli import _detect_model_family, _resolve_gguf_path, _run_synthetic_pipeline
+from datasety.common import _resolve_hf_file
+from datasety.synthetic import (
+    _detect_model_family,
+    _parse_lora_spec,
+    _resolve_gguf_path,
+    _run_synthetic_pipeline,
+)
 
 
 def _torch_available():
@@ -282,3 +288,94 @@ class TestSyntheticCLI:
         )
         # Will fail at model load (no diffusers/model), which is expected
         assert result.returncode != 0
+
+    def test_lora_flag_in_help(self):
+        result = run_synthetic("--help")
+        assert "--lora" in result.stdout
+
+
+# ── LoRA spec parsing tests ──
+
+
+class TestParseLoraSpec:
+    """Test _parse_lora_spec helper."""
+
+    def test_path_only(self):
+        path, weight = _parse_lora_spec("adapter.safetensors")
+        assert path == "adapter.safetensors"
+        assert weight == 1.0
+
+    def test_path_with_weight(self):
+        path, weight = _parse_lora_spec("adapter.safetensors:0.8")
+        assert path == "adapter.safetensors"
+        assert weight == 0.8
+
+    def test_url_no_weight(self):
+        url = "https://huggingface.co/user/repo/resolve/main/lora.safetensors"
+        path, weight = _parse_lora_spec(url)
+        assert path == url
+        assert weight == 1.0
+
+    def test_url_with_weight(self):
+        url = "https://huggingface.co/user/repo/resolve/main/lora.safetensors"
+        path, weight = _parse_lora_spec(f"{url}:0.5")
+        assert path == url
+        assert weight == 0.5
+
+    def test_hf_repo_id_with_weight(self):
+        """repo_id alone looks like 'user/repo' — no colon, so weight=1.0."""
+        path, weight = _parse_lora_spec("user/repo")
+        assert path == "user/repo"
+        assert weight == 1.0
+
+    def test_local_path_with_zero_weight(self):
+        path, weight = _parse_lora_spec("/tmp/lora.safetensors:0.0")
+        assert path == "/tmp/lora.safetensors"
+        assert weight == 0.0
+
+    def test_blob_url_with_weight(self):
+        url = "https://huggingface.co/user/repo/blob/main/lora.safetensors"
+        path, weight = _parse_lora_spec(f"{url}:0.7")
+        assert path == url
+        assert weight == 0.7
+
+
+# ── HF file resolver tests ──
+
+
+class TestResolveHfFile:
+    """Test _resolve_hf_file helper."""
+
+    def test_none_returns_none(self):
+        assert _resolve_hf_file(None) is None
+
+    def test_local_path_unchanged(self):
+        assert _resolve_hf_file("/tmp/model.safetensors") == "/tmp/model.safetensors"
+
+    def test_non_hf_url_unchanged(self):
+        url = "https://example.com/model.safetensors"
+        assert _resolve_hf_file(url) == url
+
+    def test_blob_url_pattern_recognized(self):
+        """Blob URLs should be recognized (download tested separately)."""
+        import re
+        url = "https://huggingface.co/user/repo/blob/main/file.safetensors"
+        m = re.match(
+            r"https?://huggingface\.co/([^/]+/[^/]+)/(?:resolve|blob)/([^/]+)/(.+)",
+            url,
+        )
+        assert m is not None
+        assert m.group(1) == "user/repo"
+        assert m.group(2) == "main"
+        assert m.group(3) == "file.safetensors"
+
+    def test_resolve_url_pattern_recognized(self):
+        """Resolve URLs should be recognized."""
+        import re
+        url = "https://huggingface.co/user/repo/resolve/main/file.gguf"
+        m = re.match(
+            r"https?://huggingface\.co/([^/]+/[^/]+)/(?:resolve|blob)/([^/]+)/(.+)",
+            url,
+        )
+        assert m is not None
+        assert m.group(3) == "file.gguf"

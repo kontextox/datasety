@@ -79,9 +79,18 @@ logs/
 *.ckpt
 *.safetensors
 *.bin
+*.gguf
 .cache/
 huggingface/
 ~/.cache/huggingface/
+
+# Node.js / VitePress docs
+node_modules/
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+package-lock.json
+docs/package-lock.json
 
 # Project specific - test data directories
 test_data/
@@ -92,3 +101,6 @@ tests/fixtures/images/
 /captions/
 /resized/
 /dataset/
+/masks/
+/augmented/
+/character_raw/
