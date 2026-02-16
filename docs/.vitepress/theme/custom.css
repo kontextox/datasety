@@ -1,0 +1,17 @@
+.VPHero .image {
+  position: relative;
+}
+
+.VPHero .image::before {
+  content: "";
+  position: absolute;
+  inset: -60px;
+  background: radial-gradient(
+    circle,
+    rgba(100, 200, 255, 0.4) 0%,
+    rgba(100, 200, 255, 0.2) 30%,
+    transparent 70%
+  );
+  filter: blur(60px);
+  z-index: -1;
+}

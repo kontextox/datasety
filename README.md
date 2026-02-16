@@ -1,16 +1,14 @@
-<center>
-
 # datasety
 
-<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/mascot.png" width="120">
+<img align="right" src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/mascot.png" alt="CLI tool for dataset preparation" width="120" />
 
 [![PyPI](https://img.shields.io/pypi/v/datasety)](https://pypi.org/project/datasety/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-</center>
-
 CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, and multi-step workflows.
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/workflow)
 
 ## Installation
 
