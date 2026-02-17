@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, and multi-step workflows.
+CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, LoRA training, and multi-step workflows.
 
 [Full documentation →](https://kontextox.github.io/datasety/)
 
@@ -19,6 +19,7 @@ pip install datasety[synthetic]      # + image editing (FLUX, Qwen, SDXL)
 pip install datasety[mask]           # + segmentation masks (SAM 3, CLIPSeg)
 pip install datasety[character]      # + character dataset generation
 pip install datasety[workflow]       # + YAML workflow support
+pip install datasety[synthetic]      # + LoRA training (FLUX, SDXL)
 pip install datasety[all]            # everything
 ```
 
@@ -189,7 +190,7 @@ datasety shuffle -i ./images -o ./captions \
 
 ### `synthetic` — Synthetic Image Editing
 
-Generate synthetic variations using image editing models (FLUX, Qwen, SDXL, LongCat, HunyuanImage).
+Generate synthetic variations using image editing models (FLUX.2-klein FP8, Qwen, SDXL, LongCat, HunyuanImage). The default model `FLUX.2-klein-4b-fp8` requires no HuggingFace token and fits in ~5 GB VRAM.
 
 <!-- screenshot: synthetic -->
 
@@ -207,7 +208,7 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 | `--input-image`     | Single input image                       |                                     |
 | `--output-image`    | Single output image                      |                                     |
 | `--prompt`, `-p`    | Edit instruction                         | required                            |
-| `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4B` |
+| `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4b-fp8` |
 | `--image-api`       | Use OpenAI-compatible API for generation | off                                 |
 | `--weights`         | Fine-tuned weights file                  |                                     |
 | `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     |                                     |
@@ -355,7 +356,7 @@ datasety character --output ./dataset --llm-ollama llama3.2 --num-images 20
 | `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                     |
 | `--output`, `-o`          | Output directory                                   | required                            |
 | `--num-images`, `-n`      | Number of images to generate                       | `10`                                |
-| `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4B` |
+| `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4b-fp8` |
 | `--gguf`                  | GGUF path/URL for quantized loading                |                                     |
 | `--image-api`             | Use OpenAI-compatible API for image generation     | off                                 |
 | `--character-description` | Text description of the character                  |                                     |
@@ -434,6 +435,68 @@ datasety sweep -i ./images -o ./sweep -p "add a hat" --steps 4,8 --cfg-scale 2.0
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/sweep)
+
+---
+
+### `train` — LoRA Fine-Tuning
+
+Train a LoRA adapter for image generation models from a local dataset of image + caption pairs. Supports **FLUX.2-klein** (flow-matching) and **SDXL** (DDPM).
+
+> **Use the base (undistilled) model for training.** Distilled models (`FLUX.2-klein-4B`) are for inference only. Use `FLUX.2-klein-base-4B` for LoRA training.
+
+<!-- screenshot: train -->
+
+```bash
+datasety train --input ./dataset --output lora.safetensors --steps 500
+```
+
+<details>
+<summary>Options</summary>
+
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `--input`, `-i` | Dataset directory (images + `.txt` captions) | required |
+| `--output`, `-o` | Output LoRA `.safetensors` path | `lora.safetensors` |
+| `--model`, `-m` | HuggingFace base model repo ID | `black-forest-labs/FLUX.2-klein-base-4B` |
+| `--family` | Model family: `flux`, `sdxl`, `qwen` | auto-detected |
+| `--steps` | Number of training steps | `100` |
+| `--lr` | Learning rate | `1e-4` |
+| `--lora-rank` | LoRA rank (4–64) | `16` |
+| `--lora-alpha` | LoRA alpha | `16.0` |
+| `--lora-dropout` | LoRA dropout rate | `0.0` |
+| `--image-size` | Training resolution (square crop) | `512` |
+| `--device` | `auto`, `cpu`, `cuda`, `mps` | `auto` |
+| `--seed` | Random seed | `42` |
+| `--save-every` | Save checkpoint every N steps | end only |
+
+</details>
+
+```bash
+# Prepare dataset
+datasety resize -i ./raw -o ./dataset -r 512x512
+datasety caption -i ./dataset -o ./dataset --trigger-word "ohwx person,"
+
+# Train FLUX.2-klein LoRA (~8 GB VRAM)
+datasety train \
+    --input ./dataset \
+    --output lora/flux_lora.safetensors \
+    --model black-forest-labs/FLUX.2-klein-base-4B \
+    --steps 500 --lr 1e-4 --lora-rank 16
+
+# Use the trained LoRA
+datasety synthetic --input-image photo.jpg --output-image out.png \
+    --prompt "ohwx person wearing sunglasses" \
+    --lora lora/flux_lora.safetensors:0.8
+
+# SDXL LoRA
+datasety train \
+    --input ./dataset \
+    --output sdxl_lora.safetensors \
+    --model stabilityai/stable-diffusion-xl-base-1.0 \
+    --family sdxl --steps 500 --image-size 1024
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/train)
 
 ---
 

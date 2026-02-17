@@ -32,11 +32,14 @@ def _pil_to_data_url(image):
     return f"data:image/png;base64,{b64}"
 
 
-def _generate_image_via_api(prompt, api_key, base_url, model, input_image=None, seed=None):
+def _generate_image_via_api(
+    prompt, api_key, base_url, model, input_image=None, seed=None, width=None, height=None
+):
     """Generate an image via OpenAI-compatible API (OpenRouter, etc).
 
     For text-to-image: just prompt.
     For image-to-image: prompt + input_image (PIL Image).
+    width/height: optional output dimensions (passed to API if supported).
     Returns PIL Image.
     """
     import urllib.request
@@ -66,6 +69,10 @@ def _generate_image_via_api(prompt, api_key, base_url, model, input_image=None, 
     }
     if seed is not None:
         payload["seed"] = seed
+    if width is not None:
+        payload["width"] = width
+    if height is not None:
+        payload["height"] = height
 
     req = urllib.request.Request(
         url,

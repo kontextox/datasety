@@ -1,0 +1,95 @@
+# Image Enhancement / Upscale LoRA Dataset Workflow
+# ============================================================
+# Purpose: Create paired degraded/original image datasets for training
+#          a LoRA that enhances or upscales photos. The model learns
+#          to restore degraded images to their high-quality originals.
+#
+# Usage:
+#   datasety workflow -f enhance_lora.yaml
+#
+# Prerequisites:
+#   Place high-quality source images in: ./input/hq_photos/
+#   Recommended: 50-200 high-quality portrait or landscape photos
+#
+# Output structure:
+#   ./output/enhance_lora/
+#     resized/            (standardized 512x512 HQ originals)
+#     degraded/
+#       control/          (various degradation types = "before")
+#       target/           (original HQ copies = "after")
+#     captions/           (Florence-2 captions for target images)
+#
+# Training format: control/ + target/ pairs with matching filenames.
+# Each input image gets 4 degraded variants covering: lowres, jpeg
+# compression, gaussian blur, and combined AI upscale simulation.
+# ============================================================
+
+steps:
+  # Step 1: Standardize all input images to 512x512 (training-ready size)
+  # Using center crop to preserve the most important content
+  - command: resize
+    args:
+      input: ./input/hq_photos
+      output: ./output/enhance_lora/resized
+      resolution: 512x512
+      crop-position: center
+      output-format: png
+
+  # Step 2a: Generate lowres + JPEG degradation pairs (realistic compression artifacts)
+  # Simulates photos degraded by excessive compression and downscaling
+  - command: degrade
+    args:
+      input: ./output/enhance_lora/resized
+      output: ./output/enhance_lora/degraded_jpeg
+      type:
+        - lowres
+        - jpeg
+      chain: true
+      intensity-range: 0.3-0.7
+      num-variants: 2
+      paired: true
+      seed: 42
+      output-format: png
+
+  # Step 2b: Generate blur + noise degradation pairs
+  # Simulates photos taken with motion blur or in low-light noisy conditions
+  - command: degrade
+    args:
+      input: ./output/enhance_lora/resized
+      output: ./output/enhance_lora/degraded_blur
+      type:
+        - blur
+        - noise
+      chain: true
+      intensity-range: 0.3-0.6
+      num-variants: 2
+      paired: true
+      seed: 123
+      output-format: png
+
+  # Step 2c: Generate AI upscale simulation pairs
+  # Simulates the "overly smooth" look from AI upscalers — teaches the model
+  # to add realistic texture and detail back
+  - command: degrade
+    args:
+      input: ./output/enhance_lora/resized
+      output: ./output/enhance_lora/degraded_upscale_sim
+      type:
+        - upscale-sim
+      chain: false
+      intensity-range: 0.4-0.8
+      num-variants: 2
+      paired: true
+      seed: 777
+      output-format: png
+
+  # Step 3: Caption the clean (target) images with Florence-2
+  # Captions help the LoRA understand what the enhanced output should look like
+  - command: caption
+    args:
+      input: ./output/enhance_lora/degraded_jpeg/target
+      output: ./output/enhance_lora/captions
+      florence-2-large: true
+      device: auto
+      prompt: "<MORE_DETAILED_CAPTION>"
+      num-beams: 3

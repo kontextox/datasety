@@ -41,6 +41,17 @@ pytestmark = pytest.mark.gpu
 # ── Helpers ──
 
 
+def _can_access_gated_model(model_id: str) -> bool:
+    """Return True if the current HF token has access to a gated repo."""
+    try:
+        from huggingface_hub import HfApi
+
+        HfApi().auth_check(model_id)
+        return True
+    except Exception:
+        return False
+
+
 def run_cli(*args):
     return subprocess.run(
         [sys.executable, "-m", "datasety", *args],
@@ -262,6 +273,10 @@ class TestSyntheticQwen:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skipif(
+    not _can_access_gated_model("black-forest-labs/FLUX.1-Kontext-dev"),
+    reason="FLUX.1-Kontext-dev is gated — accept the license and run 'hf auth login'",
+)
 class TestSyntheticFluxKontext:
     """black-forest-labs/FLUX.1-Kontext-dev (~33 GB bf16, auto cpu-offload).
 
@@ -751,6 +766,10 @@ class TestMaskSAM2:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skipif(
+    not _can_access_gated_model("facebook/sam3"),
+    reason="facebook/sam3 is gated — request Meta access and run 'hf auth login'",
+)
 class TestMaskSAM3:
     """facebook/sam3 (~5 GB). Gated — requires Meta access approval.
 

@@ -4,7 +4,7 @@ layout: home
 hero:
   name: ~# datasety
   text: Dataset - it's easy!
-  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, degrade, and automate with workflows.
+  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, degrade, train LoRA adapters, and automate with workflows.
   image:
     src: mascot.png
     alt: Full dataset pipeline
@@ -66,6 +66,11 @@ features:
     title: Shuffle Captions
     details: Random caption generation from text groups. Inline, file, or URL sources with seed control.
     link: /commands/shuffle
+    linkText: Learn more
+  - icon: "&#x1F9E0;"
+    title: LoRA Fine-Tuning
+    details: Train LoRA adapters for FLUX.2-klein and SDXL from image + caption datasets. Flow-matching and DDPM. Saves .safetensors.
+    link: /commands/train
     linkText: Learn more
 ---
 

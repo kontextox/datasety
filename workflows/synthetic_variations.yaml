@@ -1,0 +1,151 @@
+# Multi-Model Synthetic Variations Dataset Workflow
+# ============================================================
+# Purpose: Use multiple image editing model families to generate
+#          stylistically diverse variations of reference photos.
+#          Tests and showcases: FLUX.2-klein (via API), SDXL (img2img),
+#          Qwen-Image-Edit (semantic editing), and CLIPSeg masking.
+#
+# This workflow creates a comprehensive variation dataset covering:
+#  - Lighting changes (golden hour, studio, overcast)
+#  - Background swaps (indoor, outdoor, abstract)
+#  - Style transfers (photorealistic to cinematic)
+#  - Semantic edits (clothing, accessories, season)
+#
+# Usage:
+#   datasety workflow -f synthetic_variations.yaml
+#
+# Prerequisites:
+#   export OPENAI_API_KEY=your_openrouter_key
+#   export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+#   Place reference photos in: ./input/portraits/
+#
+# Output structure:
+#   ./output/variations/
+#     resized/              (768x768 standardized inputs)
+#     flux_lighting/        (FLUX.2-klein: lighting variations via API)
+#     sdxl_cinematic/       (SDXL: cinematic/film style variations)
+#     qwen_semantic/        (Qwen: semantic object/scene edits)
+#     masks/                (CLIPSeg person masks)
+#     captions/             (Florence-2 captions for all outputs)
+# ============================================================
+
+steps:
+  # Step 1: Standardize input images to 768x768
+  # Square crop works well for most image editing models
+  - command: resize
+    args:
+      input: ./input/portraits
+      output: ./output/variations/resized
+      resolution: 768x768
+      crop-position: center
+      output-format: jpg
+
+  # Step 2: FLUX.2-klein via API — Lighting variations
+  # FLUX.2-klein excels at controlled lighting edits while preserving identity.
+  # Generates 2 lighting variants per image: golden hour + studio softbox
+  - command: synthetic
+    args:
+      input: ./output/variations/resized
+      output: ./output/variations/flux_lighting_golden
+      prompt: >
+        The same person photographed at golden hour sunset, warm orange and pink
+        ambient light from behind, dramatic rim lighting, bokeh background with
+        soft sunset colors, same person identical appearance
+      model: black-forest-labs/flux.2-klein-4b
+      image-api: true
+      num-images: 1
+      seed: 42
+      output-format: jpg
+
+  - command: synthetic
+    args:
+      input: ./output/variations/resized
+      output: ./output/variations/flux_lighting_studio
+      prompt: >
+        The same person in professional studio photography, clean white backdrop,
+        three-point softbox lighting (key light left, fill light right, hair light above),
+        perfect exposure, commercial photography quality
+      model: black-forest-labs/flux.2-klein-4b
+      image-api: true
+      num-images: 1
+      seed: 123
+      output-format: jpg
+
+  # Step 3: SDXL img2img — Cinematic style variations
+  # SDXL img2img applies strong style transfer while retaining composition.
+  # Lower strength (0.55) preserves more original features.
+  - command: synthetic
+    args:
+      input: ./output/variations/resized
+      output: ./output/variations/sdxl_cinematic
+      prompt: >
+        cinematic film photography, anamorphic lens, film grain, teal and orange
+        color grading, shallow depth of field, movie still, dramatic mood
+      model: stabilityai/stable-diffusion-xl-base-1.0
+      device: auto
+      steps: 25
+      cfg-scale: 7.5
+      strength: 0.55
+      negative-prompt: "blurry, low quality, deformed, cartoon, anime, illustration"
+      seed: 42
+      output-format: jpg
+
+  # Step 4: Qwen semantic editing — Scene and context changes
+  # Qwen-Image-Edit-2511 understands semantic scene composition and makes
+  # targeted object-level changes while preserving person identity.
+  - command: synthetic
+    args:
+      input: ./output/variations/resized
+      output: ./output/variations/qwen_winter
+      prompt: >
+        Transform the scene to winter: add snow in the background, change any
+        outdoor vegetation to bare winter trees with snow, if indoors add frost
+        patterns on windows. Keep the person completely unchanged.
+      model: Qwen/Qwen-Image-Edit-2511
+      device: auto
+      steps: 30
+      cfg-scale: 5.0
+      true-cfg-scale: 3.5
+      seed: 42
+      output-format: jpg
+
+  # Step 5: Generate person masks using CLIPSeg
+  # Masks are useful for compositing, inpainting, and region-specific training
+  - command: mask
+    args:
+      input: ./output/variations/resized
+      output: ./output/variations/masks
+      keywords: "person, human, face, body"
+      model: clipseg
+      device: auto
+      threshold: 0.35
+      padding: 10
+      blur: 5
+      naming: folder
+      output-format: png
+
+  # Step 6: Caption all FLUX lighting variations
+  # Florence-2 generates detailed captions describing the lighting scenario
+  - command: caption
+    args:
+      input: ./output/variations/flux_lighting_golden
+      output: ./output/variations/captions/flux_golden
+      florence-2-large: true
+      device: auto
+      prompt: "<MORE_DETAILED_CAPTION>"
+      trigger-word: "golden hour portrait,"
+      num-beams: 3
+
+  # Step 7: Caption SDXL cinematic variations with LLM
+  - command: caption
+    args:
+      input: ./output/variations/sdxl_cinematic
+      output: ./output/variations/captions/sdxl_cinematic
+      llm-api: true
+      model: x-ai/grok-4.1-fast
+      prompt: >
+        Describe this cinematic-style image for a dataset caption.
+        Focus on: lighting style, color grade, film/cinematic qualities,
+        the person's appearance, and overall visual mood. 1-2 sentences.
+      max-tokens: 150
+      temperature: 0.3

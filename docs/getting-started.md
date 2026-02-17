@@ -114,6 +114,12 @@ datasety workflow              # execute
 | [`sweep`](/commands/sweep)       | Parameter grid search for synthetic | `[workflow]` |
 | [`workflow`](/commands/workflow) | Multi-step pipelines from YAML/JSON | `[workflow]` |
 
+### Training
+
+| Command                      | Description                                | Extra Deps    |
+| ---------------------------- | ------------------------------------------ | ------------- |
+| [`train`](/commands/train)   | LoRA fine-tuning for FLUX.2-klein and SDXL | `[synthetic]` |
+
 ## Common Patterns
 
 All commands that process image directories share these options:

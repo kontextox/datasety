@@ -34,6 +34,11 @@ try:
 except ImportError:
     sweep = None
 
+try:
+    from datasety import train
+except ImportError:
+    train = None
+
 
 def build_parser():
     """Build and return the main argument parser with all subcommands."""
@@ -62,6 +67,9 @@ def build_parser():
 
     if sweep is not None:
         sweep.register_parser(subparsers)
+
+    if train is not None:
+        train.register_parser(subparsers)
 
     return parser
 

@@ -391,6 +391,50 @@ steps:
       trigger-word: "ohwx person,"
 ```
 
+### Train a LoRA from a Character Dataset
+
+Prepare a character dataset using `character` (LLM-generated prompts + FLUX.2), then train a LoRA adapter on the result.
+
+> **Note:** Training requires the base (undistilled) model. The `character` generation step uses the fast FP8 inference model; the `train` step loads the full base model.
+
+```yaml
+# character-lora.yaml
+# Input: Optional reference face image(s) at ./reference/
+# Output: ./lora/character_lora.safetensors ready to use with --lora
+steps:
+  - command: character
+    args:
+      output: ./character_dataset
+      num-images: 50
+      llm-ollama: llama3.2
+      model: black-forest-labs/FLUX.2-klein-4b-fp8
+      character-description: "a young woman with short auburn hair and freckles"
+      steps: 4
+      seed: 42
+
+  - command: train
+    args:
+      input: ./character_dataset
+      output: ./lora/character_lora.safetensors
+      model: black-forest-labs/FLUX.2-klein-base-4B
+      steps: 500
+      lr: 1e-4
+      lora-rank: 16
+      image-size: 512
+```
+
+```bash
+datasety workflow -f character-lora.yaml --dry-run
+datasety workflow -f character-lora.yaml
+
+# Use the trained LoRA for inference
+datasety synthetic \
+    --input-image photo.jpg \
+    --output-image result.png \
+    --prompt "ohwx person in a forest" \
+    --lora ./lora/character_lora.safetensors:0.8
+```
+
 ### Shuffled Caption Augmentation
 
 Generate randomized captions to add variety to a training dataset. Each image gets a randomly assembled caption from predefined text groups, which helps prevent the model from memorizing exact phrasings.

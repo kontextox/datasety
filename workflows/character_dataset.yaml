@@ -1,0 +1,71 @@
+# Character Dataset Workflow
+# ============================================================
+# Purpose: Generate a diverse dataset of a character in different
+#          poses, lighting, and settings from a single reference photo.
+#          Ideal for training character-consistent LoRA models.
+#
+# Usage:
+#   datasety workflow -f character_dataset.yaml
+#
+# Prerequisites:
+#   export OPENAI_API_KEY=your_openrouter_key
+#   export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+#   export OPENAI_MODEL=x-ai/grok-4.1-fast   # for prompt generation
+#   Place reference face photos in: ./input/reference/
+#
+# Output structure:
+#   ./output/character/
+#     0001.jpg, 0001.txt  (image + caption)
+#     0002.jpg, 0002.txt
+#     ...
+#     resized/            (standardized 768x1024)
+#     captions/           (detailed captions for each image)
+# ============================================================
+
+steps:
+  # Step 1: Generate diverse character images using LLM prompts + FLUX via API
+  # The LLM (grok-4.1-fast via OPENAI_MODEL env) creates varied scene prompts,
+  # and FLUX.2-klein-4B renders each one into a photorealistic image.
+  - command: character
+    args:
+      reference:
+        - ./input/reference/face.jpg
+      output: ./output/character/raw
+      num-images: 20
+      llm-api: true
+      character-description: >
+        young woman with distinctive features, expressive face,
+        professional appearance suitable for portrait photography
+      style: photorealistic, high quality portrait photography, sharp focus
+      image-api: true
+      model: black-forest-labs/flux.2-klein-4b
+      output-format: jpg
+      seed: 42
+
+  # Step 2: Standardize all generated images to consistent resolution
+  # 768x1024 is a common portrait aspect ratio for training
+  - command: resize
+    args:
+      input: ./output/character/raw
+      output: ./output/character/resized
+      resolution: 768x1024
+      crop-position: center
+      output-format: jpg
+
+  # Step 3: Generate high-quality captions using vision LLM
+  # Captions describe appearance, pose, lighting, and setting
+  # which is essential for consistent LoRA training
+  - command: caption
+    args:
+      input: ./output/character/resized
+      output: ./output/character/captions
+      llm-api: true
+      model: x-ai/grok-4.1-fast
+      prompt: >
+        Write a detailed training caption for this portrait image.
+        Describe: the person's appearance (hair color/style, face features, skin tone),
+        clothing and accessories, pose and expression, lighting quality and direction,
+        background setting, and overall mood. Be specific and use natural language.
+        Format: one flowing paragraph, 2-3 sentences max.
+      max-tokens: 200
+      temperature: 0.3

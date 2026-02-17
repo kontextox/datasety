@@ -157,8 +157,8 @@ def cmd_resize(args):
                 img = img.convert("RGB")
                 orig_w, orig_h = img.size
 
-                # Skip if image is too small
-                if orig_w < width or orig_h < height:
+                # Skip only if image is too small in both dimensions (truly undersized)
+                if orig_w < width and orig_h < height:
                     print(f"[SKIP] {img_path.name}: {orig_w}x{orig_h} < {width}x{height}")
                     skipped += 1
                     continue

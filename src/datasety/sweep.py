@@ -104,6 +104,10 @@ def _generate_sweep_steps(args):
             step_args["seed"] = args.seed
         if args.output_format:
             step_args["output-format"] = args.output_format
+        if getattr(args, "image_api", False):
+            step_args["image-api"] = True
+        if getattr(args, "base_model", None):
+            step_args["model"] = args.base_model
 
         steps.append(
             {
@@ -142,6 +146,7 @@ def cmd_sweep(args):
     yaml_content = header + yaml.dump(workflow, default_flow_style=False, sort_keys=False)
 
     output_file = Path(args.output_file)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_text(yaml_content, encoding="utf-8")
     print(f"Generated {total} sweep combinations -> {output_file}")
 
@@ -204,6 +209,20 @@ def register_parser(subparsers):
     )
     sweep_parser.add_argument(
         "--output-file", default="sweep.yaml", help="Output YAML file path (default: sweep.yaml)"
+    )
+    sweep_parser.add_argument(
+        "--image-api",
+        action="store_true",
+        help=(
+            "Use OpenAI-compatible image API instead of local model"
+            " (passed to each synthetic step)"
+        ),
+    )
+    sweep_parser.add_argument(
+        "--base-model",
+        default=None,
+        help="Base model to use for all synthetic steps (e.g., black-forest-labs/flux.2-klein-4b). "
+        "Takes precedence over --model sweep when used with --image-api.",
     )
     sweep_parser.add_argument(
         "--run", action="store_true", help="Generate YAML and immediately execute the workflow"

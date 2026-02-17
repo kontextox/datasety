@@ -1,0 +1,146 @@
+# Florence-2 Body Parts Training Dataset Workflow
+# ============================================================
+# Purpose: Build a dataset for fine-tuning Florence-2 to describe
+#          human anatomy (face, eyes, nose, mouth, ears, hair, etc.)
+#          in rich spatial and descriptive detail.
+#
+# Florence-2 excels at region-based visual understanding. This workflow
+# generates diverse human portraits + structured body-part captions,
+# then produces face crops so the model learns to describe anatomy
+# at both full-body and detail levels.
+#
+# Usage:
+#   datasety workflow -f florence2_body_parts.yaml
+#
+# Prerequisites:
+#   export OPENAI_API_KEY=your_openrouter_key
+#   export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+#   export OPENAI_MODEL=x-ai/grok-4.1-fast
+#
+# Output structure:
+#   ./output/florence2_body/
+#     raw/                   (FLUX-generated portraits)
+#     portraits/             (resized 1024x1024 full portraits)
+#     face_crops/            (512x512 tightly cropped face regions)
+#     captions/
+#       full_portrait/       (holistic body part captions)
+#       face_detail/         (fine-grained facial feature captions)
+#       structured/          (structured format for Florence-2 fine-tuning)
+#
+# Florence-2 fine-tuning format (post-workflow):
+#   Each training sample: {"image": path, "task": "<BODY_PART_DETAIL>",
+#                          "answer": "FACE: oval face with..."}
+# ============================================================
+
+steps:
+  # Step 1: Generate diverse human portraits with varied demographics,
+  # poses, lighting, and angles. Different viewing angles are critical
+  # so Florence-2 learns anatomy from frontal, 3/4, and profile views.
+  - command: character
+    args:
+      output: ./output/florence2_body/raw
+      num-images: 30
+      llm-api: true
+      character-description: >
+        diverse people of different ages and ethnicities. Alternate between:
+        frontal close-up portraits showing full face, 3/4 view showing ear and
+        jaw profile, profile view showing nose bridge and ear details, medium
+        shot showing neck and shoulders, and slightly overhead angles.
+        Include varied: skin tones, hair styles, eye shapes, nose shapes,
+        lip fullness, eyebrow thickness, ear visibility, facial hair (some subjects)
+      style: >
+        photorealistic studio portrait, professional lighting, sharp focus
+        on facial features, neutral or softbox background, high detail skin texture
+      image-api: true
+      model: black-forest-labs/flux.2-klein-4b
+      output-format: jpg
+      seed: 2024
+      width: 1024
+      height: 1024
+
+  # Step 2: Resize to consistent 1024x1024 for full portrait training
+  - command: resize
+    args:
+      input: ./output/florence2_body/raw
+      output: ./output/florence2_body/portraits
+      resolution: 1024x1024
+      crop-position: center
+      output-format: jpg
+
+  # Step 3: Create tight face crops (512x512) for fine-grained detail training
+  # Top-crop focuses on the face region of portrait images
+  - command: resize
+    args:
+      input: ./output/florence2_body/raw
+      output: ./output/florence2_body/face_crops
+      resolution: 512x512
+      crop-position: top
+      output-format: jpg
+
+  # Step 4a: Full portrait body-part captions
+  # LLM generates structured anatomical descriptions for full portraits.
+  # The format is designed to match Florence-2's region-description style.
+  - command: caption
+    args:
+      input: ./output/florence2_body/portraits
+      output: ./output/florence2_body/captions/full_portrait
+      llm-api: true
+      model: x-ai/grok-4.1-fast
+      prompt: >
+        Describe this portrait with structured anatomical detail for AI training.
+        Cover each visible body part systematically:
+        FACE SHAPE: [oval/round/square/heart/diamond + size];
+        EYES: [color, shape, size, distance, any notable features];
+        NOSE: [bridge width, tip shape, nostril shape, overall size];
+        MOUTH: [lip fullness, cupid's bow, width, any asymmetry];
+        EARS: [visible/hidden, size, lobe shape if visible];
+        HAIR: [color, texture, style, length, parting];
+        SKIN: [tone, texture, any marks or features];
+        EYEBROWS: [shape, thickness, arch, color];
+        JAW/CHIN: [jaw shape, chin prominence].
+        Be precise and objective. Use anatomical terminology where helpful.
+      max-tokens: 400
+      temperature: 0.2
+
+  # Step 4b: Fine-grained face crop captions for detail training
+  # These captions focus exclusively on the close-up facial region,
+  # teaching Florence-2 to describe micro-details of facial anatomy.
+  - command: caption
+    args:
+      input: ./output/florence2_body/face_crops
+      output: ./output/florence2_body/captions/face_detail
+      llm-api: true
+      model: x-ai/grok-4.1-fast
+      prompt: >
+        This is a close-up crop of a face. Provide extremely detailed anatomical
+        description for computer vision training:
+        IRIS COLOR AND PATTERN: [exact color, any heterochromia, limbal ring];
+        EYELID SHAPE: [monolid/double lid, epicanthal fold if present, ptosis if any];
+        EYELASHES: [length, curl, density, color];
+        NOSE TIP SHAPE: [bulbous/pointed/upturned/flat, cartilage visibility];
+        NASOLABIAL FOLDS: [prominent/subtle/absent];
+        PHILTRUM: [defined/flat, length];
+        UPPER LIP BOW: [pronounced/subtle, symmetry];
+        LOWER LIP: [fullness relative to upper, shape];
+        SKIN TEXTURE: [smooth/pores visible/fine lines/freckles/moles];
+        PORE VISIBILITY: [fine/medium/visible];
+        FACIAL HAIR: [present/absent, location, density].
+        Be systematic and clinically precise.
+      max-tokens: 500
+      temperature: 0.1
+
+  # Step 5: Generate face segmentation masks using CLIPSeg
+  # These masks identify the face region in portraits — useful for
+  # region-grounded training (Florence-2 detection/segmentation tasks)
+  - command: mask
+    args:
+      input: ./output/florence2_body/portraits
+      output: ./output/florence2_body/masks
+      keywords: "face, skin, facial features"
+      model: clipseg
+      device: auto
+      threshold: 0.3
+      padding: 5
+      blur: 3
+      naming: folder
+      output-format: png

@@ -28,7 +28,7 @@ By default, images are generated locally using FLUX.2-klein (requires GPU + PyTo
 | `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                     |
 | `--output`, `-o`          | Output directory                                   | (required)                          |
 | `--num-images`, `-n`      | Number of images                                   | `10`                                |
-| `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4B` |
+| `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4b-fp8` |
 | `--gguf`                  | GGUF path/URL for quantized loading                |                                     |
 | `--image-api`             | Use OpenAI-compatible API for image generation     | `false`                             |
 | `--character-description` | Text description of character                      |                                     |

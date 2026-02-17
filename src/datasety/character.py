@@ -145,6 +145,8 @@ def cmd_character(args):
                     base_url,
                     model,
                     seed=args.seed,
+                    width=args.width,
+                    height=args.height,
                 )
 
                 out_path = output_dir / f"{i:04d}.{out_ext}"
@@ -288,8 +290,8 @@ def register_parser(subparsers):
     # Model selection
     char_parser.add_argument(
         "--model",
-        default="black-forest-labs/FLUX.2-klein-4B",
-        help="Base model for image generation (default: black-forest-labs/FLUX.2-klein-4B)",
+        default="black-forest-labs/FLUX.2-klein-4b-fp8",
+        help="Base model for image generation (default: black-forest-labs/FLUX.2-klein-4b-fp8)",
     )
     char_parser.add_argument(
         "--gguf", default=None, help="Path or URL to GGUF file for quantized transformer loading"

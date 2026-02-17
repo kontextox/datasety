@@ -45,7 +45,24 @@ class TestDetectModelFamily:
         assert _detect_model_family("user/my-KONTEXT-finetune") == "flux-kontext"
 
     def test_flux2_klein(self):
-        assert _detect_model_family("black-forest-labs/FLUX.2-klein-9B") == "flux2-klein"
+        assert _detect_model_family("black-forest-labs/FLUX.2-klein-4B") == "flux2-klein"
+
+    def test_flux2_klein_9b(self):
+        assert _detect_model_family("black-forest-labs/FLUX.2-klein-9B") == "flux2-klein-9b"
+
+    def test_flux2_klein_base(self):
+        assert _detect_model_family("black-forest-labs/FLUX.2-klein-base-4B") == "flux2-klein-base"
+
+    def test_flux2_klein_base_9b(self):
+        result = _detect_model_family("black-forest-labs/FLUX.2-klein-base-9B")
+        assert result == "flux2-klein-base-9b"
+
+    def test_flux2_klein_base_fp8(self):
+        result = _detect_model_family("black-forest-labs/FLUX.2-klein-base-4b-fp8")
+        assert result == "flux2-klein-base-4b-fp8"
+
+    def test_flux2_klein_fp8(self):
+        assert _detect_model_family("black-forest-labs/FLUX.2-klein-4b-fp8") == "flux2-klein-4b-fp8"
 
     def test_flux2_klein_alt(self):
         assert _detect_model_family("some/flux2-model") == "flux2-klein"

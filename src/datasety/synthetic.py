@@ -16,7 +16,16 @@ from datasety.common import (
 _MODEL_VRAM_GB = {
     "qwen": 32,  # ~31 GB peak with offload; needs sequential offload on 32 GB
     "flux-kontext": 33,  # ~33 GB non-offloaded; triggers offload on 32 GB cards
-    "flux2-klein": 8,
+    # Distilled (inference) variants — fast few-step generation, NOT for training
+    "flux2-klein": 8,          # 4B bf16 distilled
+    "flux2-klein-9b": 18,      # 9B bf16 distilled
+    "flux2-klein-4b-fp8": 5,   # 4B fp8 distilled — ~4-5 GB (local: falls back to bf16)
+    "flux2-klein-9b-fp8": 10,  # 9B fp8 distilled — ~9-10 GB (local: falls back to bf16)
+    # Base (undistilled) variants — recommended for LoRA fine-tuning
+    "flux2-klein-base": 8,       # 4B bf16 base
+    "flux2-klein-base-9b": 18,   # 9B bf16 base
+    "flux2-klein-base-4b-fp8": 5,  # 4B fp8 base (local: falls back to bf16 base)
+    "flux2-klein-base-9b-fp8": 10, # 9B fp8 base (local: falls back to bf16 base)
     "flux2-dev": 24,
     "longcat": 18,
     "sdxl": 7,
@@ -25,12 +34,26 @@ _MODEL_VRAM_GB = {
 
 
 def _detect_model_family(model_name: str) -> str:
-    """Detect model family from model name/path."""
+    """Detect model family from model name/path.
+
+    Distinguishes between distilled inference models (flux2-klein) and
+    undistilled base models (flux2-klein-base) used for training.
+    """
     name_lower = model_name.lower()
     if "kontext" in name_lower:
         return "flux-kontext"
     if "klein" in name_lower:
-        return "flux2-klein"
+        is_base = "base" in name_lower
+        is_9b = "9b" in name_lower
+        is_fp8 = "fp8" in name_lower
+        if is_base:
+            if is_fp8:
+                return "flux2-klein-base-9b-fp8" if is_9b else "flux2-klein-base-4b-fp8"
+            return "flux2-klein-base-9b" if is_9b else "flux2-klein-base"
+        else:
+            if is_fp8:
+                return "flux2-klein-9b-fp8" if is_9b else "flux2-klein-4b-fp8"
+            return "flux2-klein-9b" if is_9b else "flux2-klein"
     if "flux.2" in name_lower or "flux2" in name_lower:
         if "dev" in name_lower:
             return "flux2-dev"
@@ -82,8 +105,33 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
             kwargs["transformer"] = transformer
         pipeline = FluxKontextPipeline.from_pretrained(model_name, **kwargs)
 
-    elif family == "flux2-klein":
+    elif family in (
+        "flux2-klein",
+        "flux2-klein-9b",
+        "flux2-klein-4b-fp8",
+        "flux2-klein-9b-fp8",
+        "flux2-klein-base",
+        "flux2-klein-base-9b",
+        "flux2-klein-base-4b-fp8",
+        "flux2-klein-base-9b-fp8",
+    ):
         kwargs = {"torch_dtype": torch_dtype}
+        # FP8 single-file repos (BFL proprietary format) cannot be loaded directly by
+        # diffusers. Automatically fall back to the equivalent BF16 model.
+        _fp8_to_bf16 = {
+            "flux2-klein-4b-fp8": "black-forest-labs/FLUX.2-klein-4B",
+            "flux2-klein-9b-fp8": "black-forest-labs/FLUX.2-klein-9B",
+            "flux2-klein-base-4b-fp8": "black-forest-labs/FLUX.2-klein-base-4B",
+            "flux2-klein-base-9b-fp8": "black-forest-labs/FLUX.2-klein-base-9B",
+        }
+        if family in _fp8_to_bf16:
+            bf16_model = _fp8_to_bf16[family]
+            print(
+                f"Note: FP8 single-file format is not yet loadable by diffusers locally. "
+                f"Using equivalent BF16 model: {bf16_model}. "
+                f"For true FP8 inference use --image-api."
+            )
+            model_name = bf16_model
         if gguf_path:
             from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
 
@@ -217,7 +265,16 @@ def _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload):
         gen_kwargs["image"] = image
         gen_kwargs["guidance_scale"] = args.cfg_scale
 
-    elif family == "flux2-klein":
+    elif family in (
+        "flux2-klein",
+        "flux2-klein-9b",
+        "flux2-klein-4b-fp8",
+        "flux2-klein-9b-fp8",
+        "flux2-klein-base",
+        "flux2-klein-base-9b",
+        "flux2-klein-base-4b-fp8",
+        "flux2-klein-base-9b-fp8",
+    ):
         gen_kwargs["image"] = [image]
         gen_kwargs["guidance_scale"] = args.cfg_scale
 
@@ -373,7 +430,21 @@ def cmd_synthetic(args):
     if args.image_api:
         from datasety.llm import _generate_image_via_api, resolve_llm_api_config
 
-        api_key, base_url, model = resolve_llm_api_config(args.model or None)
+        # Map model names to their canonical API IDs (lowercase) used by OpenRouter
+        # and other compatible endpoints. Both distilled and base models map to the
+        # same API endpoint (the API serves the distilled variant for speed).
+        _api_model_map = {
+            "black-forest-labs/FLUX.2-klein-4b-fp8": "black-forest-labs/flux.2-klein-4b",
+            "black-forest-labs/FLUX.2-klein-9b-fp8": "black-forest-labs/flux.2-klein-9b",
+            "black-forest-labs/FLUX.2-klein-4B": "black-forest-labs/flux.2-klein-4b",
+            "black-forest-labs/FLUX.2-klein-9B": "black-forest-labs/flux.2-klein-9b",
+            "black-forest-labs/FLUX.2-klein-base-4B": "black-forest-labs/flux.2-klein-4b",
+            "black-forest-labs/FLUX.2-klein-base-9B": "black-forest-labs/flux.2-klein-9b",
+            "black-forest-labs/FLUX.2-klein-base-4b-fp8": "black-forest-labs/flux.2-klein-4b",
+            "black-forest-labs/FLUX.2-klein-base-9b-fp8": "black-forest-labs/flux.2-klein-9b",
+        }
+        api_model_name = _api_model_map.get(args.model, args.model) if args.model else None
+        api_key, base_url, model = resolve_llm_api_config(api_model_name or None)
         if not api_key:
             print("Error: OPENAI_API_KEY environment variable is required for --image-api")
             sys.exit(1)
@@ -440,16 +511,27 @@ def cmd_synthetic(args):
 
     # Auto-detect cpu_offload if not explicitly set
     if device == "cuda" and not args.cpu_offload:
+        torch.cuda.empty_cache()  # Free cached allocator memory before checking
         free_vram_gb = torch.cuda.mem_get_info(0)[0] / (1024**3)
+        total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         needed_gb = _MODEL_VRAM_GB.get(family, 16)
-        if free_vram_gb < needed_gb + 2:
+        if free_vram_gb >= needed_gb:
+            # Enough free VRAM — load directly, no offload
+            cpu_offload = False
+        elif total_vram_gb >= needed_gb:
+            # Model fits in total VRAM but currently occupied — use model_cpu_offload
             cpu_offload = True
             print(
-                f"Auto-enabling CPU offload: {free_vram_gb:.1f} GB free, "
-                f"model needs ~{needed_gb} GB"
+                f"Auto-enabling model CPU offload: {free_vram_gb:.1f} GB free, "
+                f"model needs ~{needed_gb} GB (total: {total_vram_gb:.1f} GB)"
             )
         else:
-            cpu_offload = False
+            # Model exceeds total VRAM — must use sequential (layer-by-layer) offload
+            cpu_offload = True
+            print(
+                f"Auto-enabling sequential CPU offload: {free_vram_gb:.1f} GB free, "
+                f"model needs ~{needed_gb} GB (total: {total_vram_gb:.1f} GB)"
+            )
     else:
         cpu_offload = args.cpu_offload
 
@@ -580,11 +662,11 @@ def cmd_synthetic(args):
             output = _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload)
 
             # Save output image(s)
-            for idx, out_img in enumerate(output.images):
+            for out_idx, out_img in enumerate(output.images):
                 if is_single and output_path:
                     out_path = output_path
                 elif args.num_images > 1:
-                    out_path = output_dir / f"{img_path.stem}_{idx + 1}.{out_ext}"
+                    out_path = output_dir / f"{img_path.stem}_{out_idx + 1}.{out_ext}"
                 else:
                     out_path = output_dir / f"{img_path.stem}.{out_ext}"
 
@@ -626,8 +708,8 @@ def register_parser(subparsers):
     )
     synthetic_parser.add_argument(
         "--model",
-        default="black-forest-labs/FLUX.2-klein-4B",
-        help="Model to use (default: black-forest-labs/FLUX.2-klein-4B)",
+        default="black-forest-labs/FLUX.2-klein-4b-fp8",
+        help="Model to use (default: black-forest-labs/FLUX.2-klein-4b-fp8)",
     )
     synthetic_parser.add_argument(
         "--weights",

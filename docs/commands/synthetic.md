@@ -12,7 +12,9 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 
 | Model Family               | Example Model ID                           | Key Params                   |
 | -------------------------- | ------------------------------------------ | ---------------------------- |
-| **FLUX.2 klein** (default) | `black-forest-labs/FLUX.2-klein-4B`        | `--strength`, steps=4        |
+| **FLUX.2 klein FP8** (default) | `black-forest-labs/FLUX.2-klein-4b-fp8` | `--strength`, steps=4, ~5 GB |
+| **FLUX.2 klein 9B FP8**    | `black-forest-labs/FLUX.2-klein-9b-fp8`    | Better face fidelity, ~10 GB |
+| **FLUX.2 klein BF16**      | `black-forest-labs/FLUX.2-klein-4B`        | `--strength`, steps=4        |
 | **FLUX.2 dev**             | `black-forest-labs/FLUX.2-dev`             | `--strength`, steps=28       |
 | **Qwen**                   | `Qwen/Qwen-Image-Edit-2511`                | `--true-cfg-scale`, steps=40 |
 | **FireRed**                | `FireRedTeam/FireRed-Image-Edit-1.0`       | `--true-cfg-scale`, steps=40 |
@@ -30,7 +32,7 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 | `--input-image`     | Single input image                       |                                     |
 | `--output-image`    | Single output image                      |                                     |
 | `--prompt`, `-p`    | Edit prompt                              | (required)                          |
-| `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4B` |
+| `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4b-fp8` |
 | `--image-api`       | Use OpenAI-compatible API for generation | `false`                             |
 | `--weights`         | Fine-tuned weights                       | (none)                              |
 | `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     | (none)                              |
