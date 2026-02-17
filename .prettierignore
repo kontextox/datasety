@@ -1,0 +1,21 @@
+# Dependencies
+docs/node_modules/
+
+# Generated files
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# Build artifacts
+dist/
+build/
+*.whl
+
+# GitHub workflows (often have specific formatting)
+.github/workflows/
+
+# Lock files
+poetry.lock
+package-lock.json
+yarn.lock

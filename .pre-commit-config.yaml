@@ -1,0 +1,21 @@
+repos:
+  # Ruff: Run linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi, jupyter]
+      - id: ruff-format
+        types_or: [python, pyi, jupyter]
+
+  # Prettier: Format markdown, yaml, json (using active mirror)
+  - repo: https://github.com/JoC0de/pre-commit-prettier
+    rev: v3.8.1
+    hooks:
+      - id: prettier
+        types_or: [markdown, yaml, json]
+        exclude: ^(docs/node_modules/|\.github/workflows/).*$
+        additional_dependencies:
+          - prettier@3.4.2
+        args: [--no-config]
