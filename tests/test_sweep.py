@@ -3,7 +3,9 @@
 import subprocess
 import sys
 
-import yaml
+import pytest
+
+yaml = pytest.importorskip("yaml")
 
 
 def run_sweep(*args):
