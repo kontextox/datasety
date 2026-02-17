@@ -294,7 +294,7 @@ steps:
       input: ./dataset
       output: ./dataset
       llm-api: true
-      model: gpt-4o
+      model: gpt-5-nano
       trigger-word: "ohwx person,"
       prompt: "Describe this person's appearance, clothing, pose, expression, and setting in one detailed paragraph. Do not mention image quality or photography terms."
       temperature: 0.3

@@ -276,17 +276,15 @@ def cmd_workflow(args):
 def register_parser(subparsers):
     """Register the workflow subcommand."""
     wf_parser = subparsers.add_parser(
-        "workflow",
-        help="Run multi-step datasety workflows from YAML or JSON files"
+        "workflow", help="Run multi-step datasety workflows from YAML or JSON files"
     )
     wf_parser.add_argument(
-        "--file", "-f",
+        "--file",
+        "-f",
         default=None,
-        help="Path to workflow file (default: auto-detect datasety.yaml/yml/json)"
+        help="Path to workflow file (default: auto-detect datasety.yaml/yml/json)",
     )
     wf_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Validate workflow steps without executing them"
+        "--dry-run", action="store_true", help="Validate workflow steps without executing them"
     )
     wf_parser.set_defaults(func=cmd_workflow)

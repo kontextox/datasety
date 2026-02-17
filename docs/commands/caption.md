@@ -9,27 +9,28 @@ Generate captions for images using Florence-2 or OpenAI-compatible vision APIs.
 datasety caption --input ./images --output ./captions
 
 # Vision API
-datasety caption --input ./images --output ./captions --llm-api --model gpt-4o
+datasety caption --input ./images --output ./captions --llm-api --model gpt-5-nano
 ```
 
 ## Options
 
-| Option               | Description                      | Default                   |
-| -------------------- | -------------------------------- | ------------------------- |
-| `--input`, `-i`      | Input directory                  | (required\*)              |
-| `--output`, `-o`     | Output directory for .txt files  | (required\*)              |
-| `--input-image`      | Single input image               |                           |
-| `--output-caption`   | Single output .txt path          |                           |
-| `--device`           | `auto`, `cpu`, or `cuda`         | `auto`                    |
-| `--trigger-word`     | Text to prepend to captions      | (none)                    |
-| `--prompt`           | Florence-2 task prompt           | `<MORE_DETAILED_CAPTION>` |
-| `--model`            | HF model or API model ID         | (none)                    |
-| `--num-beams`        | Beam search width (1 = greedy)   | `3`                       |
-| `--florence-2-base`  | Use base model (0.23B, faster)   | (default)                 |
-| `--florence-2-large` | Use large model (0.77B, better)  |                           |
-| `--llm-api`          | Use OpenAI-compatible vision API |                           |
-| `--max-tokens`       | Max response tokens (API mode)   | `300`                     |
-| `--temperature`      | Temperature (API mode)           | `0.3`                     |
+| Option               | Description                        | Default                   |
+| -------------------- | ---------------------------------- | ------------------------- |
+| `--input`, `-i`      | Input directory                    | (required\*)              |
+| `--output`, `-o`     | Output directory for .txt files    | (required\*)              |
+| `--input-image`      | Single input image                 |                           |
+| `--output-caption`   | Single output .txt path            |                           |
+| `--device`           | `auto`, `cpu`, `cuda`, or `mps`    | `auto`                    |
+| `--trigger-word`     | Text to prepend to captions        | (none)                    |
+| `--prompt`           | Florence-2 task prompt             | `<MORE_DETAILED_CAPTION>` |
+| `--model`            | HF model or API model ID           | (none)                    |
+| `--num-beams`        | Beam search width (1 = greedy)     | `3`                       |
+| `--florence-2-base`  | Use base model (0.23B, faster)     | (default)                 |
+| `--florence-2-large` | Use large model (0.77B, better)    |                           |
+| `--llm-api`          | Use OpenAI-compatible vision API   |                           |
+| `--max-tokens`       | Max response tokens (API mode)     | `300`                     |
+| `--temperature`      | Temperature (API mode)             | `0.3`                     |
+| `--recursive`, `-R`  | Search input directory recursively | `false`                   |
 
 ## Environment Variables
 
@@ -58,7 +59,7 @@ datasety caption -i ./dataset -o ./dataset --trigger-word "photo of sks person,"
 datasety caption -i ./dataset -o ./dataset --florence-2-large --device cuda
 
 # OpenAI vision API
-datasety caption -i ./dataset -o ./dataset --llm-api --model gpt-4o
+datasety caption -i ./dataset -o ./dataset --llm-api --model gpt-5-nano
 
 # Custom provider via env vars
 OPENAI_BASE_URL=https://openrouter.ai/api/v1 \

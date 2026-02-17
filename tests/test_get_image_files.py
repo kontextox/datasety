@@ -48,3 +48,21 @@ class TestGetImageFiles:
         Image.new("RGB", (10, 10)).save(tmp_path / "b.JPG")
         files = get_image_files(tmp_path, ["jpg"])
         assert len(files) == 2
+
+    def test_mixed_case_extensions(self, tmp_path):
+        Image.new("RGB", (10, 10)).save(tmp_path / "a.jpg")
+        Image.new("RGB", (10, 10)).save(tmp_path / "b.Jpg")
+        Image.new("RGB", (10, 10)).save(tmp_path / "c.PNG")
+        Image.new("RGB", (10, 10)).save(tmp_path / "d.Jpeg")
+        files = get_image_files(tmp_path, ["jpg", "jpeg", "png"])
+        assert len(files) == 4
+
+    def test_recursive(self, tmp_path):
+        sub = tmp_path / "subdir"
+        sub.mkdir()
+        Image.new("RGB", (10, 10)).save(tmp_path / "a.jpg")
+        Image.new("RGB", (10, 10)).save(sub / "b.jpg")
+        files = get_image_files(tmp_path, ["jpg"], recursive=False)
+        assert len(files) == 1
+        files = get_image_files(tmp_path, ["jpg"], recursive=True)
+        assert len(files) == 2

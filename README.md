@@ -52,6 +52,8 @@ datasety resize --input ./raw --output ./resized --resolution 768x1024 --crop-po
 | `--input-format`        | Comma-separated input formats                  | `jpg,jpeg,png,webp` |
 | `--output-format`       | `jpg`, `png`, `webp`                           | `jpg`               |
 | `--output-name-numbers` | Rename output files to 1.jpg, 2.jpg, ...       | off                 |
+| `--recursive`, `-R`     | Search input directory recursively             | off                 |
+| `--dry-run`             | Preview without modifying files                | off                 |
 
 </details>
 
@@ -86,7 +88,7 @@ datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
 | `--output`, `-o`     | Output directory for .txt files             | required\*                |
 | `--input-image`      | Single input image                          |                           |
 | `--output-caption`   | Single output .txt path                     |                           |
-| `--device`           | `auto`, `cpu`, `cuda`                       | `auto`                    |
+| `--device`           | `auto`, `cpu`, `cuda`, `mps`                | `auto`                    |
 | `--trigger-word`     | Text to prepend to each caption             |                           |
 | `--prompt`           | Florence-2 task prompt                      | `<MORE_DETAILED_CAPTION>` |
 | `--model`            | HF model name or API model ID               |                           |
@@ -96,6 +98,8 @@ datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
 | `--llm-api`          | Use OpenAI-compatible vision API            |                           |
 | `--max-tokens`       | Max response tokens (API mode)              | `300`                     |
 | `--temperature`      | Temperature (API mode)                      | `0.3`                     |
+| `--recursive`, `-R`  | Search input directory recursively          | off                       |
+| `--dry-run`          | Preview without processing                  | off                       |
 
 </details>
 
@@ -104,7 +108,7 @@ datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
 datasety caption -i ./dataset -o ./dataset --trigger-word "photo of sks person," --device cuda
 
 # OpenAI vision API (supports OPENAI_MODEL env var)
-datasety caption -i ./images -o ./captions --llm-api --model gpt-4o
+datasety caption -i ./images -o ./captions --llm-api --model gpt-5-nano
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/caption)
@@ -196,27 +200,30 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 <details>
 <summary>Options</summary>
 
-| Option              | Description                             | Default                             |
-| ------------------- | --------------------------------------- | ----------------------------------- |
-| `--input`, `-i`     | Input directory                         | required\*                          |
-| `--output`, `-o`    | Output directory                        | required\*                          |
-| `--input-image`     | Single input image                      |                                     |
-| `--output-image`    | Single output image                     |                                     |
-| `--prompt`, `-p`    | Edit instruction                        | required                            |
-| `--model`           | Model (auto-detects family)             | `black-forest-labs/FLUX.2-klein-4B` |
-| `--weights`         | Fine-tuned weights file                 |                                     |
-| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)    |                                     |
-| `--device`          | `auto`, `cpu`, `cuda`                   | `auto`                              |
-| `--cpu-offload`     | Force CPU offload                       | auto                                |
-| `--steps`           | Inference steps                         | `4`                                 |
-| `--cfg-scale`       | Guidance scale                          | `2.5`                               |
-| `--true-cfg-scale`  | True CFG (Qwen only)                    | `4.0`                               |
-| `--negative-prompt` | Negative prompt                         | `" "`                               |
-| `--num-images`      | Images per input                        | `1`                                 |
-| `--seed`            | Random seed                             |                                     |
-| `--gguf`            | GGUF path/URL for quantized loading     |                                     |
-| `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0) | `0.7`                               |
-| `--output-format`   | `png`, `jpg`, `webp`                    | `png`                               |
+| Option              | Description                              | Default                             |
+| ------------------- | ---------------------------------------- | ----------------------------------- |
+| `--input`, `-i`     | Input directory                          | required\*                          |
+| `--output`, `-o`    | Output directory                         | required\*                          |
+| `--input-image`     | Single input image                       |                                     |
+| `--output-image`    | Single output image                      |                                     |
+| `--prompt`, `-p`    | Edit instruction                         | required                            |
+| `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4B` |
+| `--image-api`       | Use OpenAI-compatible API for generation | off                                 |
+| `--weights`         | Fine-tuned weights file                  |                                     |
+| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     |                                     |
+| `--device`          | `auto`, `cpu`, `cuda`, `mps`             | `auto`                              |
+| `--cpu-offload`     | Force CPU offload                        | auto                                |
+| `--steps`           | Inference steps                          | `4`                                 |
+| `--cfg-scale`       | Guidance scale                           | `2.5`                               |
+| `--true-cfg-scale`  | True CFG (Qwen only)                     | `4.0`                               |
+| `--negative-prompt` | Negative prompt                          | `" "`                               |
+| `--num-images`      | Images per input                         | `1`                                 |
+| `--seed`            | Random seed                              |                                     |
+| `--gguf`            | GGUF path/URL for quantized loading      |                                     |
+| `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0)  | `0.7`                               |
+| `--recursive`, `-R` | Search input directory recursively       | off                                 |
+| `--output-format`   | `png`, `jpg`, `webp`                     | `png`                               |
+| `--dry-run`         | Preview without loading models           | off                                 |
 
 </details>
 
@@ -224,6 +231,11 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 # Single image edit
 datasety synthetic --input-image photo.jpg --output-image edited.png \
     --prompt "add sunglasses" --steps 4
+
+# Cloud API (no GPU needed)
+OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+  datasety synthetic -i ./images -o ./synthetic \
+  --prompt "add a winter hat" --image-api --model black-forest-labs/flux.2-klein-4b
 
 # Qwen with LoRA
 datasety synthetic -i ./dataset -o ./synthetic \
@@ -249,22 +261,23 @@ datasety mask --input ./dataset --output ./masks --keywords "face,hair" --device
 <details>
 <summary>Options</summary>
 
-| Option             | Description                       | Default    |
-| ------------------ | --------------------------------- | ---------- |
-| `--input`, `-i`    | Input directory                   | required\* |
-| `--output`, `-o`   | Output directory for masks        | required\* |
-| `--input-image`    | Single input image                |            |
-| `--output-image`   | Single output mask                |            |
-| `--keywords`, `-k` | Comma-separated keywords          | required   |
-| `--model`          | `sam3`, `sam2`, `clipseg`         | `sam3`     |
-| `--device`         | `auto`, `cpu`, `cuda`             | `auto`     |
-| `--threshold`      | Confidence threshold (0.0-1.0)    | `0.3`      |
-| `--padding`        | Pixels to expand mask (dilation)  | `0`        |
-| `--blur`           | Gaussian blur radius for edges    | `0`        |
-| `--invert`         | Invert mask colors                | off        |
-| `--naming`         | `folder` or `suffix` (`_mask`)    | `folder`   |
-| `--output-format`  | `png`, `jpg`, `webp`              | `png`      |
-| `--dry-run`        | Preview detections without saving | off        |
+| Option              | Description                        | Default    |
+| ------------------- | ---------------------------------- | ---------- |
+| `--input`, `-i`     | Input directory                    | required\* |
+| `--output`, `-o`    | Output directory for masks         | required\* |
+| `--input-image`     | Single input image                 |            |
+| `--output-image`    | Single output mask                 |            |
+| `--keywords`, `-k`  | Comma-separated keywords           | required   |
+| `--model`           | `sam3`, `sam2`, `clipseg`          | `sam3`     |
+| `--device`          | `auto`, `cpu`, `cuda`, `mps`       | `auto`     |
+| `--threshold`       | Confidence threshold (0.0-1.0)     | `0.3`      |
+| `--padding`         | Pixels to expand mask (dilation)   | `0`        |
+| `--blur`            | Gaussian blur radius for edges     | `0`        |
+| `--invert`          | Invert mask colors                 | off        |
+| `--naming`          | `folder` or `suffix` (`_mask`)     | `folder`   |
+| `--output-format`   | `png`, `jpg`, `webp`               | `png`      |
+| `--dry-run`         | Preview detections without saving  | off        |
+| `--recursive`, `-R` | Search input directory recursively | off        |
 
 </details>
 
@@ -326,48 +339,55 @@ datasety degrade -i ./images -o ./degraded --type random --num-variants 3 --inte
 
 ### `character` — Character Dataset Generation
 
-Generate identity-preserving character datasets from reference face images using LLM prompts + IP-Adapter.
+Generate character datasets using LLM-generated prompts + text-to-image (FLUX.2-klein local or cloud API).
 
 <!-- screenshot: character -->
 
 ```bash
-datasety character --reference face.jpg --output ./dataset --llm-ollama llama3.2 --num-images 20
+datasety character --output ./dataset --llm-ollama llama3.2 --num-images 20
 ```
 
 <details>
 <summary>Options</summary>
 
-| Option                    | Description                             | Default                             |
-| ------------------------- | --------------------------------------- | ----------------------------------- |
-| `--reference`, `-r`       | Reference face image(s)                 | required                            |
-| `--output`, `-o`          | Output directory                        | required                            |
-| `--num-images`, `-n`      | Number of images to generate            | `10`                                |
-| `--model`                 | Base model for generation               | `black-forest-labs/FLUX.2-klein-4B` |
-| `--ip-adapter`            | IP-Adapter model                        | auto-detected                       |
-| `--ip-adapter-scale`      | Conditioning strength (0.0-1.0)         | `0.6`                               |
-| `--character-description` | Text description of the character       |                                     |
-| `--style`                 | Style guidance (e.g., `photorealistic`) |                                     |
-| `--prompts-only`          | Only generate prompts, skip images      | off                                 |
-| `--prompts-file`          | Load prompts from file instead of LLM   |                                     |
-| `--llm-api`               | Use OpenAI-compatible API               |                                     |
-| `--llm-ollama MODEL`      | Use local Ollama server                 |                                     |
-| `--llm-gguf PATH`         | Use local GGUF model                    |                                     |
-| `--llm-model REPO`        | Use HuggingFace model                   |                                     |
-| `--device`                | `auto`, `cpu`, `cuda`                   | `auto`                              |
-| `--steps`                 | Inference steps                         | `4`                                 |
-| `--cfg-scale`             | Guidance scale                          | `2.5`                               |
-| `--seed`                  | Random seed                             |                                     |
-| `--output-format`         | `png`, `jpg`, `webp`                    | `png`                               |
+| Option                    | Description                                        | Default                             |
+| ------------------------- | -------------------------------------------------- | ----------------------------------- |
+| `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                     |
+| `--output`, `-o`          | Output directory                                   | required                            |
+| `--num-images`, `-n`      | Number of images to generate                       | `10`                                |
+| `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4B` |
+| `--gguf`                  | GGUF path/URL for quantized loading                |                                     |
+| `--image-api`             | Use OpenAI-compatible API for image generation     | off                                 |
+| `--character-description` | Text description of the character                  |                                     |
+| `--style`                 | Style guidance (e.g., `photorealistic`)            |                                     |
+| `--prompts-only`          | Only generate prompts, skip images                 | off                                 |
+| `--prompts-file`          | Load prompts from file instead of LLM              |                                     |
+| `--llm-api`               | Use OpenAI-compatible API for prompts              |                                     |
+| `--llm-ollama MODEL`      | Use local Ollama server for prompts                |                                     |
+| `--llm-gguf PATH`         | Use local GGUF model for prompts                   |                                     |
+| `--llm-model REPO`        | Use HuggingFace model for prompts                  |                                     |
+| `--device`                | `auto`, `cpu`, `cuda`, `mps`                       | `auto`                              |
+| `--steps`                 | Inference steps                                    | `4`                                 |
+| `--cfg-scale`             | Guidance scale                                     | `4.0`                               |
+| `--seed`                  | Random seed                                        |                                     |
+| `--height`                | Output image height                                | `1024`                              |
+| `--width`                 | Output image width                                 | `1024`                              |
+| `--output-format`         | `png`, `jpg`, `webp`                               | `png`                               |
+| `--dry-run`               | Preview prompts without generating images          | off                                 |
 
 </details>
 
 ```bash
-# Generate with OpenAI API
-datasety character -r face1.jpg face2.jpg -o ./dataset \
-    --llm-api --num-images 20 --style "photorealistic"
+# Generate with local pipeline + Ollama prompts
+datasety character -o ./dataset --llm-ollama llama3.2 --num-images 20
+
+# Cloud API for images (no GPU needed)
+OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+  datasety character -o ./dataset --prompts-file prompts.txt \
+  --image-api --model black-forest-labs/flux.2-klein-4b
 
 # Preview prompts only
-datasety character -r face.jpg -o ./dataset --llm-ollama llama3.2 --prompts-only
+datasety character -o ./dataset --llm-api --prompts-only
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/character)
@@ -451,7 +471,7 @@ steps:
       input: ./resized
       output: ./resized
       llm-api: true
-      model: gpt-4o
+      model: gpt-5-nano
 ```
 
 ```bash

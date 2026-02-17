@@ -27,7 +27,8 @@ def run_align(*args):
     """Run datasety align and return the result."""
     return subprocess.run(
         [sys.executable, "-m", "datasety", "align", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -95,9 +96,7 @@ class TestAlignDimensions:
         make_image(target_dir / "001.jpg", 100, 100)
         make_image(control_dir / "001.jpg", 100, 100)
 
-        result = run_align(
-            "-t", str(target_dir), "-c", str(control_dir), "--multiple-of", "64"
-        )
+        result = run_align("-t", str(target_dir), "-c", str(control_dir), "--multiple-of", "64")
         assert result.returncode == 0
 
         with Image.open(target_dir / "001.jpg") as img:
@@ -156,9 +155,7 @@ class TestAlignFormatConversion:
         make_image(target_dir / "001.jpg", 1024, 1536)
         make_image(control_dir / "001.jpg", 1024, 1536)
 
-        result = run_align(
-            "-t", str(target_dir), "-c", str(control_dir), "--output-format", "png"
-        )
+        result = run_align("-t", str(target_dir), "-c", str(control_dir), "--output-format", "png")
         assert result.returncode == 0
         assert (target_dir / "001.png").exists()
         assert (control_dir / "001.png").exists()

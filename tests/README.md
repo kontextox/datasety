@@ -283,7 +283,7 @@ pytest -m gpu -v -k "not (flux2_dev or flux_kontext or sam3)"
 | `--steps`                 | PASS   | Parsed correctly                                                    |
 | `--cfg-scale`             | PASS   | Parsed correctly                                                    |
 | `--output-format jpg`     | PASS   | Parsed correctly                                                    |
-| Full generation           | N/T    | Requires FLUX.2-klein-4B (8GB) + IP-Adapter download                |
+| Full generation           | N/T    | Requires FLUX.2-klein-4B (8GB) download                             |
 
 ## 9. workflow
 

@@ -1,7 +1,10 @@
 """Shared LLM backend abstraction for datasety commands."""
 
+import base64
+import io
 import json
 import os
+import re
 import sys
 
 
@@ -21,6 +24,79 @@ def resolve_llm_api_config(model_override=None):
     return api_key, base_url, model
 
 
+def _pil_to_data_url(image):
+    """Convert a PIL Image to a base64 data URL."""
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
+
+
+def _generate_image_via_api(prompt, api_key, base_url, model, input_image=None, seed=None):
+    """Generate an image via OpenAI-compatible API (OpenRouter, etc).
+
+    For text-to-image: just prompt.
+    For image-to-image: prompt + input_image (PIL Image).
+    Returns PIL Image.
+    """
+    import urllib.request
+
+    from PIL import Image
+
+    url = f"{base_url.rstrip('/')}/chat/completions"
+
+    # Build message content
+    content = []
+    if input_image is not None:
+        data_url = _pil_to_data_url(input_image)
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": data_url},
+            }
+        )
+    content.append({"type": "text", "text": prompt})
+
+    payload = {
+        "model": model,
+        "modalities": ["image"],
+        "messages": [
+            {"role": "user", "content": content},
+        ],
+    }
+    if seed is not None:
+        payload["seed"] = seed
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        data = json.loads(resp.read().decode())
+
+    # Try structured image response first:
+    # choices[0].message.images[0].image_url.url
+    msg = data["choices"][0]["message"]
+    images = msg.get("images") or []
+    if images:
+        img_url = images[0].get("image_url", {}).get("url", "")
+        if img_url:
+            b64_data = img_url.split(",", 1)[-1]
+            return Image.open(io.BytesIO(base64.b64decode(b64_data)))
+
+    # Fallback: extract base64 data URL from markdown in content
+    text_content = msg.get("content", "")
+    m = re.search(r"data:image/[^;]+;base64,([A-Za-z0-9+/=]+)", text_content)
+    if m:
+        return Image.open(io.BytesIO(base64.b64decode(m.group(1))))
+
+    raise RuntimeError(f"No image found in API response: {json.dumps(data)[:500]}")
+
+
 class _OpenAIBackend:
     """OpenAI-compatible API backend."""
 
@@ -37,14 +113,16 @@ class _OpenAIBackend:
         import urllib.request
 
         url = f"{self.base_url.rstrip('/')}/chat/completions"
-        payload = json.dumps({
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.9,
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.9,
+            }
+        ).encode()
 
         req = urllib.request.Request(
             url,
@@ -70,14 +148,16 @@ class _OllamaBackend:
         import urllib.request
 
         url = f"{self.base_url.rstrip('/')}/api/chat"
-        payload = json.dumps({
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "stream": False,
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "stream": False,
+            }
+        ).encode()
 
         req = urllib.request.Request(
             url,
@@ -107,6 +187,7 @@ class _GGUFBackend:
             sys.exit(1)
 
         from datasety.common import _resolve_hf_file
+
         resolved = _resolve_hf_file(self.model_path)
         print(f"Loading GGUF model: {resolved}")
         self._llm = Llama(model_path=resolved, n_ctx=4096, verbose=False)
@@ -185,23 +266,20 @@ def add_llm_arguments(parser):
     llm_group.add_argument(
         "--llm-api",
         action="store_true",
-        help="Use OpenAI-compatible API (needs OPENAI_API_KEY env var)"
+        help="Use OpenAI-compatible API (needs OPENAI_API_KEY env var)",
     )
     llm_group.add_argument(
         "--llm-ollama",
         default="",
         metavar="MODEL",
-        help="Use local Ollama server with specified model"
+        help="Use local Ollama server with specified model",
     )
     llm_group.add_argument(
-        "--llm-gguf",
-        default="",
-        metavar="PATH",
-        help="Use local GGUF model file"
+        "--llm-gguf", default="", metavar="PATH", help="Use local GGUF model file"
     )
     llm_group.add_argument(
         "--llm-model",
         default="",
         metavar="REPO",
-        help="Use HuggingFace model for prompt generation"
+        help="Use HuggingFace model for prompt generation",
     )

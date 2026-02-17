@@ -18,11 +18,12 @@ datasety resize --input ./images --output ./resized --resolution 768x1024
 | `--output-image`        | Single output image                        |                     |
 | `--resolution`, `-r`    | Target resolution (WIDTHxHEIGHT)           |                     |
 | `--megapixel`           | Target megapixel count (e.g., 0.5, 1.0)    |                     |
-| `--aspect-ratio`        | Aspect ratio W:H (e.g., 1:1, 16:9, 3:2)   |                     |
+| `--aspect-ratio`        | Aspect ratio W:H (e.g., 1:1, 16:9, 3:2)    |                     |
 | `--crop-position`       | `top`, `center`, `bottom`, `left`, `right` | `center`            |
 | `--input-format`        | Comma-separated formats                    | `jpg,jpeg,png,webp` |
 | `--output-format`       | `jpg`, `png`, `webp`                       | `jpg`               |
 | `--output-name-numbers` | Rename to 1.jpg, 2.jpg, ...                | `false`             |
+| `--recursive`, `-R`     | Search input directory recursively         | `false`             |
 
 ## Examples
 

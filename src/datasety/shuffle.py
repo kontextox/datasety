@@ -16,8 +16,13 @@ def _parse_group(value: str) -> list[str]:
     """
     if value.startswith(("https://", "http://")):
         import urllib.request
+
         try:
-            with urllib.request.urlopen(value, timeout=15) as resp:
+            req = urllib.request.Request(
+                value,
+                headers={"User-Agent": "datasety"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 text = resp.read().decode("utf-8")
             lines = [line.strip() for line in text.splitlines() if line.strip()]
             if lines:
@@ -76,7 +81,7 @@ def cmd_shuffle(args):
 
     # Find images
     formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
-    image_files = get_image_files(input_dir, formats)
+    image_files = get_image_files(input_dir, formats, recursive=args.recursive)
 
     if not image_files:
         print(f"No images found in '{input_dir}'")
@@ -128,44 +133,39 @@ def cmd_shuffle(args):
 def register_parser(subparsers):
     """Register the shuffle subcommand."""
     shuffle_parser = subparsers.add_parser(
-        "shuffle",
-        help="Generate random captions by shuffling text groups"
+        "shuffle", help="Generate random captions by shuffling text groups"
     )
     shuffle_parser.add_argument(
-        "--input", "-i",
-        required=True,
-        help="Input directory containing images"
+        "--input", "-i", required=True, help="Input directory containing images"
     )
     shuffle_parser.add_argument(
-        "--output", "-o",
-        required=True,
-        help="Output directory for caption .txt files"
+        "--output", "-o", required=True, help="Output directory for caption .txt files"
     )
     shuffle_parser.add_argument(
-        "--group", "-g",
+        "--group",
+        "-g",
         action="append",
         help="Text group with variants separated by | (e.g., 'Hello.|Hey!|Bonjour.'). "
-        "Use multiple --group flags for multiple groups."
+        "Use multiple --group flags for multiple groups.",
     )
     shuffle_parser.add_argument(
-        "--separator",
-        default=" ",
-        help="Separator between groups (default: space)"
+        "--separator", default=" ", help="Separator between groups (default: space)"
     )
     shuffle_parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Random seed for reproducibility"
+        "--seed", type=int, default=None, help="Random seed for reproducibility"
     )
     shuffle_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview generated captions without writing files"
+        "--dry-run", action="store_true", help="Preview generated captions without writing files"
     )
     shuffle_parser.add_argument(
         "--show-distribution",
         action="store_true",
-        help="Show caption distribution after generation"
+        help="Show caption distribution after generation",
+    )
+    shuffle_parser.add_argument(
+        "--recursive",
+        "-R",
+        action="store_true",
+        help="Search input directory recursively for images",
     )
     shuffle_parser.set_defaults(func=cmd_shuffle)

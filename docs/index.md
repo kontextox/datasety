@@ -39,7 +39,7 @@ features:
     linkText: Learn more
   - icon: "&#x1F9D1;"
     title: Character Generation
-    details: Identity-preserving datasets from reference faces. LLM-generated prompts + IP-Adapter.
+    details: Identity-preserving datasets from reference faces. LLM-generated prompts.
     link: /commands/character
     linkText: Learn more
   - icon: "&#x1F50D;"

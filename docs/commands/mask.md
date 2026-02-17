@@ -18,22 +18,23 @@ datasety mask --input ./dataset --output ./masks --keywords "face,hair"
 
 ## Options
 
-| Option             | Description                      | Default      |
-| ------------------ | -------------------------------- | ------------ |
-| `--input`, `-i`    | Input directory                  | (required\*) |
-| `--output`, `-o`   | Output directory for masks       | (required\*) |
-| `--input-image`    | Single input image               |              |
-| `--output-image`   | Single output mask               |              |
-| `--keywords`, `-k` | Comma-separated keywords         | (required)   |
-| `--model`          | `sam3`, `sam2`, `clipseg`        | `sam3`       |
-| `--device`         | `auto`, `cpu`, or `cuda`         | `auto`       |
-| `--threshold`      | Confidence threshold (0.0-1.0)   | `0.3`        |
-| `--padding`        | Pixels to expand mask (dilation) | `0`          |
-| `--blur`           | Gaussian blur radius for edges   | `0`          |
-| `--invert`         | Invert mask colors               | `false`      |
-| `--naming`         | `folder` or `suffix` (\_mask)    | `folder`     |
-| `--output-format`  | `png`, `jpg`, `webp`             | `png`        |
-| `--dry-run`        | Preview without saving           | `false`      |
+| Option              | Description                        | Default      |
+| ------------------- | ---------------------------------- | ------------ |
+| `--input`, `-i`     | Input directory                    | (required\*) |
+| `--output`, `-o`    | Output directory for masks         | (required\*) |
+| `--input-image`     | Single input image                 |              |
+| `--output-image`    | Single output mask                 |              |
+| `--keywords`, `-k`  | Comma-separated keywords           | (required)   |
+| `--model`           | `sam3`, `sam2`, `clipseg`          | `sam3`       |
+| `--device`          | `auto`, `cpu`, `cuda`, or `mps`    | `auto`       |
+| `--threshold`       | Confidence threshold (0.0-1.0)     | `0.3`        |
+| `--padding`         | Pixels to expand mask (dilation)   | `0`          |
+| `--blur`            | Gaussian blur radius for edges     | `0`          |
+| `--invert`          | Invert mask colors                 | `false`      |
+| `--naming`          | `folder` or `suffix` (\_mask)      | `folder`     |
+| `--output-format`   | `png`, `jpg`, `webp`               | `png`        |
+| `--dry-run`         | Preview without saving             | `false`      |
+| `--recursive`, `-R` | Search input directory recursively | `false`      |
 
 ## Examples
 

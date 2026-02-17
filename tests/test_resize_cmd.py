@@ -10,7 +10,8 @@ def run_resize(*args):
     """Run datasety resize and return the result."""
     return subprocess.run(
         [sys.executable, "-m", "datasety", "resize", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -29,9 +30,12 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 1500)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "1024x1024",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "1024x1024",
         )
         assert result.returncode == 0
         assert "Processed: 1" in result.stdout
@@ -46,9 +50,12 @@ class TestResizeCommand:
         make_image(input_dir / "tiny.jpg", 100, 100)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "1024x1024",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "1024x1024",
         )
         assert result.returncode == 0
         assert "Skipped: 1" in result.stdout
@@ -61,10 +68,14 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "512x512",
-            "--output-format", "png",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "512x512",
+            "--output-format",
+            "png",
         )
         assert result.returncode == 0
         assert (output_dir / "001.png").exists()
@@ -77,9 +88,12 @@ class TestResizeCommand:
             make_image(input_dir / f"img_{i}.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "512x512",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "512x512",
             "--output-name-numbers",
         )
         assert result.returncode == 0
@@ -94,10 +108,14 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 1500, 3000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "1024x1024",
-            "--crop-position", "top",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "1024x1024",
+            "--crop-position",
+            "top",
         )
         assert result.returncode == 0
         with Image.open(output_dir / "001.jpg") as img:
@@ -110,9 +128,12 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 1500)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "768x1024",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "768x1024",
         )
         assert result.returncode == 0
         with Image.open(output_dir / "001.jpg") as img:
@@ -120,9 +141,12 @@ class TestResizeCommand:
 
     def test_missing_input_dir(self, tmp_path):
         result = run_resize(
-            "-i", str(tmp_path / "nonexistent"),
-            "-o", str(tmp_path / "out"),
-            "-r", "512x512",
+            "-i",
+            str(tmp_path / "nonexistent"),
+            "-o",
+            str(tmp_path / "out"),
+            "-r",
+            "512x512",
         )
         assert result.returncode != 0
 
@@ -132,9 +156,12 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(tmp_path / "out"),
-            "-r", "invalid",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(tmp_path / "out"),
+            "-r",
+            "invalid",
         )
         assert result.returncode != 0
 
@@ -145,9 +172,12 @@ class TestResizeCommand:
         (input_dir / "readme.txt").write_text("not an image")
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "512x512",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "512x512",
         )
         assert result.returncode == 0
         assert "No images found" in result.stdout
@@ -160,10 +190,14 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--megapixel", "0.5",
-            "--aspect-ratio", "1:1",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--megapixel",
+            "0.5",
+            "--aspect-ratio",
+            "1:1",
         )
         assert result.returncode == 0
         with Image.open(output_dir / "001.jpg") as img:
@@ -177,10 +211,14 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--megapixel", "1.0",
-            "--aspect-ratio", "16:9",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--megapixel",
+            "1.0",
+            "--aspect-ratio",
+            "16:9",
         )
         assert result.returncode == 0
         with Image.open(output_dir / "001.jpg") as img:
@@ -196,9 +234,12 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(tmp_path / "out"),
-            "--megapixel", "0.5",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(tmp_path / "out"),
+            "--megapixel",
+            "0.5",
         )
         assert result.returncode != 0
         assert "aspect-ratio" in result.stdout.lower() or "aspect-ratio" in result.stderr.lower()
@@ -210,11 +251,16 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(tmp_path / "out"),
-            "--megapixel", "0.5",
-            "--aspect-ratio", "1:1",
-            "-r", "512x512",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(tmp_path / "out"),
+            "--megapixel",
+            "0.5",
+            "--aspect-ratio",
+            "1:1",
+            "-r",
+            "512x512",
         )
         assert result.returncode != 0
 
@@ -225,10 +271,33 @@ class TestResizeCommand:
         make_image(input_dir / "001.jpg", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(tmp_path / "out"),
+            "-i",
+            str(input_dir),
+            "-o",
+            str(tmp_path / "out"),
         )
         assert result.returncode != 0
+
+    def test_dry_run(self, tmp_path):
+        """--dry-run should not write output files."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        make_image(input_dir / "001.jpg", 2000, 1500)
+
+        result = run_resize(
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "1024x1024",
+            "--dry-run",
+        )
+        assert result.returncode == 0
+        assert "DRY RUN" in result.stdout
+        assert "001.jpg" in result.stdout
+        assert len(list(output_dir.glob("*.jpg"))) == 0
 
     def test_input_format_filter(self, tmp_path):
         input_dir = tmp_path / "input"
@@ -238,10 +307,14 @@ class TestResizeCommand:
         make_image(input_dir / "002.png", 2000, 2000)
 
         result = run_resize(
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-r", "512x512",
-            "--input-format", "png",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-r",
+            "512x512",
+            "--input-format",
+            "png",
         )
         assert result.returncode == 0
         assert "Processed: 1" in result.stdout

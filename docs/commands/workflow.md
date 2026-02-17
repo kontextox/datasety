@@ -40,7 +40,7 @@ steps:
       input: ./resized
       output: ./resized
       llm-api: true
-      model: gpt-4o
+      model: gpt-5-nano
 ```
 
 ### JSON

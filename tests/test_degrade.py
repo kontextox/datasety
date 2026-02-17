@@ -52,6 +52,7 @@ class TestDegradationFunctions:
 
     def test_noise(self, sample_image):
         import random
+
         random.seed(42)
         result = _degrade_noise(sample_image, 0.5)
         assert result.size == sample_image.size
@@ -91,15 +92,18 @@ class TestDegradationFunctions:
         """All degradation functions should work at intensity=0."""
         for name in DEGRADATION_TYPES:
             from datasety.degrade import _DEGRADATION_FUNCS
+
             result = _DEGRADATION_FUNCS[name](sample_image, 0.0)
             assert result.size == sample_image.size
 
     def test_all_types_at_full_intensity(self, sample_image):
         """All degradation functions should work at intensity=1."""
         import random
+
         random.seed(42)
         for name in DEGRADATION_TYPES:
             from datasety.degrade import _DEGRADATION_FUNCS
+
             result = _DEGRADATION_FUNCS[name](sample_image, 1.0)
             assert result.size == sample_image.size
 
@@ -117,10 +121,9 @@ class TestDegradePipeline:
 
     def test_chained(self, sample_image):
         import random
+
         random.seed(42)
-        result, steps = apply_degradations(
-            sample_image, ["blur", "noise", "jpeg"], 0.5, chain=True
-        )
+        result, steps = apply_degradations(sample_image, ["blur", "noise", "jpeg"], 0.5, chain=True)
         assert result.size == sample_image.size
         assert result.tobytes() != sample_image.tobytes()
         assert len(steps) == 3
@@ -128,9 +131,13 @@ class TestDegradePipeline:
 
     def test_random_type(self, sample_image):
         import random
+
         random.seed(42)
         result, steps = apply_degradations(
-            sample_image, ["random"], 0.5, chain=False,
+            sample_image,
+            ["random"],
+            0.5,
+            chain=False,
         )
         assert result.size == sample_image.size
         assert len(steps) == 1
@@ -139,10 +146,9 @@ class TestDegradePipeline:
     def test_chain_false_picks_one(self, sample_image):
         """With chain=False, only one degradation should be applied."""
         import random
+
         random.seed(42)
-        result, steps = apply_degradations(
-            sample_image, ["blur", "jpeg"], 0.5, chain=False
-        )
+        result, steps = apply_degradations(sample_image, ["blur", "jpeg"], 0.5, chain=False)
         assert result.size == sample_image.size
         assert len(steps) == 1
 
@@ -158,9 +164,12 @@ class TestDegradePipeline:
     def test_intensity_range_per_step(self, sample_image):
         """Each step in a chain should get independent random intensity."""
         import random
+
         random.seed(42)
         result, steps = apply_degradations(
-            sample_image, ["blur", "jpeg", "noise"], chain=True,
+            sample_image,
+            ["blur", "jpeg", "noise"],
+            chain=True,
             intensity_range=(0.2, 0.8),
         )
         assert len(steps) == 3
@@ -174,7 +183,10 @@ class TestDegradePipeline:
     def test_steps_return_format(self, sample_image):
         """Steps should be list of (name, intensity) tuples."""
         result, steps = apply_degradations(
-            sample_image, ["blur", "jpeg"], 0.7, chain=True,
+            sample_image,
+            ["blur", "jpeg"],
+            0.7,
+            chain=True,
         )
         for name, intensity in steps:
             assert isinstance(name, str)
@@ -193,6 +205,7 @@ class TestIntensityRange:
     def test_intensity_clamped_high(self, sample_image):
         """Intensity at 1 should still produce a valid image."""
         import random
+
         random.seed(42)
         result, steps = apply_degradations(sample_image, ["noise"], 1.0)
         assert result.size == sample_image.size
@@ -204,8 +217,7 @@ class TestIntensityRange:
 class TestDegradeCLI:
     def test_help(self):
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade", "--help"],
-            capture_output=True, text=True
+            [sys.executable, "-m", "datasety", "degrade", "--help"], capture_output=True, text=True
         )
         assert result.returncode == 0
         assert "degrade" in result.stdout.lower()
@@ -214,8 +226,7 @@ class TestDegradeCLI:
 
     def test_missing_input(self):
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade"],
-            capture_output=True, text=True
+            [sys.executable, "-m", "datasety", "degrade"], capture_output=True, text=True
         )
         assert result.returncode != 0
 
@@ -227,12 +238,22 @@ class TestDegradeCLI:
 
         out_path = tmp_path / "degraded.png"
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "--input-image", str(in_path),
-             "--output-image", str(out_path),
-             "--type", "blur",
-             "--intensity", "0.5"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "--input-image",
+                str(in_path),
+                "--output-image",
+                str(out_path),
+                "--type",
+                "blur",
+                "--intensity",
+                "0.5",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert out_path.exists()
@@ -243,15 +264,27 @@ class TestDegradeCLI:
         in_dir.mkdir()
 
         for i in range(3):
-            Image.new("RGB", (50, 50), (i * 50, i * 50, i * 50)).save(
-                in_dir / f"img_{i}.png"
-            )
+            Image.new("RGB", (50, 50), (i * 50, i * 50, i * 50)).save(in_dir / f"img_{i}.png")
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "-i", str(in_dir), "-o", str(out_dir),
-             "--type", "jpeg", "--intensity", "0.5", "--seed", "42"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "-i",
+                str(in_dir),
+                "-o",
+                str(out_dir),
+                "--type",
+                "jpeg",
+                "--intensity",
+                "0.5",
+                "--seed",
+                "42",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert out_dir.exists()
@@ -265,10 +298,23 @@ class TestDegradeCLI:
         Image.new("RGB", (50, 50), (100, 100, 100)).save(in_dir / "photo.png")
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "-i", str(in_dir), "-o", str(out_dir),
-             "--type", "blur", "--paired", "--seed", "42"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "-i",
+                str(in_dir),
+                "-o",
+                str(out_dir),
+                "--type",
+                "blur",
+                "--paired",
+                "--seed",
+                "42",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert (out_dir / "control").exists()
@@ -283,12 +329,25 @@ class TestDegradeCLI:
         out_path = tmp_path / "out.png"
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "--input-image", str(in_path),
-             "--output-image", str(out_path),
-             "--type", "blur", "--type", "jpeg",
-             "--chain", "--intensity", "0.5"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "--input-image",
+                str(in_path),
+                "--output-image",
+                str(out_path),
+                "--type",
+                "blur",
+                "--type",
+                "jpeg",
+                "--chain",
+                "--intensity",
+                "0.5",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert out_path.exists()
@@ -301,10 +360,24 @@ class TestDegradeCLI:
         Image.new("RGB", (50, 50), (100, 100, 100)).save(in_dir / "photo.png")
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "-i", str(in_dir), "-o", str(out_dir),
-             "--type", "random", "--num-variants", "3", "--seed", "42"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "-i",
+                str(in_dir),
+                "-o",
+                str(out_dir),
+                "--type",
+                "random",
+                "--num-variants",
+                "3",
+                "--seed",
+                "42",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         files = sorted(out_dir.glob("*.png"))
@@ -321,12 +394,30 @@ class TestDegradeCLI:
         Image.new("RGB", (50, 50), (100, 100, 100)).save(in_dir / "face.png")
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "-i", str(in_dir), "-o", str(out_dir),
-             "--type", "random", "--type", "random", "--chain",
-             "--num-variants", "3", "--paired",
-             "--intensity-range", "0.3-0.8", "--seed", "42"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "-i",
+                str(in_dir),
+                "-o",
+                str(out_dir),
+                "--type",
+                "random",
+                "--type",
+                "random",
+                "--chain",
+                "--num-variants",
+                "3",
+                "--paired",
+                "--intensity-range",
+                "0.3-0.8",
+                "--seed",
+                "42",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         ctrl = sorted((out_dir / "control").glob("*.png"))
@@ -348,12 +439,25 @@ class TestDegradeCLI:
         out_path = tmp_path / "out.png"
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "--input-image", str(in_path),
-             "--output-image", str(out_path),
-             "--type", "blur", "--type", "jpeg",
-             "--chain", "--intensity", "0.5"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "--input-image",
+                str(in_path),
+                "--output-image",
+                str(out_path),
+                "--type",
+                "blur",
+                "--type",
+                "jpeg",
+                "--chain",
+                "--intensity",
+                "0.5",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         # Should show: [OK] test.png -> out.png (blur:0.50 > jpeg:0.50)
@@ -370,12 +474,29 @@ class TestDegradeCLI:
         Image.new("RGB", (50, 50), (100, 100, 100)).save(in_dir / "photo.png")
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "-i", str(in_dir), "-o", str(out_dir),
-             "--type", "random", "--type", "random", "--chain",
-             "--num-variants", "3",
-             "--intensity-range", "0.3-0.8", "--seed", "42"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "-i",
+                str(in_dir),
+                "-o",
+                str(out_dir),
+                "--type",
+                "random",
+                "--type",
+                "random",
+                "--chain",
+                "--num-variants",
+                "3",
+                "--intensity-range",
+                "0.3-0.8",
+                "--seed",
+                "42",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         # Should show variant lines indented
@@ -398,10 +519,24 @@ class TestDegradeCLI:
             Image.new("RGB", (50, 50)).save(in_dir / f"img_{i}.png")
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "degrade",
-             "-i", str(in_dir), "-o", str(out_dir),
-             "--type", "blur", "--intensity-range", "0.2-0.8", "--seed", "42"],
-            capture_output=True, text=True
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "degrade",
+                "-i",
+                str(in_dir),
+                "-o",
+                str(out_dir),
+                "--type",
+                "blur",
+                "--intensity-range",
+                "0.2-0.8",
+                "--seed",
+                "42",
+            ],
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert len(list(out_dir.glob("*.png"))) == 5

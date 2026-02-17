@@ -12,7 +12,8 @@ def run_sweep(*args):
     """Run datasety sweep and return the result."""
     return subprocess.run(
         [sys.executable, "-m", "datasety", "sweep", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -29,9 +30,12 @@ class TestSweepCLI:
 
     def test_missing_prompt(self, tmp_path):
         result = run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "--steps", "4,8",
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "--steps",
+            "4,8",
         )
         assert result.returncode != 0
 
@@ -43,11 +47,16 @@ class TestSweepGeneration:
         """Sweep over steps produces correct number of combinations."""
         output_file = tmp_path / "sweep.yaml"
         result = run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "add a hat",
-            "--steps", "4,8,16",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "add a hat",
+            "--steps",
+            "4,8,16",
+            "--output-file",
+            str(output_file),
         )
         assert result.returncode == 0
         assert output_file.exists()
@@ -61,12 +70,18 @@ class TestSweepGeneration:
         """Steps x cfg-scale produces Cartesian product."""
         output_file = tmp_path / "sweep.yaml"
         result = run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test prompt",
-            "--steps", "4,8",
-            "--cfg-scale", "1.0,2.5,5.0",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test prompt",
+            "--steps",
+            "4,8",
+            "--cfg-scale",
+            "1.0,2.5,5.0",
+            "--output-file",
+            str(output_file),
         )
         assert result.returncode == 0
 
@@ -77,12 +92,18 @@ class TestSweepGeneration:
         """Each step should have a descriptive output subdirectory."""
         output_file = tmp_path / "sweep.yaml"
         run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
-            "--steps", "4,8",
-            "--cfg-scale", "1.0,2.5",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
+            "--steps",
+            "4,8",
+            "--cfg-scale",
+            "1.0,2.5",
+            "--output-file",
+            str(output_file),
         )
         data = yaml.safe_load(output_file.read_text())
 
@@ -96,13 +117,20 @@ class TestSweepGeneration:
         """Seed and output-format are passed through."""
         output_file = tmp_path / "sweep.yaml"
         run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
-            "--steps", "4",
-            "--seed", "42",
-            "--output-format", "jpg",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
+            "--steps",
+            "4",
+            "--seed",
+            "42",
+            "--output-format",
+            "jpg",
+            "--output-file",
+            str(output_file),
         )
         data = yaml.safe_load(output_file.read_text())
 
@@ -114,11 +142,16 @@ class TestSweepGeneration:
         """A single value produces exactly one combination."""
         output_file = tmp_path / "sweep.yaml"
         run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
-            "--steps", "4",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
+            "--steps",
+            "4",
+            "--output-file",
+            str(output_file),
         )
         data = yaml.safe_load(output_file.read_text())
         assert len(data["steps"]) == 1
@@ -127,11 +160,16 @@ class TestSweepGeneration:
         """All generated steps should use the synthetic command."""
         output_file = tmp_path / "sweep.yaml"
         run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
-            "--steps", "4,8",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
+            "--steps",
+            "4,8",
+            "--output-file",
+            str(output_file),
         )
         data = yaml.safe_load(output_file.read_text())
         for step in data["steps"]:
@@ -141,11 +179,16 @@ class TestSweepGeneration:
         """Prompt should appear in every step."""
         output_file = tmp_path / "sweep.yaml"
         run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "add winter hat",
-            "--steps", "4,8",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "add winter hat",
+            "--steps",
+            "4,8",
+            "--output-file",
+            str(output_file),
         )
         data = yaml.safe_load(output_file.read_text())
         for step in data["steps"]:
@@ -155,11 +198,16 @@ class TestSweepGeneration:
         """YAML file should contain header comments."""
         output_file = tmp_path / "sweep.yaml"
         run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
-            "--steps", "4,8",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
+            "--steps",
+            "4,8",
+            "--output-file",
+            str(output_file),
         )
         content = output_file.read_text()
         assert "Generated by: datasety sweep" in content
@@ -169,10 +217,14 @@ class TestSweepGeneration:
         """No sweep parameters should produce an error."""
         output_file = tmp_path / "sweep.yaml"
         result = run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
+            "--output-file",
+            str(output_file),
         )
         assert result.returncode != 0
 
@@ -180,11 +232,16 @@ class TestSweepGeneration:
         """Sweep over strength values."""
         output_file = tmp_path / "sweep.yaml"
         run_sweep(
-            "-i", str(tmp_path),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
-            "--strength", "0.5,0.7,0.9",
-            "--output-file", str(output_file),
+            "-i",
+            str(tmp_path),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
+            "--strength",
+            "0.5,0.7,0.9",
+            "--output-file",
+            str(output_file),
         )
         data = yaml.safe_load(output_file.read_text())
         assert len(data["steps"]) == 3

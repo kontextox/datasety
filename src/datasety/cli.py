@@ -41,13 +41,9 @@ def build_parser():
 
     parser = argparse.ArgumentParser(
         prog="datasety",
-        description="CLI tool for dataset preparation: image resizing, captioning, and more."
+        description="CLI tool for dataset preparation: image resizing, captioning, and more.",
     )
-    parser.add_argument(
-        "-v", "--version",
-        action="version",
-        version=f"%(prog)s {__version__}"
-    )
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     resize.register_parser(subparsers)

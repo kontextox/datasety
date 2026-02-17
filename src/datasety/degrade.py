@@ -12,8 +12,15 @@ from datasety.common import _resolve_io_mode, get_image_files
 # ── Degradation registry ──
 
 DEGRADATION_TYPES = [
-    "lowres", "oversharpen", "noise", "blur", "jpeg",
-    "motion-blur", "pixelate", "color-bands", "upscale-sim",
+    "lowres",
+    "oversharpen",
+    "noise",
+    "blur",
+    "jpeg",
+    "motion-blur",
+    "pixelate",
+    "color-bands",
+    "upscale-sim",
 ]
 
 
@@ -101,8 +108,7 @@ _DEGRADATION_FUNCS = {
 }
 
 
-def apply_degradations(image, types, intensity=0.5, chain=False,
-                       intensity_range=None):
+def apply_degradations(image, types, intensity=0.5, chain=False, intensity_range=None):
     """Apply degradation(s) to an image.
 
     Args:
@@ -166,11 +172,14 @@ def cmd_degrade(args):
     types = args.type or ["random"]
     for t in types:
         if t != "random" and t not in _DEGRADATION_FUNCS:
-            print(f"Error: Unknown degradation type '{t}'. "
-                  f"Available: {', '.join(DEGRADATION_TYPES)}, random")
+            print(
+                f"Error: Unknown degradation type '{t}'. "
+                f"Available: {', '.join(DEGRADATION_TYPES)}, random"
+            )
             sys.exit(1)
 
     # Handle intensity / intensity-range
+    intensity_value = max(0.0, min(1.0, args.intensity))
     if args.intensity_range:
         try:
             parts = args.intensity_range.split("-")
@@ -179,13 +188,14 @@ def cmd_degrade(args):
             intensity_min = max(0.0, min(1.0, intensity_min))
             intensity_max = max(0.0, min(1.0, intensity_max))
         except (ValueError, IndexError):
-            print(f"Error: Invalid intensity range '{args.intensity_range}'. "
-                  "Use MIN-MAX (e.g., 0.3-0.8)")
+            print(
+                f"Error: Invalid intensity range '{args.intensity_range}'. "
+                "Use MIN-MAX (e.g., 0.3-0.8)"
+            )
             sys.exit(1)
         intensity_range = (intensity_min, intensity_max)
     else:
         intensity_range = None
-        intensity_min = max(0.0, min(1.0, args.intensity))
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -195,7 +205,7 @@ def cmd_degrade(args):
     # Find images
     if not is_single:
         formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
-        image_files = get_image_files(input_dir, formats)
+        image_files = get_image_files(input_dir, formats, recursive=args.recursive)
 
         if not image_files:
             print(f"No images found in '{input_dir}'")
@@ -216,7 +226,7 @@ def cmd_degrade(args):
     if intensity_range:
         print(f"Intensity range: {intensity_range[0]}-{intensity_range[1]}")
     else:
-        print(f"Intensity: {intensity_min}")
+        print(f"Intensity: {intensity_value}")
     if num_variants > 1:
         print(f"Variants per image: {num_variants}")
     if paired:
@@ -224,9 +234,10 @@ def cmd_degrade(args):
     print("-" * 50)
 
     processed = 0
+    total = len(image_files)
     out_ext = args.output_format
 
-    for img_path in image_files:
+    for idx, img_path in enumerate(image_files, 1):
         try:
             with Image.open(img_path) as img:
                 image = img.convert("RGB")
@@ -235,8 +246,9 @@ def cmd_degrade(args):
 
                 for variant_idx in range(num_variants):
                     degraded, steps = apply_degradations(
-                        image, types,
-                        intensity=intensity_min,
+                        image,
+                        types,
+                        intensity=intensity_value,
                         chain=args.chain,
                         intensity_range=intensity_range,
                     )
@@ -262,22 +274,20 @@ def cmd_degrade(args):
                     processed += 1
 
                     # Format steps for logging
-                    steps_str = " > ".join(
-                        f"{name}:{intens:.2f}" for name, intens in steps
-                    )
+                    steps_str = " > ".join(f"{name}:{intens:.2f}" for name, intens in steps)
                     variant_logs.append((f"{stem}.{out_ext}", steps_str))
 
                 # Print results
                 if num_variants > 1:
-                    print(f"[OK] {img_path.name} -> {num_variants} variants")
+                    print(f"[{idx}/{total}] [OK] {img_path.name} -> {num_variants} variants")
                     for fname, steps_str in variant_logs:
                         print(f"     {fname} ({steps_str})")
                 else:
                     fname, steps_str = variant_logs[0]
-                    print(f"[OK] {img_path.name} -> {fname} ({steps_str})")
+                    print(f"[{idx}/{total}] [OK] {img_path.name} -> {fname} ({steps_str})")
 
         except Exception as e:
-            print(f"[ERROR] {img_path.name}: {e}")
+            print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
 
     print("-" * 50)
     print(f"Done! Processed: {processed} images")
@@ -286,74 +296,66 @@ def cmd_degrade(args):
 def register_parser(subparsers):
     """Register the degrade subcommand."""
     degrade_parser = subparsers.add_parser(
-        "degrade",
-        help="Create degraded image versions for upscale/enhance training"
+        "degrade", help="Create degraded image versions for upscale/enhance training"
     )
     degrade_parser.add_argument(
-        "--input", "-i",
-        default="",
-        help="Input directory containing images"
+        "--input", "-i", default="", help="Input directory containing images"
     )
     degrade_parser.add_argument(
-        "--output", "-o",
-        default="",
-        help="Output directory for degraded images"
+        "--output", "-o", default="", help="Output directory for degraded images"
     )
     degrade_parser.add_argument(
-        "--input-image",
-        default=None,
-        help="Single input image path (alternative to --input dir)"
+        "--input-image", default=None, help="Single input image path (alternative to --input dir)"
     )
     degrade_parser.add_argument(
-        "--output-image",
-        default=None,
-        help="Single output image path (use with --input-image)"
+        "--output-image", default=None, help="Single output image path (use with --input-image)"
     )
     degrade_parser.add_argument(
-        "--type", "-t",
+        "--type",
+        "-t",
         action="append",
         default=None,
         help=f"Degradation type(s): {', '.join(DEGRADATION_TYPES)}, random. "
-        "Can be specified multiple times. (default: random)"
+        "Can be specified multiple times. (default: random)",
     )
     degrade_parser.add_argument(
-        "--intensity",
-        type=float,
-        default=0.5,
-        help="Global intensity 0.0-1.0 (default: 0.5)"
+        "--intensity", type=float, default=0.5, help="Global intensity 0.0-1.0 (default: 0.5)"
     )
     degrade_parser.add_argument(
         "--intensity-range",
         default=None,
-        help="Random intensity range MIN-MAX (e.g., 0.3-0.8). Overrides --intensity."
+        help="Random intensity range MIN-MAX (e.g., 0.3-0.8). Overrides --intensity.",
     )
     degrade_parser.add_argument(
         "--chain",
         action="store_true",
-        help="Apply multiple --type degradations sequentially (default: pick one)"
+        help="Apply multiple --type degradations sequentially (default: pick one)",
     )
     degrade_parser.add_argument(
         "--num-variants",
         type=int,
         default=1,
         help="Number of degraded variants per input image (default: 1). "
-        "Each variant gets fresh random degradations and intensity."
+        "Each variant gets fresh random degradations and intensity.",
     )
     degrade_parser.add_argument(
         "--paired",
         action="store_true",
-        help="Create control/ (degraded) + target/ (original) subdirs"
+        help="Create control/ (degraded) + target/ (original) subdirs",
     )
     degrade_parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Random seed for reproducibility"
+        "--seed", type=int, default=None, help="Random seed for reproducibility"
     )
     degrade_parser.add_argument(
         "--output-format",
         choices=["png", "jpg", "webp"],
         default="png",
-        help="Output image format (default: png)"
+        help="Output image format (default: png)",
+    )
+    degrade_parser.add_argument(
+        "--recursive",
+        "-R",
+        action="store_true",
+        help="Search input directory recursively for images",
     )
     degrade_parser.set_defaults(func=cmd_degrade)

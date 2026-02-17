@@ -26,7 +26,6 @@ keywords = [
     "degradation",
     "upscaling",
     "character",
-    "ip-adapter",
     "cli",
 ]
 classifiers = [
@@ -45,6 +44,8 @@ classifiers = [
 ]
 dependencies = [
     "Pillow>=9.0.0",
+    "numpy>=1.20.0",
+    "huggingface_hub>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +54,7 @@ caption = [
     "transformers>=4.38.0",
     "einops",
     "timm",
+    "numpy>=1.20.0",
 ]
 synthetic = [
     "torch>=2.0.0",
@@ -60,11 +62,13 @@ synthetic = [
     "transformers>=4.38.0",
     "accelerate",
     "sentencepiece",
+    "safetensors",
 ]
 mask = [
     "torch>=2.0.0",
     "transformers>=4.45.0",
     "sam2>=1.0",
+    "numpy>=1.20.0",
 ]
 workflow = [
     "pyyaml>=6.0",
@@ -75,8 +79,7 @@ character = [
     "diffusers>=0.32.0",
     "transformers>=4.38.0",
     "accelerate",
-    "insightface>=0.7.0",
-    "onnxruntime",
+    "safetensors",
 ]
 all = [
     "datasety[caption,synthetic,mask,degrade,character,workflow]",
@@ -112,3 +115,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

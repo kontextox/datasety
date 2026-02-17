@@ -5,11 +5,17 @@ from pathlib import Path
 
 from PIL import Image
 
-from datasety.common import _resolve_hf_file, _resolve_io_mode, get_image_files
+from datasety.common import (
+    _resolve_gguf_path,
+    _resolve_hf_file,
+    _resolve_io_mode,
+    get_image_files,
+    resolve_device,
+)
 
 _MODEL_VRAM_GB = {
-    "qwen": 32,          # ~31 GB peak with offload; needs sequential offload on 32 GB
-    "flux-kontext": 33,   # ~33 GB non-offloaded; triggers offload on 32 GB cards
+    "qwen": 32,  # ~31 GB peak with offload; needs sequential offload on 32 GB
+    "flux-kontext": 33,  # ~33 GB non-offloaded; triggers offload on 32 GB cards
     "flux2-klein": 8,
     "flux2-dev": 24,
     "longcat": 18,
@@ -40,18 +46,15 @@ def _detect_model_family(model_name: str) -> str:
     return "qwen"
 
 
-def _resolve_gguf_path(gguf_path):
-    """Resolve a GGUF path. Wrapper around _resolve_hf_file for backward compat."""
-    return _resolve_hf_file(gguf_path)
-
-
 def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path, cpu_offload):
     """Load the appropriate diffusion pipeline for the model family."""
     if family == "qwen":
         from diffusers import QwenImageEditPlusPipeline
+
         kwargs = {"torch_dtype": torch_dtype}
         if gguf_path:
             from diffusers import GGUFQuantizationConfig, QwenVLTransformer2DModel
+
             transformer = QwenVLTransformer2DModel.from_single_file(
                 gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
@@ -64,9 +67,11 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
 
     elif family == "flux-kontext":
         from diffusers import FluxKontextPipeline
+
         kwargs = {"torch_dtype": torch_dtype}
         if gguf_path:
             from diffusers import FluxTransformer2DModel, GGUFQuantizationConfig
+
             transformer = FluxTransformer2DModel.from_single_file(
                 gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
@@ -81,6 +86,7 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         kwargs = {"torch_dtype": torch_dtype}
         if gguf_path:
             from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
+
             transformer = Flux2Transformer2DModel.from_single_file(
                 gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
@@ -94,13 +100,25 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
             from diffusers import Flux2KleinPipeline
         except ImportError:
             import subprocess
-            print("Flux2KleinPipeline not found, upgrading diffusers...")
-            subprocess.check_call([
-                sys.executable, "-m", "pip", "install", "-q",
-                "git+https://github.com/huggingface/diffusers.git",
-            ])
+
+            print(
+                "Flux2KleinPipeline not found, upgrading diffusers from "
+                "official HuggingFace repo..."
+            )
+            print("Installing: git+https://github.com/huggingface/diffusers.git")
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "-q",
+                    "git+https://github.com/huggingface/diffusers.git",
+                ]
+            )
             # Clear cached diffusers modules so the upgraded version is loaded
             import importlib
+
             for _key in [k for k in sys.modules if k.startswith("diffusers")]:
                 del sys.modules[_key]
             importlib.invalidate_caches()
@@ -111,6 +129,7 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
         kwargs = {"torch_dtype": torch_dtype}
         if gguf_path:
             from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
+
             transformer = Flux2Transformer2DModel.from_single_file(
                 gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
@@ -120,25 +139,28 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
             )
             kwargs["transformer"] = transformer
         from diffusers import Flux2Pipeline
+
         pipeline = Flux2Pipeline.from_pretrained(model_name, **kwargs)
 
     elif family == "longcat":
         from diffusers import LongCatImageEditPipeline
-        pipeline = LongCatImageEditPipeline.from_pretrained(
-            model_name, torch_dtype=torch_dtype
-        )
+
+        pipeline = LongCatImageEditPipeline.from_pretrained(model_name, torch_dtype=torch_dtype)
 
     elif family == "sdxl":
         from diffusers import StableDiffusionXLImg2ImgPipeline
+
         pipeline = StableDiffusionXLImg2ImgPipeline.from_pretrained(
             model_name, torch_dtype=torch_dtype
         )
 
     elif family == "hunyuan":
         from diffusers import HunyuanImagePipeline
+
         kwargs = {"torch_dtype": torch_dtype}
         if gguf_path:
             from diffusers import GGUFQuantizationConfig, HunyuanVideo3DTransformerModel
+
             transformer = HunyuanVideo3DTransformerModel.from_single_file(
                 gguf_path,
                 quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
@@ -154,7 +176,8 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
 
     if cpu_offload:
         import torch
-        total_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+
+        total_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         needed_gb = _MODEL_VRAM_GB.get(family, 16)
         # Sequential CPU offload is incompatible with GGUF quantized models
         if needed_gb >= total_gb and not gguf_path:
@@ -182,9 +205,7 @@ def _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload):
     }
 
     if args.seed is not None:
-        gen_kwargs["generator"] = torch.Generator(
-            device=gen_device
-        ).manual_seed(args.seed)
+        gen_kwargs["generator"] = torch.Generator(device=gen_device).manual_seed(args.seed)
 
     if family == "qwen":
         gen_kwargs["image"] = [image]
@@ -284,8 +305,10 @@ def _load_lora_adapters(pipeline, lora_specs):
 
     if len(adapter_names) > 1:
         pipeline.set_adapters(adapter_names, adapter_weights=adapter_weights)
-        print(f"Activated {len(adapter_names)} LoRA adapters: "
-              f"{list(zip(adapter_names, adapter_weights))}")
+        print(
+            f"Activated {len(adapter_names)} LoRA adapters: "
+            f"{list(zip(adapter_names, adapter_weights))}"
+        )
     elif len(adapter_names) == 1 and adapter_weights[0] != 1.0:
         pipeline.set_adapters(adapter_names, adapter_weights=adapter_weights)
         print(f"LoRA weight set to {adapter_weights[0]}")
@@ -293,14 +316,6 @@ def _load_lora_adapters(pipeline, lora_specs):
 
 def cmd_synthetic(args):
     """Execute the synthetic image generation command."""
-    # Lazy import for faster CLI startup
-    try:
-        import torch
-    except ImportError:
-        print("Error: PyTorch not installed.")
-        print("Run: pip install 'datasety[synthetic]'")
-        sys.exit(1)
-
     single_files, output_path, is_single = _resolve_io_mode(args)
 
     if is_single:
@@ -317,31 +332,122 @@ def cmd_synthetic(args):
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine device
-    if args.device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    elif args.device == "cuda" and not torch.cuda.is_available():
-        print("Warning: CUDA not available, falling back to CPU")
-        device = "cpu"
-    else:
-        device = args.device
+    # Find images early so dry-run can preview without loading models
+    if not is_single:
+        formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
+        image_files = get_image_files(Path(args.input), formats, recursive=args.recursive)
 
-    torch_dtype = torch.bfloat16 if device == "cuda" else torch.float32
+        if not image_files:
+            print(f"No images found in '{args.input}'")
+            sys.exit(0)
 
     # Detect model family
     family = _detect_model_family(args.model)
+
+    dry_run = args.dry_run
+    if dry_run:
+        print("=== DRY RUN (no files will be written) ===")
+        mode = "API" if args.image_api else f"local ({family})"
+        print(f"Model: {args.model} (mode: {mode})")
+        print(f"Found {len(image_files)} images")
+        print(f"Prompt: {args.prompt}")
+        if not args.image_api:
+            print(f"Steps: {args.steps}, CFG: {args.cfg_scale}")
+        print("-" * 50)
+        out_ext = args.output_format.lower()
+        for idx, img_path in enumerate(image_files, 1):
+            if is_single and output_path:
+                print(f"  [{idx}/{len(image_files)}] {img_path.name} -> {output_path.name}")
+            elif args.num_images > 1:
+                for j in range(args.num_images):
+                    p = output_dir / f"{img_path.stem}_{j + 1}.{out_ext}"
+                    print(f"  [{idx}/{len(image_files)}] {img_path.name} -> {p.name}")
+            else:
+                out_path = output_dir / f"{img_path.stem}.{out_ext}"
+                print(f"  [{idx}/{len(image_files)}] {img_path.name} -> {out_path.name}")
+        print("-" * 50)
+        print(f"\nRun without --dry-run to generate {len(image_files)} image(s).")
+        return
+
+    # ── Cloud API path ──
+    if args.image_api:
+        from datasety.llm import _generate_image_via_api, resolve_llm_api_config
+
+        api_key, base_url, model = resolve_llm_api_config(args.model or None)
+        if not api_key:
+            print("Error: OPENAI_API_KEY environment variable is required for --image-api")
+            sys.exit(1)
+
+        print(f"Using image API: {base_url}")
+        print(f"Model: {model}")
+        print(f"Found {len(image_files)} images")
+        print(f"Prompt: {args.prompt}")
+        print("-" * 50)
+
+        processed = 0
+        total = len(image_files)
+        out_ext = args.output_format.lower()
+
+        for idx, img_path in enumerate(image_files, 1):
+            try:
+                with Image.open(img_path) as img:
+                    input_image = img.convert("RGB").copy()
+
+                result = _generate_image_via_api(
+                    args.prompt,
+                    api_key,
+                    base_url,
+                    model,
+                    input_image=input_image,
+                    seed=args.seed,
+                )
+
+                if is_single and output_path:
+                    out_path = output_path
+                else:
+                    out_path = output_dir / f"{img_path.stem}.{out_ext}"
+
+                result.save(out_path)
+                print(f"[{idx}/{total}] [OK] {img_path.name} -> {out_path.name}")
+                processed += 1
+
+            except Exception as e:
+                print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
+
+        print("-" * 50)
+        print(f"Done! Processed: {processed} images")
+
+        if processed == 0 and image_files:
+            print("Error: All images failed to process.")
+            sys.exit(1)
+        return
+
+    # ── Local pipeline path ──
+    try:
+        import torch
+    except ImportError:
+        print("Error: PyTorch not installed.")
+        print("Run: pip install 'datasety[synthetic]'")
+        sys.exit(1)
+
+    # Determine device
+    device = resolve_device(args.device)
+
+    torch_dtype = torch.bfloat16 if device in ("cuda", "mps") else torch.float32
 
     print(f"Loading model: {args.model} (family: {family})")
     print(f"Device: {device}")
 
     # Auto-detect cpu_offload if not explicitly set
     if device == "cuda" and not args.cpu_offload:
-        free_vram_gb = torch.cuda.mem_get_info(0)[0] / (1024 ** 3)
+        free_vram_gb = torch.cuda.mem_get_info(0)[0] / (1024**3)
         needed_gb = _MODEL_VRAM_GB.get(family, 16)
         if free_vram_gb < needed_gb + 2:
             cpu_offload = True
-            print(f"Auto-enabling CPU offload: {free_vram_gb:.1f} GB free, "
-                  f"model needs ~{needed_gb} GB")
+            print(
+                f"Auto-enabling CPU offload: {free_vram_gb:.1f} GB free, "
+                f"model needs ~{needed_gb} GB"
+            )
         else:
             cpu_offload = False
     else:
@@ -351,8 +457,12 @@ def cmd_synthetic(args):
 
     try:
         pipeline = _load_synthetic_pipeline(
-            args.model, family, device, torch_dtype,
-            gguf_path, cpu_offload,
+            args.model,
+            family,
+            device,
+            torch_dtype,
+            gguf_path,
+            cpu_offload,
         )
     except ImportError as e:
         print(f"Error: Missing dependency for {family} pipeline: {e}")
@@ -381,7 +491,16 @@ def cmd_synthetic(args):
             if weights_val.startswith(("https://", "http://")):
                 weight_path = _resolve_hf_file(weights_val)
             elif ":" in weights_val:
-                from huggingface_hub import hf_hub_download
+                try:
+                    from huggingface_hub import hf_hub_download
+                except ImportError:
+                    print(
+                        "Error: huggingface_hub is required for --weights with "
+                        "repo_id:filename format."
+                    )
+                    print("Run: pip install 'huggingface_hub>=0.20.0'")
+                    sys.exit(1)
+
                 repo_id, filename = weights_val.split(":", 1)
                 print(f"Downloading weights: {repo_id} / {filename}")
                 weight_path = hf_hub_download(repo_id, filename)
@@ -400,12 +519,12 @@ def cmd_synthetic(args):
                 if key.startswith(("model.diffusion_model.", "transformer.")):
                     for prefix in ("model.diffusion_model.", "transformer."):
                         if key.startswith(prefix):
-                            transformer_weights[key[len(prefix):]] = value
+                            transformer_weights[key[len(prefix) :]] = value
                             break
                 elif key.startswith(("first_stage_model.", "vae.")):
                     for prefix in ("first_stage_model.", "vae."):
                         if key.startswith(prefix):
-                            vae_weights[key[len(prefix):]] = value
+                            vae_weights[key[len(prefix) :]] = value
                             break
                 elif "text_encoder" in key or "conditioner" in key:
                     text_encoder_weights[key] = value
@@ -413,7 +532,9 @@ def cmd_synthetic(args):
             if transformer_weights:
                 print(f"Injecting {len(transformer_weights)} transformer weights")
                 pipeline.transformer.load_state_dict(
-                    transformer_weights, strict=False, assign=True,
+                    transformer_weights,
+                    strict=False,
+                    assign=True,
                 )
 
             if vae_weights:
@@ -423,7 +544,9 @@ def cmd_synthetic(args):
             if text_encoder_weights:
                 print(f"Injecting {len(text_encoder_weights)} text encoder weights")
                 pipeline.text_encoder.load_state_dict(
-                    text_encoder_weights, strict=False, assign=True,
+                    text_encoder_weights,
+                    strict=False,
+                    assign=True,
                 )
 
             del state_dict, transformer_weights, vae_weights, text_encoder_weights
@@ -437,15 +560,6 @@ def cmd_synthetic(args):
     if getattr(args, "lora", None):
         _load_lora_adapters(pipeline, args.lora)
 
-    # Find images
-    if not is_single:
-        formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
-        image_files = get_image_files(Path(args.input), formats)
-
-        if not image_files:
-            print(f"No images found in '{args.input}'")
-            sys.exit(0)
-
     print(f"Found {len(image_files)} images")
     print(f"Prompt: {args.prompt}")
     print(f"Steps: {args.steps}, CFG: {args.cfg_scale}")
@@ -454,10 +568,11 @@ def cmd_synthetic(args):
     print("-" * 50)
 
     processed = 0
+    total = len(image_files)
 
     out_ext = args.output_format.lower()
 
-    for img_path in image_files:
+    for idx, img_path in enumerate(image_files, 1):
         try:
             with Image.open(img_path) as img:
                 image = img.convert("RGB").copy()
@@ -475,11 +590,11 @@ def cmd_synthetic(args):
 
                 out_img.save(out_path)
 
-            print(f"[OK] {img_path.name} -> {len(output.images)} image(s)")
+            print(f"[{idx}/{total}] [OK] {img_path.name} -> {len(output.images)} image(s)")
             processed += 1
 
         except Exception as e:
-            print(f"[ERROR] {img_path.name}: {e}")
+            print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
 
     print("-" * 50)
     print(f"Done! Processed: {processed} images")
@@ -492,95 +607,68 @@ def cmd_synthetic(args):
 def register_parser(subparsers):
     """Register the synthetic subcommand."""
     synthetic_parser = subparsers.add_parser(
-        "synthetic",
-        help="Generate synthetic images using image editing models"
+        "synthetic", help="Generate synthetic images using image editing models"
     )
     synthetic_parser.add_argument(
-        "--input", "-i",
-        default="",
-        help="Input directory containing images"
+        "--input", "-i", default="", help="Input directory containing images"
     )
     synthetic_parser.add_argument(
-        "--output", "-o",
-        default="",
-        help="Output directory for generated images"
+        "--output", "-o", default="", help="Output directory for generated images"
     )
     synthetic_parser.add_argument(
-        "--input-image",
-        default=None,
-        help="Single input image path (alternative to --input dir)"
+        "--input-image", default=None, help="Single input image path (alternative to --input dir)"
     )
     synthetic_parser.add_argument(
-        "--output-image",
-        default=None,
-        help="Single output image path (use with --input-image)"
+        "--output-image", default=None, help="Single output image path (use with --input-image)"
     )
     synthetic_parser.add_argument(
-        "--prompt", "-p",
-        required=True,
-        help="Edit prompt (e.g., 'add a winter hat to the person')"
+        "--prompt", "-p", required=True, help="Edit prompt (e.g., 'add a winter hat to the person')"
     )
     synthetic_parser.add_argument(
         "--model",
         default="black-forest-labs/FLUX.2-klein-4B",
-        help="Model to use (default: black-forest-labs/FLUX.2-klein-4B)"
+        help="Model to use (default: black-forest-labs/FLUX.2-klein-4B)",
     )
     synthetic_parser.add_argument(
         "--weights",
         default=None,
         help="Fine-tuned weights as 'repo_id:filename' "
-        "(e.g., 'Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/model.safetensors')"
+        "(e.g., 'Phr00t/Qwen-Image-Edit-Rapid-AIO:v23/model.safetensors')",
     )
     synthetic_parser.add_argument(
         "--device",
-        choices=["auto", "cpu", "cuda"],
+        choices=["auto", "cpu", "cuda", "mps"],
         default="auto",
-        help="Device to run model on (default: auto-detect GPU)"
+        help="Device to run model on (default: auto-detect GPU/MPS)",
     )
     synthetic_parser.add_argument(
         "--cpu-offload",
         action="store_true",
-        help="Force CPU offload (auto-detected by default based on available VRAM)"
+        help="Force CPU offload (auto-detected by default based on available VRAM)",
     )
     synthetic_parser.add_argument(
-        "--steps",
-        type=int,
-        default=4,
-        help="Number of inference steps (default: 4)"
+        "--steps", type=int, default=4, help="Number of inference steps (default: 4)"
     )
     synthetic_parser.add_argument(
-        "--cfg-scale",
-        type=float,
-        default=2.5,
-        help="Guidance scale (default: 2.5)"
+        "--cfg-scale", type=float, default=2.5, help="Guidance scale (default: 2.5)"
     )
     synthetic_parser.add_argument(
-        "--true-cfg-scale",
-        type=float,
-        default=4.0,
-        help="True CFG scale (default: 4.0)"
+        "--true-cfg-scale", type=float, default=4.0, help="True CFG scale (default: 4.0)"
     )
     synthetic_parser.add_argument(
-        "--negative-prompt",
-        default=" ",
-        help="Negative prompt (default: ' ')"
+        "--negative-prompt", default=" ", help="Negative prompt (default: ' ')"
     )
     synthetic_parser.add_argument(
         "--num-images",
         type=int,
         default=1,
-        help="Number of images to generate per input (default: 1)"
+        help="Number of images to generate per input (default: 1)",
     )
     synthetic_parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Random seed for reproducibility"
+        "--seed", type=int, default=None, help="Random seed for reproducibility"
     )
     synthetic_parser.add_argument(
-        "--gguf",
-        default=None,
-        help="Path or URL to GGUF file for quantized transformer loading"
+        "--gguf", default=None, help="Path or URL to GGUF file for quantized transformer loading"
     )
     synthetic_parser.add_argument(
         "--lora",
@@ -588,18 +676,34 @@ def register_parser(subparsers):
         default=None,
         help="LoRA adapter: path, HF repo, or URL to .safetensors file. "
         "Optionally append :WEIGHT (e.g., 'adapter.safetensors:0.8'). "
-        "Can be specified multiple times for multiple LoRAs."
+        "Can be specified multiple times for multiple LoRAs.",
     )
     synthetic_parser.add_argument(
         "--strength",
         type=float,
         default=0.7,
-        help="Img2img strength for SDXL/FLUX.2 (0.0-1.0, default: 0.7)"
+        help="Img2img strength for SDXL/FLUX.2 (0.0-1.0, default: 0.7)",
     )
     synthetic_parser.add_argument(
         "--output-format",
         choices=["png", "jpg", "webp"],
         default="png",
-        help="Output image format (default: png)"
+        help="Output image format (default: png)",
+    )
+    synthetic_parser.add_argument(
+        "--recursive",
+        "-R",
+        action="store_true",
+        help="Search input directory recursively for images",
+    )
+    synthetic_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview prompts and output paths without loading models or generating images",
+    )
+    synthetic_parser.add_argument(
+        "--image-api",
+        action="store_true",
+        help="Use OpenAI-compatible API for image generation (needs OPENAI_API_KEY)",
     )
     synthetic_parser.set_defaults(func=cmd_synthetic)

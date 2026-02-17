@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from datasety.common import get_image_files
+from datasety.common import get_image_files, get_save_kwargs
 
 
 def cmd_align(args):
@@ -21,8 +21,9 @@ def cmd_align(args):
         sys.exit(1)
 
     formats = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
-    target_files = get_image_files(target_dir, formats)
-    control_files = get_image_files(control_dir, formats)
+    recursive = args.recursive
+    target_files = get_image_files(target_dir, formats, recursive=recursive)
+    control_files = get_image_files(control_dir, formats, recursive=recursive)
 
     if not target_files:
         print(f"No images found in '{target_dir}'")
@@ -75,14 +76,16 @@ def cmd_align(args):
                     skipped += 1
                     continue
 
-                needs_target_fix = (t_w != aligned_w or t_h != aligned_h)
-                needs_control_fix = (c_w != aligned_w or c_h != aligned_h)
-                needs_format_fix_t = (out_format and tf.suffix.lstrip(".").lower() != out_format)
-                needs_format_fix_c = (out_format and cf.suffix.lstrip(".").lower() != out_format)
+                needs_target_fix = t_w != aligned_w or t_h != aligned_h
+                needs_control_fix = c_w != aligned_w or c_h != aligned_h
+                needs_format_fix_t = out_format and tf.suffix.lstrip(".").lower() != out_format
+                needs_format_fix_c = out_format and cf.suffix.lstrip(".").lower() != out_format
 
                 no_fix_needed = (
-                    not needs_target_fix and not needs_control_fix
-                    and not needs_format_fix_t and not needs_format_fix_c
+                    not needs_target_fix
+                    and not needs_control_fix
+                    and not needs_format_fix_t
+                    and not needs_format_fix_c
                 )
                 if no_fix_needed:
                     already_ok += 1
@@ -102,14 +105,7 @@ def cmd_align(args):
                 print(f"[FIX] {tf.stem}: {detail}")
 
                 if not dry_run:
-                    save_kwargs = {}
-                    if out_format in ("jpg", "jpeg"):
-                        save_kwargs["quality"] = 95
-                        save_kwargs["optimize"] = True
-                    elif out_format == "webp":
-                        save_kwargs["quality"] = 95
-                    elif out_format == "png":
-                        save_kwargs["optimize"] = True
+                    save_kwargs = get_save_kwargs(out_format) if out_format else {}
 
                     if needs_target_fix or needs_format_fix_t:
                         t_rgb = t_img.convert("RGB")
@@ -166,34 +162,29 @@ def cmd_align(args):
 def register_parser(subparsers):
     """Register the align subcommand."""
     align_parser = subparsers.add_parser(
-        "align",
-        help="Align control/target image pairs (match dimensions, format, multiple of 32)"
+        "align", help="Align control/target image pairs (match dimensions, format, multiple of 32)"
     )
-    align_parser.add_argument(
-        "--target", "-t",
-        required=True,
-        help="Target images directory"
-    )
-    align_parser.add_argument(
-        "--control", "-c",
-        required=True,
-        help="Control images directory"
-    )
+    align_parser.add_argument("--target", "-t", required=True, help="Target images directory")
+    align_parser.add_argument("--control", "-c", required=True, help="Control images directory")
     align_parser.add_argument(
         "--multiple-of",
         type=int,
         default=32,
-        help="Align dimensions to this multiple (default: 32)"
+        help="Align dimensions to this multiple (default: 32)",
     )
     align_parser.add_argument(
         "--output-format",
         choices=["jpg", "png", "webp", ""],
         default="",
-        help="Convert all images to this format (default: keep original)"
+        help="Convert all images to this format (default: keep original)",
     )
     align_parser.add_argument(
-        "--dry-run",
+        "--dry-run", action="store_true", help="Preview changes without modifying files"
+    )
+    align_parser.add_argument(
+        "--recursive",
+        "-R",
         action="store_true",
-        help="Preview changes without modifying files"
+        help="Search input directories recursively for images",
     )
     align_parser.set_defaults(func=cmd_align)

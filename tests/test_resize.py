@@ -1,6 +1,5 @@
 """Tests for the resize command."""
 
-
 import pytest
 
 from datasety.resize import _resolution_from_megapixel, calculate_resize_and_crop

@@ -28,11 +28,14 @@ class TestArgsToArgv:
         assert "--llm-api" not in argv
 
     def test_list_values(self):
-        argv = _args_to_argv("shuffle", {
-            "input": "./in",
-            "output": "./out",
-            "group": ["A|B", "C|D"],
-        })
+        argv = _args_to_argv(
+            "shuffle",
+            {
+                "input": "./in",
+                "output": "./out",
+                "group": ["A|B", "C|D"],
+            },
+        )
         assert argv.count("--group") == 2
         assert "A|B" in argv
         assert "C|D" in argv
@@ -104,7 +107,8 @@ class TestLoadWorkflow:
 def run_workflow(*args):
     return subprocess.run(
         [sys.executable, "-m", "datasety", "workflow", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 

@@ -11,7 +11,8 @@ def run_cli(*args):
     """Run datasety CLI command and return the result."""
     return subprocess.run(
         [sys.executable, "-m", "datasety", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 

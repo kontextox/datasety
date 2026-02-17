@@ -10,7 +10,8 @@ def run_mask(*args):
     """Run datasety mask and return the result."""
     return subprocess.run(
         [sys.executable, "-m", "datasety", "mask", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -40,9 +41,12 @@ class TestMaskCLI:
 
     def test_missing_input(self, tmp_path):
         result = run_mask(
-            "-i", str(tmp_path / "nonexistent"),
-            "-o", str(tmp_path / "out"),
-            "-k", "face",
+            "-i",
+            str(tmp_path / "nonexistent"),
+            "-o",
+            str(tmp_path / "out"),
+            "-k",
+            "face",
         )
         assert result.returncode != 0
 
@@ -86,8 +90,8 @@ class TestMaskPostProcessing:
         mask_img.paste(255, (30, 30, 70, 70))
 
         inverted = Image.eval(mask_img, lambda x: 255 - x)
-        assert inverted.getpixel((50, 50)) == 0   # Was white, now black
-        assert inverted.getpixel((0, 0)) == 255    # Was black, now white
+        assert inverted.getpixel((50, 50)) == 0  # Was white, now black
+        assert inverted.getpixel((0, 0)) == 255  # Was black, now white
 
     def test_padding_then_blur_order(self):
         """Padding should be applied before blur (matches cmd_mask logic)."""

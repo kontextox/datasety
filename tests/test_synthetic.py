@@ -20,6 +20,7 @@ from datasety.synthetic import (
 def _torch_available():
     try:
         import torch  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -168,9 +169,7 @@ class TestRunSyntheticPipelineKwargs:
     def test_hunyuan_no_strength(self):
         pipeline = self._make_pipeline()
         args = self._make_args()
-        _run_synthetic_pipeline(
-            pipeline, "hunyuan", Image.new("RGB", (64, 64)), args, "cpu", False
-        )
+        _run_synthetic_pipeline(pipeline, "hunyuan", Image.new("RGB", (64, 64)), args, "cpu", False)
         call_kwargs = pipeline.call_args[1]
         assert "strength" not in call_kwargs
         assert "true_cfg_scale" not in call_kwargs
@@ -255,7 +254,8 @@ class TestResolveGgufPath:
 def run_synthetic(*args):
     return subprocess.run(
         [sys.executable, "-m", "datasety", "synthetic", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -264,9 +264,12 @@ class TestSyntheticCLI:
 
     def test_missing_input_dir(self, tmp_path):
         result = run_synthetic(
-            "-i", str(tmp_path / "nonexistent"),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
+            "-i",
+            str(tmp_path / "nonexistent"),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
         )
         assert result.returncode != 0
 
@@ -282,9 +285,12 @@ class TestSyntheticCLI:
         input_dir = tmp_path / "empty_input"
         input_dir.mkdir()
         result = run_synthetic(
-            "-i", str(input_dir),
-            "-o", str(tmp_path / "out"),
-            "-p", "test",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "test",
         )
         # On GPU: model loads, then "No images found" -> exit 0
         # On CPU without model: model load fails -> exit 1
@@ -294,6 +300,51 @@ class TestSyntheticCLI:
     def test_lora_flag_in_help(self):
         result = run_synthetic("--help")
         assert "--lora" in result.stdout
+
+    def test_dry_run(self, tmp_path):
+        """--dry-run should preview without loading models."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        Image.new("RGB", (64, 64), (128, 128, 128)).save(input_dir / "test.jpg")
+
+        result = run_synthetic(
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "add a hat",
+            "--dry-run",
+        )
+        assert result.returncode == 0
+        assert "DRY RUN" in result.stdout
+        assert "test.jpg" in result.stdout
+
+    def test_image_api_in_help(self):
+        result = run_synthetic("--help")
+        assert "--image-api" in result.stdout
+
+    def test_image_api_dry_run(self, tmp_path):
+        """--image-api + --dry-run should work without API key."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        Image.new("RGB", (64, 64), (128, 128, 128)).save(input_dir / "test.jpg")
+
+        result = run_synthetic(
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "add a hat",
+            "--image-api",
+            "--dry-run",
+        )
+        assert result.returncode == 0
+        assert "DRY RUN" in result.stdout
+        assert "API" in result.stdout
 
 
 # ── LoRA spec parsing tests ──
@@ -361,6 +412,7 @@ class TestResolveHfFile:
     def test_blob_url_pattern_recognized(self):
         """Blob URLs should be recognized (download tested separately)."""
         import re
+
         url = "https://huggingface.co/user/repo/blob/main/file.safetensors"
         m = re.match(
             r"https?://huggingface\.co/([^/]+/[^/]+)/(?:resolve|blob)/([^/]+)/(.+)",
@@ -374,6 +426,7 @@ class TestResolveHfFile:
     def test_resolve_url_pattern_recognized(self):
         """Resolve URLs should be recognized."""
         import re
+
         url = "https://huggingface.co/user/repo/resolve/main/file.gguf"
         m = re.match(
             r"https?://huggingface\.co/([^/]+/[^/]+)/(?:resolve|blob)/([^/]+)/(.+)",

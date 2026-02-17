@@ -44,7 +44,8 @@ pytestmark = pytest.mark.gpu
 def run_cli(*args):
     return subprocess.run(
         [sys.executable, "-m", "datasety", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         timeout=600,
     )
 
@@ -78,9 +79,12 @@ class TestCaptionFlorence2:
 
         result = run_cli(
             "caption",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--device",
+            "auto",
             "--florence-2-base",
         )
         assert result.returncode == 0, result.stdout + result.stderr
@@ -94,11 +98,15 @@ class TestCaptionFlorence2:
 
         result = run_cli(
             "caption",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--device",
+            "auto",
             "--florence-2-base",
-            "--trigger-word", "sks person,",
+            "--trigger-word",
+            "sks person,",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         caption = (output_dir / "000.txt").read_text()
@@ -109,11 +117,15 @@ class TestCaptionFlorence2:
 
         result = run_cli(
             "caption",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--device",
+            "auto",
             "--florence-2-base",
-            "--num-beams", "1",
+            "--num-beams",
+            "1",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert (output_dir / "000.txt").exists()
@@ -123,11 +135,15 @@ class TestCaptionFlorence2:
 
         result = run_cli(
             "caption",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--device",
+            "auto",
             "--florence-2-base",
-            "--prompt", "<DETAILED_CAPTION>",
+            "--prompt",
+            "<DETAILED_CAPTION>",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert len((output_dir / "000.txt").read_text().strip()) > 0
@@ -146,13 +162,20 @@ class TestSyntheticQwen:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "add a small red hat",
-            "--model", "Qwen/Qwen-Image-Edit-2511",
-            "--device", "auto",
-            "--steps", "2",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "add a small red hat",
+            "--model",
+            "Qwen/Qwen-Image-Edit-2511",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "family: qwen" in result.stdout
@@ -164,14 +187,22 @@ class TestSyntheticQwen:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "make it brighter",
-            "--model", "Qwen/Qwen-Image-Edit-2511",
-            "--device", "auto",
-            "--steps", "2",
-            "--seed", "42",
-            "--output-format", "jpg",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "make it brighter",
+            "--model",
+            "Qwen/Qwen-Image-Edit-2511",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--seed",
+            "42",
+            "--output-format",
+            "jpg",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert len(list(output_dir.glob("*.jpg"))) == 1
@@ -181,14 +212,22 @@ class TestSyntheticQwen:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "add sunglasses",
-            "--model", "Qwen/Qwen-Image-Edit-2511",
-            "--device", "auto",
-            "--steps", "2",
-            "--seed", "42",
-            "--num-images", "2",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "add sunglasses",
+            "--model",
+            "Qwen/Qwen-Image-Edit-2511",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--seed",
+            "42",
+            "--num-images",
+            "2",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         outputs = list(output_dir.glob("*.png"))
@@ -199,13 +238,20 @@ class TestSyntheticQwen:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "test",
-            "--model", "Qwen/Qwen-Image-Edit-2511",
-            "--device", "auto",
-            "--steps", "2",
-            "--true-cfg-scale", "3.0",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "test",
+            "--model",
+            "Qwen/Qwen-Image-Edit-2511",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--true-cfg-scale",
+            "3.0",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "True CFG: 3.0" in result.stdout
@@ -229,14 +275,22 @@ class TestSyntheticFluxKontext:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "add a blue scarf",
-            "--model", "black-forest-labs/FLUX.1-Kontext-dev",
-            "--device", "auto",
-            "--steps", "2",
-            "--cfg-scale", "2.5",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "add a blue scarf",
+            "--model",
+            "black-forest-labs/FLUX.1-Kontext-dev",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--cfg-scale",
+            "2.5",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "family: flux-kontext" in result.stdout
@@ -247,12 +301,18 @@ class TestSyntheticFluxKontext:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "test",
-            "--model", "black-forest-labs/FLUX.1-Kontext-dev",
-            "--device", "auto",
-            "--steps", "2",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "test",
+            "--model",
+            "black-forest-labs/FLUX.1-Kontext-dev",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         # true_cfg_scale is Qwen-only, should not be printed
@@ -272,14 +332,22 @@ class TestSyntheticFlux2Klein:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "a painting in watercolor style",
-            "--model", "black-forest-labs/FLUX.2-klein-4B",
-            "--device", "auto",
-            "--steps", "2",
-            "--strength", "0.6",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "a painting in watercolor style",
+            "--model",
+            "black-forest-labs/FLUX.2-klein-4B",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--strength",
+            "0.6",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "family: flux2-klein" in result.stdout
@@ -290,14 +358,22 @@ class TestSyntheticFlux2Klein:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "enhance colors",
-            "--model", "black-forest-labs/FLUX.2-klein-4B",
-            "--device", "auto",
-            "--steps", "2",
-            "--strength", "0.3",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "enhance colors",
+            "--model",
+            "black-forest-labs/FLUX.2-klein-4B",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--strength",
+            "0.3",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
@@ -315,15 +391,24 @@ class TestSyntheticSDXL:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "a photo of a landscape, high quality, 4k",
-            "--model", "stabilityai/stable-diffusion-xl-base-1.0",
-            "--device", "auto",
-            "--steps", "2",
-            "--cfg-scale", "7.5",
-            "--strength", "0.7",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "a photo of a landscape, high quality, 4k",
+            "--model",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--cfg-scale",
+            "7.5",
+            "--strength",
+            "0.7",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "family: sdxl" in result.stdout
@@ -334,15 +419,24 @@ class TestSyntheticSDXL:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "a beautiful scene",
-            "--model", "stabilityai/stable-diffusion-xl-base-1.0",
-            "--device", "auto",
-            "--steps", "2",
-            "--strength", "0.5",
-            "--negative-prompt", "ugly, blurry, low quality",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "a beautiful scene",
+            "--model",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--strength",
+            "0.5",
+            "--negative-prompt",
+            "ugly, blurry, low quality",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
@@ -351,14 +445,22 @@ class TestSyntheticSDXL:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "add warm lighting",
-            "--model", "stabilityai/stable-diffusion-xl-base-1.0",
-            "--device", "auto",
-            "--steps", "2",
-            "--strength", "0.5",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "add warm lighting",
+            "--model",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--strength",
+            "0.5",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Processed: 3 images" in result.stdout
@@ -369,14 +471,22 @@ class TestSyntheticSDXL:
 
         result = run_cli(
             "synthetic",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-p", "test",
-            "--model", "stabilityai/stable-diffusion-xl-base-1.0",
-            "--device", "auto",
-            "--steps", "2",
-            "--strength", "0.5",
-            "--output-format", "webp",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-p",
+            "test",
+            "--model",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "--device",
+            "auto",
+            "--steps",
+            "2",
+            "--strength",
+            "0.5",
+            "--output-format",
+            "webp",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert len(list(output_dir.glob("*.webp"))) == 1
@@ -395,11 +505,16 @@ class TestMaskCLIPSeg:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "red",
-            "--model", "clipseg",
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         masks = list(output_dir.glob("*.png"))
@@ -413,11 +528,16 @@ class TestMaskCLIPSeg:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "red,dark,square",
-            "--model", "clipseg",
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "red,dark,square",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "3 keywords" in result.stdout
@@ -427,11 +547,16 @@ class TestMaskCLIPSeg:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "red",
-            "--model", "clipseg",
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
             "--dry-run",
         )
         assert result.returncode == 0, result.stdout + result.stderr
@@ -444,12 +569,18 @@ class TestMaskCLIPSeg:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(input_dir),
-            "-k", "red",
-            "--model", "clipseg",
-            "--device", "auto",
-            "--naming", "suffix",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(input_dir),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
+            "--naming",
+            "suffix",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert (input_dir / "000_mask.png").exists()
@@ -462,12 +593,30 @@ class TestMaskCLIPSeg:
         make_image(input_dir / "001.jpg", 128, 128, color=(255, 0, 0))
 
         run_cli(
-            "mask", "-i", str(input_dir), "-o", str(out_normal),
-            "-k", "red", "--model", "clipseg", "--device", "auto",
+            "mask",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(out_normal),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
         )
         run_cli(
-            "mask", "-i", str(input_dir), "-o", str(out_inverted),
-            "-k", "red", "--model", "clipseg", "--device", "auto",
+            "mask",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(out_inverted),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
             "--invert",
         )
 
@@ -480,13 +629,20 @@ class TestMaskCLIPSeg:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "red",
-            "--model", "clipseg",
-            "--device", "auto",
-            "--padding", "5",
-            "--blur", "3",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
+            "--padding",
+            "5",
+            "--blur",
+            "3",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert len(list(output_dir.glob("*.png"))) == 1
@@ -499,14 +655,34 @@ class TestMaskCLIPSeg:
         make_image(input_dir / "001.jpg", 128, 128, color=(255, 0, 0))
 
         run_cli(
-            "mask", "-i", str(input_dir), "-o", str(out_low),
-            "-k", "red", "--model", "clipseg", "--device", "auto",
-            "--threshold", "0.1",
+            "mask",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(out_low),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
+            "--threshold",
+            "0.1",
         )
         run_cli(
-            "mask", "-i", str(input_dir), "-o", str(out_high),
-            "-k", "red", "--model", "clipseg", "--device", "auto",
-            "--threshold", "0.9",
+            "mask",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(out_high),
+            "-k",
+            "red",
+            "--model",
+            "clipseg",
+            "--device",
+            "auto",
+            "--threshold",
+            "0.9",
         )
 
         low_mask = np.array(Image.open(out_low / "001.png"))
@@ -528,12 +704,18 @@ class TestMaskSAM2:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "colored square",
-            "--model", "sam2",
-            "--device", "auto",
-            "--threshold", "0.2",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "colored square",
+            "--model",
+            "sam2",
+            "--device",
+            "auto",
+            "--threshold",
+            "0.2",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         masks = list(output_dir.glob("*.png"))
@@ -547,12 +729,18 @@ class TestMaskSAM2:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "object",
-            "--model", "sam2",
-            "--device", "auto",
-            "--threshold", "0.2",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "object",
+            "--model",
+            "sam2",
+            "--device",
+            "auto",
+            "--threshold",
+            "0.2",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Processed: 3 images" in result.stdout
@@ -575,11 +763,16 @@ class TestMaskSAM3:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "red object",
-            "--model", "sam3",
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "red object",
+            "--model",
+            "sam3",
+            "--device",
+            "auto",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         masks = list(output_dir.glob("*.png"))
@@ -590,11 +783,16 @@ class TestMaskSAM3:
 
         result = run_cli(
             "mask",
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-k", "red,dark",
-            "--model", "sam3",
-            "--device", "auto",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "-k",
+            "red,dark",
+            "--model",
+            "sam3",
+            "--device",
+            "auto",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "2 keywords" in result.stdout

@@ -23,27 +23,30 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 
 ## Options
 
-| Option              | Description                          | Default                             |
-| ------------------- | ------------------------------------ | ----------------------------------- |
-| `--input`, `-i`     | Input directory                      | (required\*)                        |
-| `--output`, `-o`    | Output directory                     | (required\*)                        |
-| `--input-image`     | Single input image                   |                                     |
-| `--output-image`    | Single output image                  |                                     |
-| `--prompt`, `-p`    | Edit prompt                          | (required)                          |
-| `--model`           | Model (auto-detects family)          | `black-forest-labs/FLUX.2-klein-4B` |
-| `--weights`         | Fine-tuned weights                   | (none)                              |
-| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`) | (none)                              |
-| `--device`          | `auto`, `cpu`, or `cuda`             | `auto`                              |
-| `--cpu-offload`     | Force CPU offload                    | `false`                             |
-| `--steps`           | Inference steps                      | `4`                                 |
-| `--cfg-scale`       | Guidance scale                       | `2.5`                               |
-| `--true-cfg-scale`  | True CFG (Qwen only)                 | `4.0`                               |
-| `--negative-prompt` | Negative prompt                      | `" "`                               |
-| `--num-images`      | Images per input                     | `1`                                 |
-| `--seed`            | Random seed                          | (random)                            |
-| `--gguf`            | GGUF path/URL for quantized loading  | (none)                              |
-| `--strength`        | Img2img strength (0.0-1.0)           | `0.7`                               |
-| `--output-format`   | `png`, `jpg`, `webp`                 | `png`                               |
+| Option              | Description                              | Default                             |
+| ------------------- | ---------------------------------------- | ----------------------------------- |
+| `--input`, `-i`     | Input directory                          | (required\*)                        |
+| `--output`, `-o`    | Output directory                         | (required\*)                        |
+| `--input-image`     | Single input image                       |                                     |
+| `--output-image`    | Single output image                      |                                     |
+| `--prompt`, `-p`    | Edit prompt                              | (required)                          |
+| `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4B` |
+| `--image-api`       | Use OpenAI-compatible API for generation | `false`                             |
+| `--weights`         | Fine-tuned weights                       | (none)                              |
+| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     | (none)                              |
+| `--device`          | `auto`, `cpu`, `cuda`, or `mps`          | `auto`                              |
+| `--cpu-offload`     | Force CPU offload                        | `false`                             |
+| `--steps`           | Inference steps                          | `4`                                 |
+| `--cfg-scale`       | Guidance scale                           | `2.5`                               |
+| `--true-cfg-scale`  | True CFG (Qwen only)                     | `4.0`                               |
+| `--negative-prompt` | Negative prompt                          | `" "`                               |
+| `--num-images`      | Images per input                         | `1`                                 |
+| `--seed`            | Random seed                              | (random)                            |
+| `--gguf`            | GGUF path/URL for quantized loading      | (none)                              |
+| `--strength`        | Img2img strength (0.0-1.0)               | `0.7`                               |
+| `--recursive`, `-R` | Search input directory recursively       | `false`                             |
+| `--output-format`   | `png`, `jpg`, `webp`                     | `png`                               |
+| `--dry-run`         | Preview without loading models           | `false`                             |
 
 ## Examples
 
@@ -56,6 +59,11 @@ datasety synthetic -i ./dataset -o ./synthetic \
 datasety synthetic --input-image photo.jpg --output-image edited.png \
     --prompt "add sunglasses" --steps 4
 
+# Cloud API (no GPU needed)
+OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+  datasety synthetic -i ./images -o ./synthetic \
+  --prompt "add a winter hat" --image-api --model black-forest-labs/flux.2-klein-4b
+
 # Qwen with LoRA
 datasety synthetic -i ./dataset -o ./synthetic \
     --model "Qwen/Qwen-Image-Edit-2511" \
@@ -67,4 +75,7 @@ datasety synthetic -i ./dataset -o ./synthetic \
     --model "black-forest-labs/FLUX.1-Kontext-dev" \
     --gguf "path/to/model.gguf" \
     --prompt "add a winter hat" --cpu-offload
+
+# Dry run (preview without processing)
+datasety synthetic -i ./images -o ./synthetic --prompt "add a hat" --dry-run
 ```

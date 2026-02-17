@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from datasety.common import _resolve_io_mode, get_image_files
+from datasety.common import _resolve_io_mode, get_image_files, get_save_kwargs
 
 
 def _resolution_from_megapixel(megapixel, aspect_ratio):
@@ -32,9 +32,7 @@ def _resolution_from_megapixel(megapixel, aspect_ratio):
 
 
 def calculate_resize_and_crop(
-    orig_width: int, orig_height: int,
-    target_width: int, target_height: int,
-    crop_position: str
+    orig_width: int, orig_height: int, target_width: int, target_height: int, crop_position: str
 ) -> tuple[tuple[int, int], tuple[int, int, int, int]]:
     """
     Calculate resize dimensions and crop box.
@@ -103,7 +101,7 @@ def cmd_resize(args):
 
         # Parse input formats
         formats = [f.strip() for f in args.input_format.split(",")]
-        image_files = get_image_files(input_dir, formats)
+        image_files = get_image_files(input_dir, formats, recursive=args.recursive)
 
         if not image_files:
             print(f"No images found in '{input_dir}' with formats: {formats}")
@@ -130,8 +128,9 @@ def cmd_resize(args):
         try:
             width, height = map(int, args.resolution.lower().split("x"))
         except ValueError:
-            print(f"Error: Invalid resolution '{args.resolution}'. "
-                  "Use WIDTHxHEIGHT (e.g., 768x1024)")
+            print(
+                f"Error: Invalid resolution '{args.resolution}'. Use WIDTHxHEIGHT (e.g., 768x1024)"
+            )
             sys.exit(1)
     else:
         print("Error: Either --resolution or --megapixel + --aspect-ratio is required.")
@@ -141,10 +140,16 @@ def cmd_resize(args):
     print(f"Target resolution: {width}x{height}")
     print(f"Crop position: {args.crop_position}")
     print(f"Output format: {args.output_format}")
+
+    dry_run = args.dry_run
+    if dry_run:
+        print("=== DRY RUN (no files will be written) ===")
+
     print("-" * 50)
 
     processed = 0
     skipped = 0
+    total = len(image_files)
 
     for idx, img_path in enumerate(image_files, start=1):
         try:
@@ -178,91 +183,89 @@ def cmd_resize(args):
                     out_path = output_dir / f"{img_path.stem}.{args.output_format}"
 
                 # Save with quality settings
-                save_kwargs = {}
-                if args.output_format.lower() in ("jpg", "jpeg"):
-                    save_kwargs["quality"] = 95
-                    save_kwargs["optimize"] = True
-                elif args.output_format.lower() == "webp":
-                    save_kwargs["quality"] = 95
-                elif args.output_format.lower() == "png":
-                    save_kwargs["optimize"] = True
+                save_kw = get_save_kwargs(args.output_format)
+                if not dry_run:
+                    img_cropped.save(out_path, **save_kw)
 
-                img_cropped.save(out_path, **save_kwargs)
-
-                print(f"[OK] {img_path.name} ({orig_w}x{orig_h}) "
-                      f"-> {out_path.name} ({width}x{height})")
+                print(
+                    f"[{idx}/{total}] [OK] {img_path.name} ({orig_w}x{orig_h}) "
+                    f"-> {out_path.name} ({width}x{height})"
+                )
                 processed += 1
 
         except Exception as e:
-            print(f"[ERROR] {img_path.name}: {e}")
+            print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
             skipped += 1
 
     print("-" * 50)
     print(f"Done! Processed: {processed}, Skipped: {skipped}")
+    if dry_run and processed > 0:
+        print(f"\nRun without --dry-run to process {processed} images.")
 
 
 def register_parser(subparsers):
     """Register the resize subcommand."""
     resize_parser = subparsers.add_parser(
-        "resize",
-        help="Resize and crop images to target resolution"
+        "resize", help="Resize and crop images to target resolution"
     )
     resize_parser.add_argument(
-        "--input", "-i",
-        default="",
-        help="Input directory containing images"
+        "--input", "-i", default="", help="Input directory containing images"
     )
     resize_parser.add_argument(
-        "--output", "-o",
-        default="",
-        help="Output directory for processed images"
+        "--output", "-o", default="", help="Output directory for processed images"
     )
     resize_parser.add_argument(
-        "--input-image",
+        "--input-image", default=None, help="Single input image path (alternative to --input dir)"
+    )
+    resize_parser.add_argument(
+        "--output-image", default=None, help="Single output image path (use with --input-image)"
+    )
+    resize_parser.add_argument(
+        "--resolution",
+        "-r",
         default=None,
-        help="Single input image path (alternative to --input dir)"
-    )
-    resize_parser.add_argument(
-        "--output-image",
-        default=None,
-        help="Single output image path (use with --input-image)"
-    )
-    resize_parser.add_argument(
-        "--resolution", "-r",
-        default=None,
-        help="Target resolution as WIDTHxHEIGHT (e.g., 768x1024)"
+        help="Target resolution as WIDTHxHEIGHT (e.g., 768x1024)",
     )
     resize_parser.add_argument(
         "--megapixel",
         type=float,
         default=None,
-        help="Target megapixel count (e.g., 0.5, 1.0). Use with --aspect-ratio."
+        help="Target megapixel count (e.g., 0.5, 1.0). Use with --aspect-ratio.",
     )
     resize_parser.add_argument(
         "--aspect-ratio",
         default=None,
-        help="Aspect ratio as W:H (e.g., 1:1, 16:9, 3:2). Use with --megapixel."
+        help="Aspect ratio as W:H (e.g., 1:1, 16:9, 3:2). Use with --megapixel.",
     )
     resize_parser.add_argument(
         "--crop-position",
         choices=["top", "center", "bottom", "left", "right"],
         default="center",
-        help="Position to keep when cropping (default: center)"
+        help="Position to keep when cropping (default: center)",
     )
     resize_parser.add_argument(
         "--input-format",
         default="jpg,jpeg,png,webp",
-        help="Comma-separated input formats (default: jpg,jpeg,png,webp)"
+        help="Comma-separated input formats (default: jpg,jpeg,png,webp)",
     )
     resize_parser.add_argument(
         "--output-format",
         choices=["jpg", "png", "webp"],
         default="jpg",
-        help="Output image format (default: jpg)"
+        help="Output image format (default: jpg)",
     )
     resize_parser.add_argument(
         "--output-name-numbers",
         action="store_true",
-        help="Rename output files to sequential numbers (1.jpg, 2.jpg, ...)"
+        help="Rename output files to sequential numbers (1.jpg, 2.jpg, ...)",
+    )
+    resize_parser.add_argument(
+        "--recursive",
+        "-R",
+        action="store_true",
+        help="Search input directory recursively for images",
+    )
+    resize_parser.add_argument(
+        "--dry-run", action="store_true", help="Preview resize operations without writing files"
     )
     resize_parser.set_defaults(func=cmd_resize)

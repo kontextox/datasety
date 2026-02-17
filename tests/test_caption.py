@@ -14,7 +14,8 @@ def run_caption(*args):
     """Run datasety caption and return the result."""
     return subprocess.run(
         [sys.executable, "-m", "datasety", "caption", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -47,8 +48,10 @@ class TestCaptionCLI:
 
     def test_missing_input_dir(self, tmp_path):
         result = run_caption(
-            "-i", str(tmp_path / "nonexistent"),
-            "-o", str(tmp_path / "out"),
+            "-i",
+            str(tmp_path / "nonexistent"),
+            "-o",
+            str(tmp_path / "out"),
         )
         assert result.returncode != 0
 
@@ -69,11 +72,24 @@ class TestCaptionCLI:
         env.pop("OPENAI_API_BASE", None)
 
         result = subprocess.run(
-            [sys.executable, "-m", "datasety", "caption",
-             "-i", str(in_dir), "-o", str(out_dir),
-             "--llm-api", "--model", "test-model",
-             "--prompt", "Describe this image."],
-            capture_output=True, text=True, env=env,
+            [
+                sys.executable,
+                "-m",
+                "datasety",
+                "caption",
+                "-i",
+                str(in_dir),
+                "-o",
+                str(out_dir),
+                "--llm-api",
+                "--model",
+                "test-model",
+                "--prompt",
+                "Describe this image.",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
         )
         assert result.returncode != 0
         assert "OPENAI_API_KEY" in result.stdout
@@ -98,6 +114,7 @@ class TestImageToDataUrl:
     def test_roundtrip(self, tmp_path):
         """Base64 data should decode back to valid image bytes."""
         import base64
+
         img_path = tmp_path / "test.png"
         make_image(img_path, 10, 10)
         url = _image_to_data_url(img_path)
@@ -112,9 +129,7 @@ class TestCaptionViaApi:
         img_path = tmp_path / "test.jpg"
         make_image(img_path, 10, 10)
 
-        response_data = {
-            "choices": [{"message": {"content": "A red square image."}}]
-        }
+        response_data = {"choices": [{"message": {"content": "A red square image."}}]}
         mock_resp = MagicMock()
         mock_resp.read.return_value = json.dumps(response_data).encode()
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
@@ -122,9 +137,13 @@ class TestCaptionViaApi:
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
             result = _caption_via_api(
-                img_path, "Describe this image.",
-                "test-key", "https://api.example.com/v1",
-                "test-model", 300, 0.3,
+                img_path,
+                "Describe this image.",
+                "test-key",
+                "https://api.example.com/v1",
+                "test-model",
+                300,
+                0.3,
             )
 
         assert result == "A red square image."
@@ -152,9 +171,7 @@ class TestCaptionViaApi:
         img_path = tmp_path / "test.jpg"
         make_image(img_path, 10, 10)
 
-        response_data = {
-            "choices": [{"message": {"content": "Caption."}}]
-        }
+        response_data = {"choices": [{"message": {"content": "Caption."}}]}
         mock_resp = MagicMock()
         mock_resp.read.return_value = json.dumps(response_data).encode()
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
@@ -162,9 +179,13 @@ class TestCaptionViaApi:
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
             _caption_via_api(
-                img_path, "Describe.",
-                "key", "https://openrouter.ai/api/v1",
-                "x-ai/grok-4.1-fast", 300, 0.3,
+                img_path,
+                "Describe.",
+                "key",
+                "https://openrouter.ai/api/v1",
+                "x-ai/grok-4.1-fast",
+                300,
+                0.3,
             )
 
         req = mock_open.call_args[0][0]
@@ -177,9 +198,7 @@ class TestCmdCaptionLlmApi:
     """In-process tests for the LLM API captioning flow."""
 
     def _make_mock_urlopen(self, content="A test caption."):
-        response_data = {
-            "choices": [{"message": {"content": content}}]
-        }
+        response_data = {"choices": [{"message": {"content": content}}]}
         mock_resp = MagicMock()
         mock_resp.read.return_value = json.dumps(response_data).encode()
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
@@ -196,16 +215,22 @@ class TestCmdCaptionLlmApi:
         out_path = tmp_path / "photo.txt"
 
         args = SimpleNamespace(
-            model="gpt-4o-mini", prompt="Describe.",
-            trigger_word="", max_tokens=300, temperature=0.3,
+            model="gpt-5-nano",
+            prompt="Describe.",
+            trigger_word="",
+            max_tokens=300,
+            temperature=0.3,
         )
         mock_resp = self._make_mock_urlopen("This photo shows a red square.")
 
         with patch("urllib.request.urlopen", return_value=mock_resp):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 _cmd_caption_llm_api(
-                    args, [img_path], out_path,
-                    tmp_path, True,
+                    args,
+                    [img_path],
+                    out_path,
+                    tmp_path,
+                    True,
                 )
 
         assert out_path.exists()
@@ -229,14 +254,20 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="x-ai/grok-4.1-fast",
             prompt="Describe in 3 sentences.",
-            trigger_word="", max_tokens=300, temperature=0.3,
+            trigger_word="",
+            max_tokens=300,
+            temperature=0.3,
         )
         mock_resp = self._make_mock_urlopen("Caption for image.")
 
         with patch("urllib.request.urlopen", return_value=mock_resp):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 _cmd_caption_llm_api(
-                    args, image_files, None, out_dir, False,
+                    args,
+                    image_files,
+                    None,
+                    out_dir,
+                    False,
                 )
 
         txt_files = list(out_dir.glob("*.txt"))
@@ -252,15 +283,22 @@ class TestCmdCaptionLlmApi:
         out_path = tmp_path / "photo.txt"
 
         args = SimpleNamespace(
-            model="gpt-4o-mini", prompt="Describe.",
-            trigger_word="[photo]", max_tokens=300, temperature=0.3,
+            model="gpt-5-nano",
+            prompt="Describe.",
+            trigger_word="[photo]",
+            max_tokens=300,
+            temperature=0.3,
         )
         mock_resp = self._make_mock_urlopen("A scenic landscape.")
 
         with patch("urllib.request.urlopen", return_value=mock_resp):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 _cmd_caption_llm_api(
-                    args, [img_path], out_path, tmp_path, True,
+                    args,
+                    [img_path],
+                    out_path,
+                    tmp_path,
+                    True,
                 )
 
         assert out_path.read_text() == "[photo] A scenic landscape."
@@ -276,18 +314,28 @@ class TestCmdCaptionLlmApi:
         out_path = tmp_path / "photo.txt"
 
         args = SimpleNamespace(
-            model="test-model", prompt="Describe.",
-            trigger_word="", max_tokens=300, temperature=0.3,
+            model="test-model",
+            prompt="Describe.",
+            trigger_word="",
+            max_tokens=300,
+            temperature=0.3,
         )
         mock_resp = self._make_mock_urlopen("Caption.")
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
-            with patch.dict("os.environ", {
-                "OPENAI_API_KEY": "test-key",
-                "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
-            }):
+            with patch.dict(
+                "os.environ",
+                {
+                    "OPENAI_API_KEY": "test-key",
+                    "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+                },
+            ):
                 _cmd_caption_llm_api(
-                    args, [img_path], out_path, tmp_path, True,
+                    args,
+                    [img_path],
+                    out_path,
+                    tmp_path,
+                    True,
                 )
 
         req = mock_open.call_args[0][0]
@@ -304,21 +352,33 @@ class TestCmdCaptionLlmApi:
         out_path = tmp_path / "photo.txt"
 
         args = SimpleNamespace(
-            model="test-model", prompt="Describe.",
-            trigger_word="", max_tokens=300, temperature=0.3,
+            model="test-model",
+            prompt="Describe.",
+            trigger_word="",
+            max_tokens=300,
+            temperature=0.3,
         )
         mock_resp = self._make_mock_urlopen("Caption.")
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
-            with patch.dict("os.environ", {
-                "OPENAI_API_KEY": "test-key",
-                "OPENAI_API_BASE": "https://custom.api.com/v1",
-            }, clear=False):
+            with patch.dict(
+                "os.environ",
+                {
+                    "OPENAI_API_KEY": "test-key",
+                    "OPENAI_API_BASE": "https://custom.api.com/v1",
+                },
+                clear=False,
+            ):
                 # Make sure OPENAI_BASE_URL is not set
                 import os
+
                 os.environ.pop("OPENAI_BASE_URL", None)
                 _cmd_caption_llm_api(
-                    args, [img_path], out_path, tmp_path, True,
+                    args,
+                    [img_path],
+                    out_path,
+                    tmp_path,
+                    True,
                 )
 
         req = mock_open.call_args[0][0]
@@ -335,26 +395,71 @@ class TestCmdCaptionLlmApi:
         out_path = tmp_path / "photo.txt"
 
         args = SimpleNamespace(
-            model="", prompt="Describe.",
-            trigger_word="", max_tokens=300, temperature=0.3,
+            model="",
+            prompt="Describe.",
+            trigger_word="",
+            max_tokens=300,
+            temperature=0.3,
         )
         mock_resp = self._make_mock_urlopen("Caption.")
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
-            with patch.dict("os.environ", {
-                "OPENAI_API_KEY": "test-key",
-                "OPENAI_MODEL": "gpt-4o",
-            }, clear=False):
+            with patch.dict(
+                "os.environ",
+                {
+                    "OPENAI_API_KEY": "test-key",
+                    "OPENAI_MODEL": "gpt-5-nano",
+                },
+                clear=False,
+            ):
                 import os
+
                 os.environ.pop("OPENAI_BASE_URL", None)
                 os.environ.pop("OPENAI_API_BASE", None)
                 _cmd_caption_llm_api(
-                    args, [img_path], out_path, tmp_path, True,
+                    args,
+                    [img_path],
+                    out_path,
+                    tmp_path,
+                    True,
                 )
 
         req = mock_open.call_args[0][0]
         body = json.loads(req.data.decode())
-        assert body["model"] == "gpt-4o"
+        assert body["model"] == "gpt-5-nano"
+
+    def test_dry_run_llm_api(self, tmp_path):
+        """--dry-run should run inference but not write caption files."""
+        from types import SimpleNamespace
+
+        from datasety.caption import _cmd_caption_llm_api
+
+        img_path = tmp_path / "photo.jpg"
+        make_image(img_path, 50, 50)
+        out_path = tmp_path / "photo.txt"
+
+        args = SimpleNamespace(
+            model="gpt-5-nano",
+            prompt="Describe.",
+            trigger_word="",
+            max_tokens=300,
+            temperature=0.3,
+        )
+        mock_resp = self._make_mock_urlopen("A test caption for dry run.")
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                _cmd_caption_llm_api(
+                    args,
+                    [img_path],
+                    out_path,
+                    tmp_path,
+                    True,
+                    dry_run=True,
+                )
+
+        # File should NOT be written in dry-run mode
+        assert not out_path.exists()
 
     def test_model_arg_overrides_env_var(self, tmp_path):
         """Explicit --model should override OPENAI_MODEL env var."""
@@ -367,18 +472,29 @@ class TestCmdCaptionLlmApi:
         out_path = tmp_path / "photo.txt"
 
         args = SimpleNamespace(
-            model="explicit-model", prompt="Describe.",
-            trigger_word="", max_tokens=300, temperature=0.3,
+            model="explicit-model",
+            prompt="Describe.",
+            trigger_word="",
+            max_tokens=300,
+            temperature=0.3,
         )
         mock_resp = self._make_mock_urlopen("Caption.")
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
-            with patch.dict("os.environ", {
-                "OPENAI_API_KEY": "test-key",
-                "OPENAI_MODEL": "should-not-use",
-            }, clear=False):
+            with patch.dict(
+                "os.environ",
+                {
+                    "OPENAI_API_KEY": "test-key",
+                    "OPENAI_MODEL": "should-not-use",
+                },
+                clear=False,
+            ):
                 _cmd_caption_llm_api(
-                    args, [img_path], out_path, tmp_path, True,
+                    args,
+                    [img_path],
+                    out_path,
+                    tmp_path,
+                    True,
                 )
 
         req = mock_open.call_args[0][0]

@@ -14,7 +14,7 @@ Add features as needed:
 pip install datasety[caption]        # Florence-2 captioning
 pip install datasety[synthetic]      # Image editing (FLUX, Qwen, SDXL, etc.)
 pip install datasety[mask]           # Mask generation (SAM 3, SAM 2, CLIPSeg)
-pip install datasety[character]      # Character dataset generation (IP-Adapter)
+pip install datasety[character]      # Character dataset generation
 pip install datasety[workflow]       # YAML/JSON workflow support
 pip install datasety[all]            # Everything
 ```
@@ -43,7 +43,7 @@ datasety caption -i ./dataset -o ./dataset --trigger-word "[trigger]"
 ```bash
 export OPENAI_API_KEY=your-key
 
-datasety caption -i ./dataset -o ./dataset --llm-api --model gpt-4o
+datasety caption -i ./dataset -o ./dataset --llm-api --model gpt-5-nano
 ```
 
 Supports custom providers via environment variables:
@@ -52,7 +52,7 @@ Supports custom providers via environment variables:
 | ----------------- | -------------------------------------- | --------------------------- |
 | `OPENAI_API_KEY`  | API key                                | required for `--llm-api`    |
 | `OPENAI_BASE_URL` | Custom API endpoint                    | `https://api.openai.com/v1` |
-| `OPENAI_MODEL`    | Default model (when `--model` omitted) | `gpt-5-nano`               |
+| `OPENAI_MODEL`    | Default model (when `--model` omitted) | `gpt-5-nano`                |
 
 ### Run a Workflow
 
@@ -118,10 +118,11 @@ datasety workflow              # execute
 
 All commands that process image directories share these options:
 
-| Option           | Description                            |
-| ---------------- | -------------------------------------- |
-| `--input`, `-i`  | Input directory                        |
-| `--output`, `-o` | Output directory                       |
-| `--input-image`  | Single image mode (alternative to dir) |
-| `--device`       | `auto`, `cpu`, or `cuda`               |
-| `--dry-run`      | Preview without making changes         |
+| Option              | Description                            |
+| ------------------- | -------------------------------------- |
+| `--input`, `-i`     | Input directory                        |
+| `--output`, `-o`    | Output directory                       |
+| `--input-image`     | Single image mode (alternative to dir) |
+| `--device`          | `auto`, `cpu`, `cuda`, or `mps`        |
+| `--dry-run`         | Preview without making changes         |
+| `--recursive`, `-R` | Search input directory recursively     |

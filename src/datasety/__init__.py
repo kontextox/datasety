@@ -1,3 +1,6 @@
-"""datasety - dataset preparation: resize, align, caption, shuffle, synthetic, mask, degrade."""
+"""datasety - dataset preparation tools.
 
-__version__ = "0.25.0"
+Commands: resize, align, caption, shuffle, synthetic, mask, degrade, character, sweep, workflow.
+"""
+
+__version__ = "0.26.0"

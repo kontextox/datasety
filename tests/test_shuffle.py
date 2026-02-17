@@ -26,7 +26,8 @@ def run_shuffle(*args):
     """Run datasety shuffle and return the result."""
     return subprocess.run(
         [sys.executable, "-m", "datasety", "shuffle", *args],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -36,8 +37,14 @@ class TestShuffleBasic:
     def test_generates_caption_files(self, setup_dirs):
         input_dir, output_dir = setup_dirs
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", "Hello.|Hey!", "--group", "World.|Earth!",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            "Hello.|Hey!",
+            "--group",
+            "World.|Earth!",
         )
         assert result.returncode == 0
         assert "10 captions generated" in result.stdout
@@ -48,9 +55,16 @@ class TestShuffleBasic:
     def test_caption_content_from_groups(self, setup_dirs):
         input_dir, output_dir = setup_dirs
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", "A|B", "--group", "X|Y",
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            "A|B",
+            "--group",
+            "X|Y",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0
 
@@ -64,8 +78,12 @@ class TestShuffleBasic:
     def test_single_group(self, setup_dirs):
         input_dir, output_dir = setup_dirs
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", "Only option",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            "Only option",
         )
         assert result.returncode == 0
 
@@ -82,9 +100,14 @@ class TestShuffleSeed:
         output_dir2.mkdir()
 
         common_args = [
-            "-i", str(input_dir),
-            "--group", "A|B|C", "--group", "X|Y|Z",
-            "--seed", "123",
+            "-i",
+            str(input_dir),
+            "--group",
+            "A|B|C",
+            "--group",
+            "X|Y|Z",
+            "--seed",
+            "123",
         ]
 
         run_shuffle(*common_args, "-o", str(output_dir))
@@ -100,9 +123,12 @@ class TestShuffleSeed:
         output_dir2.mkdir()
 
         common_args = [
-            "-i", str(input_dir),
-            "--group", "A|B|C|D|E|F|G|H",
-            "--group", "X|Y|Z|W|V|U|T|S",
+            "-i",
+            str(input_dir),
+            "--group",
+            "A|B|C|D|E|F|G|H",
+            "--group",
+            "X|Y|Z|W|V|U|T|S",
         ]
 
         run_shuffle(*common_args, "-o", str(output_dir), "--seed", "1")
@@ -119,8 +145,13 @@ class TestShuffleDryRun:
     def test_dry_run_no_files(self, setup_dirs):
         input_dir, output_dir = setup_dirs
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", "A|B", "--dry-run",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            "A|B",
+            "--dry-run",
         )
         assert result.returncode == 0
         assert "DRY RUN" in result.stdout
@@ -133,9 +164,16 @@ class TestShuffleSeparator:
     def test_custom_separator(self, setup_dirs):
         input_dir, output_dir = setup_dirs
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", "Hello", "--group", "World",
-            "--separator", ", ",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            "Hello",
+            "--group",
+            "World",
+            "--separator",
+            ", ",
         )
         assert result.returncode == 0
 
@@ -149,9 +187,17 @@ class TestShuffleDistribution:
     def test_show_distribution(self, setup_dirs):
         input_dir, output_dir = setup_dirs
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", "A|B", "--group", "X",
-            "--show-distribution", "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            "A|B",
+            "--group",
+            "X",
+            "--show-distribution",
+            "--seed",
+            "42",
         )
         assert result.returncode == 0
         assert "Caption distribution:" in result.stdout
@@ -167,8 +213,14 @@ class TestShuffleFileSource:
         phrases_file.write_text("Hello.\nHey!\nBonjour.\n")
 
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", str(phrases_file), "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            str(phrases_file),
+            "--seed",
+            "42",
         )
         assert result.returncode == 0
         assert "3 variants from file" in result.stdout
@@ -182,8 +234,14 @@ class TestShuffleFileSource:
         phrases_file.write_text("\nA\n\n\nB\n\nC\n\n")
 
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", str(phrases_file), "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            str(phrases_file),
+            "--seed",
+            "42",
         )
         assert result.returncode == 0
         assert "3 variants from file" in result.stdout
@@ -194,9 +252,16 @@ class TestShuffleFileSource:
         phrases_file.write_text("X\nY\nZ\n")
 
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", "A|B", "--group", str(phrases_file),
-            "--seed", "42",
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            "A|B",
+            "--group",
+            str(phrases_file),
+            "--seed",
+            "42",
         )
         assert result.returncode == 0
 
@@ -212,8 +277,12 @@ class TestShuffleFileSource:
         empty_file.write_text("")
 
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
-            "--group", str(empty_file),
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--group",
+            str(empty_file),
         )
         assert result.returncode != 0
 
@@ -224,13 +293,20 @@ class TestShuffleErrors:
     def test_no_groups(self, setup_dirs):
         input_dir, output_dir = setup_dirs
         result = run_shuffle(
-            "-i", str(input_dir), "-o", str(output_dir),
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
         )
         assert result.returncode != 0
 
     def test_missing_input_dir(self, tmp_path):
         result = run_shuffle(
-            "-i", str(tmp_path / "nonexistent"), "-o", str(tmp_path),
-            "--group", "A|B",
+            "-i",
+            str(tmp_path / "nonexistent"),
+            "-o",
+            str(tmp_path),
+            "--group",
+            "A|B",
         )
         assert result.returncode != 0
