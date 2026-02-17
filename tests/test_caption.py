@@ -3,10 +3,8 @@
 import json
 import subprocess
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from PIL import Image
 
 from datasety.caption import _caption_via_api, _image_to_data_url

@@ -14,38 +14,38 @@ datasety caption --input ./images --output ./captions --llm-api --model gpt-4o
 
 ## Options
 
-| Option | Description | Default |
-| --- | --- | --- |
-| `--input`, `-i` | Input directory | (required*) |
-| `--output`, `-o` | Output directory for .txt files | (required*) |
-| `--input-image` | Single input image | |
-| `--output-caption` | Single output .txt path | |
-| `--device` | `auto`, `cpu`, or `cuda` | `auto` |
-| `--trigger-word` | Text to prepend to captions | (none) |
-| `--prompt` | Florence-2 task prompt | `<MORE_DETAILED_CAPTION>` |
-| `--model` | HF model or API model ID | (none) |
-| `--num-beams` | Beam search width (1 = greedy) | `3` |
-| `--florence-2-base` | Use base model (0.23B, faster) | (default) |
-| `--florence-2-large` | Use large model (0.77B, better) | |
-| `--llm-api` | Use OpenAI-compatible vision API | |
-| `--max-tokens` | Max response tokens (API mode) | `300` |
-| `--temperature` | Temperature (API mode) | `0.3` |
+| Option               | Description                      | Default                   |
+| -------------------- | -------------------------------- | ------------------------- |
+| `--input`, `-i`      | Input directory                  | (required\*)              |
+| `--output`, `-o`     | Output directory for .txt files  | (required\*)              |
+| `--input-image`      | Single input image               |                           |
+| `--output-caption`   | Single output .txt path          |                           |
+| `--device`           | `auto`, `cpu`, or `cuda`         | `auto`                    |
+| `--trigger-word`     | Text to prepend to captions      | (none)                    |
+| `--prompt`           | Florence-2 task prompt           | `<MORE_DETAILED_CAPTION>` |
+| `--model`            | HF model or API model ID         | (none)                    |
+| `--num-beams`        | Beam search width (1 = greedy)   | `3`                       |
+| `--florence-2-base`  | Use base model (0.23B, faster)   | (default)                 |
+| `--florence-2-large` | Use large model (0.77B, better)  |                           |
+| `--llm-api`          | Use OpenAI-compatible vision API |                           |
+| `--max-tokens`       | Max response tokens (API mode)   | `300`                     |
+| `--temperature`      | Temperature (API mode)           | `0.3`                     |
 
 ## Environment Variables
 
-| Variable | Description |
-| --- | --- |
-| `OPENAI_API_KEY` | API key (required for `--llm-api`) |
-| `OPENAI_BASE_URL` | Custom API endpoint |
-| `OPENAI_API_BASE` | Legacy fallback for base URL |
-| `OPENAI_MODEL` | Default model when `--model` not specified (default: `gpt-4o-mini`) |
+| Variable          | Description                                                        |
+| ----------------- | ------------------------------------------------------------------ |
+| `OPENAI_API_KEY`  | API key (required for `--llm-api`)                                 |
+| `OPENAI_BASE_URL` | Custom API endpoint                                                |
+| `OPENAI_API_BASE` | Legacy fallback for base URL                                       |
+| `OPENAI_MODEL`    | Default model when `--model` not specified (default: `gpt-5-nano`) |
 
 ## Florence-2 Prompts
 
-| Prompt | Description |
-| --- | --- |
-| `<CAPTION>` | Brief caption |
-| `<DETAILED_CAPTION>` | Detailed caption |
+| Prompt                    | Description             |
+| ------------------------- | ----------------------- |
+| `<CAPTION>`               | Brief caption           |
+| `<DETAILED_CAPTION>`      | Detailed caption        |
 | `<MORE_DETAILED_CAPTION>` | Most detailed (default) |
 
 ## Examples

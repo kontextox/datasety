@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-datasety - resize, align, caption, shuffle, synthetic, mask, degrade, character, workflow.
+datasety - resize, align, caption, shuffle, synthetic, mask, degrade, character, sweep, workflow.
 
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
@@ -28,6 +28,11 @@ try:
     from datasety import workflow
 except ImportError:
     workflow = None
+
+try:
+    from datasety import sweep
+except ImportError:
+    sweep = None
 
 
 def build_parser():
@@ -58,6 +63,9 @@ def build_parser():
 
     if workflow is not None:
         workflow.register_parser(subparsers)
+
+    if sweep is not None:
+        sweep.register_parser(subparsers)
 
     return parser
 

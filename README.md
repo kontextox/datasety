@@ -45,7 +45,9 @@ datasety resize --input ./raw --output ./resized --resolution 768x1024 --crop-po
 | `--output`, `-o`        | Output directory                               | required\*          |
 | `--input-image`         | Single input image (alternative to dir mode)   |                     |
 | `--output-image`        | Single output image (use with `--input-image`) |                     |
-| `--resolution`, `-r`    | Target resolution (`WIDTHxHEIGHT`)             | required            |
+| `--resolution`, `-r`    | Target resolution (`WIDTHxHEIGHT`)             |                     |
+| `--megapixel`           | Target megapixel count (e.g., 0.5, 1.0)        |                     |
+| `--aspect-ratio`        | Aspect ratio `W:H` (e.g., 1:1, 16:9)           |                     |
 | `--crop-position`       | `top`, `center`, `bottom`, `left`, `right`     | `center`            |
 | `--input-format`        | Comma-separated input formats                  | `jpg,jpeg,png,webp` |
 | `--output-format`       | `jpg`, `png`, `webp`                           | `jpg`               |
@@ -206,8 +208,8 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 | `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)    |                                     |
 | `--device`          | `auto`, `cpu`, `cuda`                   | `auto`                              |
 | `--cpu-offload`     | Force CPU offload                       | auto                                |
-| `--steps`           | Inference steps                         | `40`                                |
-| `--cfg-scale`       | Guidance scale                          | `1.0`                               |
+| `--steps`           | Inference steps                         | `4`                                 |
+| `--cfg-scale`       | Guidance scale                          | `2.5`                               |
 | `--true-cfg-scale`  | True CFG (Qwen only)                    | `4.0`                               |
 | `--negative-prompt` | Negative prompt                         | `" "`                               |
 | `--num-images`      | Images per input                        | `1`                                 |
@@ -236,7 +238,7 @@ datasety synthetic -i ./dataset -o ./synthetic \
 
 ### `mask` — Text-Prompted Segmentation Masks
 
-Generate binary masks from images using text keywords. Supports SAM 3, Grounded SAM 2, and CLIPSeg.
+Generate binary masks from images using text keywords. Supports SAM 3, SAM 2, and CLIPSeg.
 
 <!-- screenshot: mask -->
 
@@ -247,22 +249,22 @@ datasety mask --input ./dataset --output ./masks --keywords "face,hair" --device
 <details>
 <summary>Options</summary>
 
-| Option             | Description                        | Default    |
-| ------------------ | ---------------------------------- | ---------- |
-| `--input`, `-i`    | Input directory                    | required\* |
-| `--output`, `-o`   | Output directory for masks         | required\* |
-| `--input-image`    | Single input image                 |            |
-| `--output-image`   | Single output mask                 |            |
-| `--keywords`, `-k` | Comma-separated keywords           | required   |
-| `--model`          | `sam3`, `grounded-sam2`, `clipseg` | `sam3`     |
-| `--device`         | `auto`, `cpu`, `cuda`              | `auto`     |
-| `--threshold`      | Confidence threshold (0.0-1.0)     | `0.3`      |
-| `--padding`        | Pixels to expand mask (dilation)   | `0`        |
-| `--blur`           | Gaussian blur radius for edges     | `0`        |
-| `--invert`         | Invert mask colors                 | off        |
-| `--naming`         | `folder` or `suffix` (`_mask`)     | `folder`   |
-| `--output-format`  | `png`, `jpg`, `webp`               | `png`      |
-| `--dry-run`        | Preview detections without saving  | off        |
+| Option             | Description                       | Default    |
+| ------------------ | --------------------------------- | ---------- |
+| `--input`, `-i`    | Input directory                   | required\* |
+| `--output`, `-o`   | Output directory for masks        | required\* |
+| `--input-image`    | Single input image                |            |
+| `--output-image`   | Single output mask                |            |
+| `--keywords`, `-k` | Comma-separated keywords          | required   |
+| `--model`          | `sam3`, `sam2`, `clipseg`         | `sam3`     |
+| `--device`         | `auto`, `cpu`, `cuda`             | `auto`     |
+| `--threshold`      | Confidence threshold (0.0-1.0)    | `0.3`      |
+| `--padding`        | Pixels to expand mask (dilation)  | `0`        |
+| `--blur`           | Gaussian blur radius for edges    | `0`        |
+| `--invert`         | Invert mask colors                | off        |
+| `--naming`         | `folder` or `suffix` (`_mask`)    | `folder`   |
+| `--output-format`  | `png`, `jpg`, `webp`              | `png`      |
+| `--dry-run`        | Preview detections without saving | off        |
 
 </details>
 
@@ -270,8 +272,8 @@ datasety mask --input ./dataset --output ./masks --keywords "face,hair" --device
 # CLIPSeg (lightweight, no extra deps)
 datasety mask -i ./dataset -o ./masks -k "face" --model clipseg --threshold 0.5
 
-# Grounded SAM 2 with mask refinement
-datasety mask -i ./dataset -o ./masks -k "hat,glasses" --model grounded-sam2 --padding 5 --blur 3
+# SAM 2 with mask refinement
+datasety mask -i ./dataset -o ./masks -k "hat,glasses" --model sam2 --padding 5 --blur 3
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/mask)
@@ -335,27 +337,27 @@ datasety character --reference face.jpg --output ./dataset --llm-ollama llama3.2
 <details>
 <summary>Options</summary>
 
-| Option                    | Description                             | Default                        |
-| ------------------------- | --------------------------------------- | ------------------------------ |
-| `--reference`, `-r`       | Reference face image(s)                 | required                       |
-| `--output`, `-o`          | Output directory                        | required                       |
-| `--num-images`, `-n`      | Number of images to generate            | `10`                           |
-| `--model`                 | Base model for generation               | `black-forest-labs/FLUX.1-dev` |
-| `--ip-adapter`            | IP-Adapter model                        | auto-detected                  |
-| `--ip-adapter-scale`      | Conditioning strength (0.0-1.0)         | `0.6`                          |
-| `--character-description` | Text description of the character       |                                |
-| `--style`                 | Style guidance (e.g., `photorealistic`) |                                |
-| `--prompts-only`          | Only generate prompts, skip images      | off                            |
-| `--prompts-file`          | Load prompts from file instead of LLM   |                                |
-| `--llm-api`               | Use OpenAI-compatible API               |                                |
-| `--llm-ollama MODEL`      | Use local Ollama server                 |                                |
-| `--llm-gguf PATH`         | Use local GGUF model                    |                                |
-| `--llm-model REPO`        | Use HuggingFace model                   |                                |
-| `--device`                | `auto`, `cpu`, `cuda`                   | `auto`                         |
-| `--steps`                 | Inference steps                         | `28`                           |
-| `--cfg-scale`             | Guidance scale                          | `3.5`                          |
-| `--seed`                  | Random seed                             |                                |
-| `--output-format`         | `png`, `jpg`, `webp`                    | `png`                          |
+| Option                    | Description                             | Default                             |
+| ------------------------- | --------------------------------------- | ----------------------------------- |
+| `--reference`, `-r`       | Reference face image(s)                 | required                            |
+| `--output`, `-o`          | Output directory                        | required                            |
+| `--num-images`, `-n`      | Number of images to generate            | `10`                                |
+| `--model`                 | Base model for generation               | `black-forest-labs/FLUX.2-klein-4B` |
+| `--ip-adapter`            | IP-Adapter model                        | auto-detected                       |
+| `--ip-adapter-scale`      | Conditioning strength (0.0-1.0)         | `0.6`                               |
+| `--character-description` | Text description of the character       |                                     |
+| `--style`                 | Style guidance (e.g., `photorealistic`) |                                     |
+| `--prompts-only`          | Only generate prompts, skip images      | off                                 |
+| `--prompts-file`          | Load prompts from file instead of LLM   |                                     |
+| `--llm-api`               | Use OpenAI-compatible API               |                                     |
+| `--llm-ollama MODEL`      | Use local Ollama server                 |                                     |
+| `--llm-gguf PATH`         | Use local GGUF model                    |                                     |
+| `--llm-model REPO`        | Use HuggingFace model                   |                                     |
+| `--device`                | `auto`, `cpu`, `cuda`                   | `auto`                              |
+| `--steps`                 | Inference steps                         | `4`                                 |
+| `--cfg-scale`             | Guidance scale                          | `2.5`                               |
+| `--seed`                  | Random seed                             |                                     |
+| `--output-format`         | `png`, `jpg`, `webp`                    | `png`                               |
 
 </details>
 
@@ -369,6 +371,49 @@ datasety character -r face.jpg -o ./dataset --llm-ollama llama3.2 --prompts-only
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/character)
+
+---
+
+### `sweep` — Parameter Grid Search
+
+Generate workflow YAML files with parameter grid combinations for synthetic editing. Computes the Cartesian product of sweep parameters.
+
+<!-- screenshot: sweep -->
+
+```bash
+datasety sweep -i ./images -o ./sweep_output -p "add a winter hat" --steps 4,8,16 --cfg-scale 1.0,2.5,5.0
+```
+
+<details>
+<summary>Options</summary>
+
+| Option             | Description                              | Default      |
+| ------------------ | ---------------------------------------- | ------------ |
+| `--input`, `-i`    | Input images directory                   | required     |
+| `--output`, `-o`   | Base output directory                    | required     |
+| `--prompt`, `-p`   | Edit prompt                              | required     |
+| `--steps`          | Comma-separated step values to sweep     |              |
+| `--cfg-scale`      | Comma-separated CFG values to sweep      |              |
+| `--true-cfg-scale` | Comma-separated true CFG values to sweep |              |
+| `--strength`       | Comma-separated strength values to sweep |              |
+| `--lora`           | Comma-separated LoRA specs to sweep      |              |
+| `--model`          | Comma-separated model names to sweep     |              |
+| `--seed`           | Random seed (passed through)             |              |
+| `--output-file`    | Output YAML path                         | `sweep.yaml` |
+| `--run`            | Generate and immediately execute         | off          |
+
+</details>
+
+```bash
+# Generate YAML, inspect, then run
+datasety sweep -i ./images -o ./sweep -p "add sunglasses" --steps 4,8,16 --cfg-scale 1.0,2.5
+datasety workflow -f sweep.yaml
+
+# Generate and run immediately
+datasety sweep -i ./images -o ./sweep -p "add a hat" --steps 4,8 --cfg-scale 2.0,3.0 --run
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/sweep)
 
 ---
 

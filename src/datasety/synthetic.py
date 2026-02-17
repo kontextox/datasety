@@ -545,14 +545,14 @@ def register_parser(subparsers):
     synthetic_parser.add_argument(
         "--steps",
         type=int,
-        default=40,
-        help="Number of inference steps (default: 40)"
+        default=4,
+        help="Number of inference steps (default: 4)"
     )
     synthetic_parser.add_argument(
         "--cfg-scale",
         type=float,
-        default=1.0,
-        help="Guidance scale (default: 1.0)"
+        default=2.5,
+        help="Guidance scale (default: 2.5)"
     )
     synthetic_parser.add_argument(
         "--true-cfg-scale",

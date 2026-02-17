@@ -10,13 +10,13 @@ datasety align --target ./target --control ./control --dry-run
 
 ## Options
 
-| Option | Description | Default |
-| --- | --- | --- |
-| `--target`, `-t` | Target images directory | (required) |
-| `--control`, `-c` | Control images directory | (required) |
-| `--multiple-of` | Align dimensions to this multiple | `32` |
+| Option            | Description                                    | Default         |
+| ----------------- | ---------------------------------------------- | --------------- |
+| `--target`, `-t`  | Target images directory                        | (required)      |
+| `--control`, `-c` | Control images directory                       | (required)      |
+| `--multiple-of`   | Align dimensions to this multiple              | `32`            |
 | `--output-format` | Convert images to format: `jpg`, `png`, `webp` | (keep original) |
-| `--dry-run` | Preview changes without modifying files | `false` |
+| `--dry-run`       | Preview changes without modifying files        | `false`         |
 
 ## Examples
 

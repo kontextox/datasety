@@ -240,8 +240,8 @@ def register_parser(subparsers):
     # Model selection
     char_parser.add_argument(
         "--model",
-        default="black-forest-labs/FLUX.1-dev",
-        help="Base model for image generation (default: black-forest-labs/FLUX.1-dev)"
+        default="black-forest-labs/FLUX.2-klein-4B",
+        help="Base model for image generation (default: black-forest-labs/FLUX.2-klein-4B)"
     )
     char_parser.add_argument(
         "--ip-adapter",
@@ -290,14 +290,14 @@ def register_parser(subparsers):
     char_parser.add_argument(
         "--steps",
         type=int,
-        default=28,
-        help="Number of inference steps (default: 28)"
+        default=4,
+        help="Number of inference steps (default: 4)"
     )
     char_parser.add_argument(
         "--cfg-scale",
         type=float,
-        default=3.5,
-        help="Guidance scale (default: 3.5)"
+        default=2.5,
+        help="Guidance scale (default: 2.5)"
     )
     char_parser.add_argument(
         "--seed",

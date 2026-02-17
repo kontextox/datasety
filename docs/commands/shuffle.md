@@ -12,15 +12,15 @@ datasety shuffle -i ./images -o ./captions \
 
 ## Options
 
-| Option | Description | Default |
-| --- | --- | --- |
-| `--input`, `-i` | Input directory containing images | (required) |
-| `--output`, `-o` | Output directory for .txt files | (required) |
-| `--group`, `-g` | Inline `\|`-separated, .txt file, or URL | (required) |
-| `--separator` | Separator between groups | `" "` |
-| `--seed` | Random seed for reproducibility | (random) |
-| `--dry-run` | Preview captions without writing | `false` |
-| `--show-distribution` | Show caption distribution | `false` |
+| Option                | Description                              | Default    |
+| --------------------- | ---------------------------------------- | ---------- |
+| `--input`, `-i`       | Input directory containing images        | (required) |
+| `--output`, `-o`      | Output directory for .txt files          | (required) |
+| `--group`, `-g`       | Inline `\|`-separated, .txt file, or URL | (required) |
+| `--separator`         | Separator between groups                 | `" "`      |
+| `--seed`              | Random seed for reproducibility          | (random)   |
+| `--dry-run`           | Preview captions without writing         | `false`    |
+| `--show-distribution` | Show caption distribution                | `false`    |
 
 ## Group Sources
 

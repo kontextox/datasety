@@ -10,7 +10,6 @@ from PIL import Image
 
 from datasety.workflow import _args_to_argv, _find_workflow_file, _load_workflow
 
-
 # ── Unit tests ──
 
 
@@ -91,7 +90,7 @@ class TestLoadWorkflow:
         assert result == data
 
     def test_load_yaml(self, tmp_path):
-        yaml = pytest.importorskip("yaml")
+        pytest.importorskip("yaml")
         f = tmp_path / "workflow.yaml"
         f.write_text("steps:\n  - command: resize\n    args:\n      resolution: 512x512\n")
         result = _load_workflow(f)

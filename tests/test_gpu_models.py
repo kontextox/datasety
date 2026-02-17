@@ -19,7 +19,7 @@ VRAM budget (peak per test, bf16/fp16):
     Synthetic| SDXL base             |  ~7 GB
     Synthetic| HunyuanImage          |  SKIPPED (needs 48 GB)
     Mask     | CLIPSeg               |  ~0.5 GB
-    Mask     | Grounded SAM 2        |  ~6 GB
+    Mask     | SAM 2        |  ~6 GB
     Mask     | SAM 3                 |  ~5 GB  (gated model)
 
 Gated models (FLUX Kontext, SAM 3) require:
@@ -516,14 +516,14 @@ class TestMaskCLIPSeg:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  MASK — Grounded SAM 2 (~6 GB VRAM)
+#  MASK — SAM 2 (~6 GB VRAM)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TestMaskGroundedSAM2:
+class TestMaskSAM2:
     """IDEA-Research/grounding-dino-base + facebook/sam2-hiera-large (~6 GB)."""
 
-    def test_grounded_sam2_generates_mask(self, tmp_path):
+    def test_sam2_generates_mask(self, tmp_path):
         input_dir, output_dir = make_test_images(tmp_path, n=1, size=512)
 
         result = run_cli(
@@ -531,7 +531,7 @@ class TestMaskGroundedSAM2:
             "-i", str(input_dir),
             "-o", str(output_dir),
             "-k", "colored square",
-            "--model", "grounded-sam2",
+            "--model", "sam2",
             "--device", "auto",
             "--threshold", "0.2",
         )
@@ -542,7 +542,7 @@ class TestMaskGroundedSAM2:
             assert m.size == (512, 512)
             assert m.mode == "L"
 
-    def test_grounded_sam2_multiple_images(self, tmp_path):
+    def test_sam2_multiple_images(self, tmp_path):
         input_dir, output_dir = make_test_images(tmp_path, n=3, size=256)
 
         result = run_cli(
@@ -550,7 +550,7 @@ class TestMaskGroundedSAM2:
             "-i", str(input_dir),
             "-o", str(output_dir),
             "-k", "object",
-            "--model", "grounded-sam2",
+            "--model", "sam2",
             "--device", "auto",
             "--threshold", "0.2",
         )

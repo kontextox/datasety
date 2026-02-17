@@ -79,7 +79,7 @@ pytest -m gpu -v -k "flux2_dev"
 pytest -m gpu -v -k longcat
 pytest -m gpu -v -k sdxl
 pytest -m gpu -v -k clipseg
-pytest -m gpu -v -k "grounded_sam2"
+pytest -m gpu -v -k "sam2"
 pytest -m gpu -v -k sam3
 
 # Skip gated models (no HF login needed)
@@ -226,7 +226,7 @@ pytest -m gpu -v -k "not (flux2_dev or flux_kontext or sam3)"
 | `-k` (keywords)                    | PASS   | face,hair,person                      |
 | `--model sam3`                     | PASS   | Falls back to jetjodh/sam3            |
 | `--model clipseg`                  | PASS   |                                       |
-| `--model grounded-sam2`            | PASS   | Grounding DINO + SAM2, 30.5% coverage |
+| `--model sam2`                     | PASS   | Grounding DINO + SAM2, 30.5% coverage |
 | `--device cuda`                    | PASS   |                                       |
 | `--threshold`                      | PASS   | 0.3, 0.4, 0.5                         |
 | `--padding`                        | PASS   | 5, 10 px                              |
@@ -283,7 +283,7 @@ pytest -m gpu -v -k "not (flux2_dev or flux_kontext or sam3)"
 | `--steps`                 | PASS   | Parsed correctly                                                    |
 | `--cfg-scale`             | PASS   | Parsed correctly                                                    |
 | `--output-format jpg`     | PASS   | Parsed correctly                                                    |
-| Full generation           | N/T    | Requires FLUX.1-dev (24GB) + IP-Adapter download                    |
+| Full generation           | N/T    | Requires FLUX.2-klein-4B (8GB) + IP-Adapter download                |
 
 ## 9. workflow
 
@@ -300,7 +300,6 @@ pytest -m gpu -v -k "not (flux2_dev or flux_kontext or sam3)"
 - **Unit tests**: 202/202 PASS (27 GPU-only deselected by default)
 - **Commands tested**: 9/9 (resize, caption, align, shuffle, degrade, mask, synthetic, character, workflow)
 - **Parameters tested**: 100+ unique parameter combinations
-- **Models tested**: Florence-2-base, Florence-2-large, CLIPSeg, SAM3, Grounded-SAM2, FLUX.2-klein-4B, Qwen2.5-0.5B-Instruct (GGUF + HF)
+- **Models tested**: Florence-2-base, Florence-2-large, CLIPSeg, SAM3, SAM2, FLUX.2-klein-4B, Qwen2.5-0.5B-Instruct (GGUF + HF)
 - **APIs tested**: OpenRouter (x-ai/grok-4.1-fast) via LLM API
 - **LLM backends**: OpenAI API, GGUF (llama-cpp-python), HuggingFace transformers, Ollama (factory verified)
-- **Bugs found**: 1 (test expectation, not code bug)

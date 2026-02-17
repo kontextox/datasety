@@ -13,7 +13,7 @@ Add features as needed:
 ```bash
 pip install datasety[caption]        # Florence-2 captioning
 pip install datasety[synthetic]      # Image editing (FLUX, Qwen, SDXL, etc.)
-pip install datasety[mask]           # Mask generation (SAM 3, Grounded SAM 2, CLIPSeg)
+pip install datasety[mask]           # Mask generation (SAM 3, SAM 2, CLIPSeg)
 pip install datasety[character]      # Character dataset generation (IP-Adapter)
 pip install datasety[workflow]       # YAML/JSON workflow support
 pip install datasety[all]            # Everything
@@ -52,7 +52,7 @@ Supports custom providers via environment variables:
 | ----------------- | -------------------------------------- | --------------------------- |
 | `OPENAI_API_KEY`  | API key                                | required for `--llm-api`    |
 | `OPENAI_BASE_URL` | Custom API endpoint                    | `https://api.openai.com/v1` |
-| `OPENAI_MODEL`    | Default model (when `--model` omitted) | `gpt-4o-mini`               |
+| `OPENAI_MODEL`    | Default model (when `--model` omitted) | `gpt-5-nano`               |
 
 ### Run a Workflow
 
@@ -111,6 +111,7 @@ datasety workflow              # execute
 
 | Command                          | Description                         | Extra Deps   |
 | -------------------------------- | ----------------------------------- | ------------ |
+| [`sweep`](/commands/sweep)       | Parameter grid search for synthetic | `[workflow]` |
 | [`workflow`](/commands/workflow) | Multi-step pipelines from YAML/JSON | `[workflow]` |
 
 ## Common Patterns

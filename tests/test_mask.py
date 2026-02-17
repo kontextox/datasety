@@ -49,7 +49,7 @@ class TestMaskCLI:
     def test_model_choices(self):
         result = run_mask("--help")
         assert "sam3" in result.stdout
-        assert "grounded-sam2" in result.stdout
+        assert "sam2" in result.stdout
         assert "clipseg" in result.stdout
 
 

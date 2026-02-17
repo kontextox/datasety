@@ -34,13 +34,18 @@ features:
     linkText: Learn more
   - icon: "&#x1F3AD;"
     title: Segmentation Masks
-    details: Text-prompted masks with SAM 3, Grounded SAM 2, or CLIPSeg. Padding, blur, invert options.
+    details: Text-prompted masks with SAM 3, SAM 2, or CLIPSeg. Padding, blur, invert options.
     link: /commands/mask
     linkText: Learn more
   - icon: "&#x1F9D1;"
     title: Character Generation
     details: Identity-preserving datasets from reference faces. LLM-generated prompts + IP-Adapter.
     link: /commands/character
+    linkText: Learn more
+  - icon: "&#x1F50D;"
+    title: Parameter Sweep
+    details: Grid search over steps, CFG scale, strength, and LoRA. Generates inspectable YAML workflows.
+    link: /commands/sweep
     linkText: Learn more
   - icon: "&#x1F504;"
     title: Workflows

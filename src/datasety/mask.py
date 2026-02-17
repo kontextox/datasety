@@ -232,12 +232,12 @@ def cmd_mask(args):
     try:
         if args.model == "sam3":
             models = _load_mask_model_sam3(device, torch_dtype)
-        elif args.model == "grounded-sam2":
+        elif args.model == "sam2":
             models = _load_mask_model_grounded_sam2(device, torch_dtype)
         elif args.model == "clipseg":
             models = _load_mask_model_clipseg(device, torch_dtype)
         else:
-            print(f"Error: Unknown model '{args.model}'. Use: sam3, grounded-sam2, clipseg")
+            print(f"Error: Unknown model '{args.model}'. Use: sam3, sam2, clipseg")
             sys.exit(1)
     except ImportError as e:
         print(f"Error: Missing dependency: {e}")
@@ -273,7 +273,7 @@ def cmd_mask(args):
                     mask_array = _segment_sam3(
                         models[0], models[1], image, keywords, args.threshold, device,
                     )
-                elif args.model == "grounded-sam2":
+                elif args.model == "sam2":
                     mask_array = _segment_grounded_sam2(
                         models, image, keywords, args.threshold, device,
                     )
@@ -365,7 +365,7 @@ def register_parser(subparsers):
     )
     mask_parser.add_argument(
         "--model",
-        choices=["sam3", "grounded-sam2", "clipseg"],
+        choices=["sam3", "sam2", "clipseg"],
         default="sam3",
         help="Segmentation model (default: sam3)"
     )

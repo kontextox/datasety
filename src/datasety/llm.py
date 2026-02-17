@@ -17,7 +17,7 @@ def resolve_llm_api_config(model_override=None):
         or os.environ.get("OPENAI_API_BASE", "")
         or "https://api.openai.com/v1"
     )
-    model = model_override or os.environ.get("OPENAI_MODEL", "") or "gpt-4o-mini"
+    model = model_override or os.environ.get("OPENAI_MODEL", "") or "gpt-5-nano"
     return api_key, base_url, model
 
 

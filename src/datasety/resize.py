@@ -8,6 +8,29 @@ from PIL import Image
 from datasety.common import _resolve_io_mode, get_image_files
 
 
+def _resolution_from_megapixel(megapixel, aspect_ratio):
+    """Calculate width x height from megapixel count and aspect ratio string.
+
+    Args:
+        megapixel: Total megapixels (e.g., 0.5, 1.0)
+        aspect_ratio: Ratio string like "16:9", "1:1", "3:2"
+
+    Returns:
+        (width, height) rounded to multiples of 8
+    """
+    import math
+
+    w_ratio, h_ratio = map(int, aspect_ratio.split(":"))
+    total_pixels = megapixel * 1_000_000
+    # width/height = w_ratio/h_ratio, width * height = total_pixels
+    height = math.sqrt(total_pixels * h_ratio / w_ratio)
+    width = height * w_ratio / h_ratio
+    # Round to nearest multiple of 8
+    width = round(width / 8) * 8
+    height = round(height / 8) * 8
+    return int(width), int(height)
+
+
 def calculate_resize_and_crop(
     orig_width: int, orig_height: int,
     target_width: int, target_height: int,
@@ -87,10 +110,31 @@ def cmd_resize(args):
             sys.exit(0)
 
     # Parse resolution
-    try:
-        width, height = map(int, args.resolution.lower().split("x"))
-    except ValueError:
-        print(f"Error: Invalid resolution '{args.resolution}'. Use WIDTHxHEIGHT (e.g., 768x1024)")
+    has_resolution = getattr(args, "resolution", None)
+    has_megapixel = getattr(args, "megapixel", None)
+    has_aspect = getattr(args, "aspect_ratio", None)
+
+    if has_resolution and has_megapixel:
+        print("Error: Cannot use both --resolution and --megapixel. Choose one.")
+        sys.exit(1)
+    elif has_megapixel:
+        if not has_aspect:
+            print("Error: --aspect-ratio is required when using --megapixel.")
+            sys.exit(1)
+        try:
+            width, height = _resolution_from_megapixel(args.megapixel, args.aspect_ratio)
+        except (ValueError, ZeroDivisionError):
+            print(f"Error: Invalid --aspect-ratio '{args.aspect_ratio}'. Use W:H (e.g., 16:9)")
+            sys.exit(1)
+    elif has_resolution:
+        try:
+            width, height = map(int, args.resolution.lower().split("x"))
+        except ValueError:
+            print(f"Error: Invalid resolution '{args.resolution}'. "
+                  "Use WIDTHxHEIGHT (e.g., 768x1024)")
+            sys.exit(1)
+    else:
+        print("Error: Either --resolution or --megapixel + --aspect-ratio is required.")
         sys.exit(1)
 
     print(f"Found {len(image_files)} images")
@@ -185,8 +229,19 @@ def register_parser(subparsers):
     )
     resize_parser.add_argument(
         "--resolution", "-r",
-        required=True,
+        default=None,
         help="Target resolution as WIDTHxHEIGHT (e.g., 768x1024)"
+    )
+    resize_parser.add_argument(
+        "--megapixel",
+        type=float,
+        default=None,
+        help="Target megapixel count (e.g., 0.5, 1.0). Use with --aspect-ratio."
+    )
+    resize_parser.add_argument(
+        "--aspect-ratio",
+        default=None,
+        help="Aspect ratio as W:H (e.g., 1:1, 16:9, 3:2). Use with --megapixel."
     )
     resize_parser.add_argument(
         "--crop-position",

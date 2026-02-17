@@ -152,6 +152,84 @@ class TestResizeCommand:
         assert result.returncode == 0
         assert "No images found" in result.stdout
 
+    def test_megapixel_square(self, tmp_path):
+        """--megapixel 0.5 --aspect-ratio 1:1 produces ~704x704."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        make_image(input_dir / "001.jpg", 2000, 2000)
+
+        result = run_resize(
+            "-i", str(input_dir),
+            "-o", str(output_dir),
+            "--megapixel", "0.5",
+            "--aspect-ratio", "1:1",
+        )
+        assert result.returncode == 0
+        with Image.open(output_dir / "001.jpg") as img:
+            assert img.size == (704, 704)
+
+    def test_megapixel_landscape(self, tmp_path):
+        """--megapixel 1.0 --aspect-ratio 16:9 produces landscape."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        make_image(input_dir / "001.jpg", 2000, 2000)
+
+        result = run_resize(
+            "-i", str(input_dir),
+            "-o", str(output_dir),
+            "--megapixel", "1.0",
+            "--aspect-ratio", "16:9",
+        )
+        assert result.returncode == 0
+        with Image.open(output_dir / "001.jpg") as img:
+            w, h = img.size
+            assert w > h
+            assert w % 8 == 0
+            assert h % 8 == 0
+
+    def test_megapixel_without_aspect_ratio(self, tmp_path):
+        """--megapixel without --aspect-ratio should error."""
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        make_image(input_dir / "001.jpg", 2000, 2000)
+
+        result = run_resize(
+            "-i", str(input_dir),
+            "-o", str(tmp_path / "out"),
+            "--megapixel", "0.5",
+        )
+        assert result.returncode != 0
+        assert "aspect-ratio" in result.stdout.lower() or "aspect-ratio" in result.stderr.lower()
+
+    def test_megapixel_with_resolution_conflict(self, tmp_path):
+        """--megapixel and --resolution together should error."""
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        make_image(input_dir / "001.jpg", 2000, 2000)
+
+        result = run_resize(
+            "-i", str(input_dir),
+            "-o", str(tmp_path / "out"),
+            "--megapixel", "0.5",
+            "--aspect-ratio", "1:1",
+            "-r", "512x512",
+        )
+        assert result.returncode != 0
+
+    def test_no_resolution_or_megapixel(self, tmp_path):
+        """Neither --resolution nor --megapixel should error."""
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        make_image(input_dir / "001.jpg", 2000, 2000)
+
+        result = run_resize(
+            "-i", str(input_dir),
+            "-o", str(tmp_path / "out"),
+        )
+        assert result.returncode != 0
+
     def test_input_format_filter(self, tmp_path):
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
