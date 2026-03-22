@@ -27,32 +27,32 @@ Images are center-cropped to a square and resized to `--image-size` (default 512
 
 > **Always use the base (undistilled) model for LoRA training.**
 
-| Model | Type | Use for |
-| ----- | ---- | ------- |
-| `black-forest-labs/FLUX.2-klein-4B` | Step-distilled (4–8 steps) | Inference only |
-| `black-forest-labs/FLUX.2-klein-9B` | Step-distilled (4–8 steps) | Inference only |
-| `black-forest-labs/FLUX.2-klein-base-4B` | Base (undistilled) | **LoRA training** ✓ |
-| `black-forest-labs/FLUX.2-klein-base-9B` | Base (undistilled) | **LoRA training** ✓ |
+| Model                                    | Type                       | Use for             |
+| ---------------------------------------- | -------------------------- | ------------------- |
+| `black-forest-labs/FLUX.2-klein-4B`      | Step-distilled (4–8 steps) | Inference only      |
+| `black-forest-labs/FLUX.2-klein-9B`      | Step-distilled (4–8 steps) | Inference only      |
+| `black-forest-labs/FLUX.2-klein-base-4B` | Base (undistilled)         | **LoRA training** ✓ |
+| `black-forest-labs/FLUX.2-klein-base-9B` | Base (undistilled)         | **LoRA training** ✓ |
 
 The tool will print a warning if you pass a distilled model.
 
 ## Options
 
-| Option | Description | Default |
-| ------ | ----------- | ------- |
-| `--input`, `-i` | Dataset directory (images + `.txt` captions) | required |
-| `--output`, `-o` | Output LoRA `.safetensors` path | `lora.safetensors` |
-| `--model`, `-m` | HuggingFace repo ID (base model) | `black-forest-labs/FLUX.2-klein-base-4B` |
-| `--family` | Model family: `flux`, `sdxl`, `qwen` | auto-detected |
-| `--steps` | Number of training steps | `100` |
-| `--lr` | Learning rate | `1e-4` |
-| `--lora-rank` | LoRA rank | `16` |
-| `--lora-alpha` | LoRA alpha | `16.0` |
-| `--lora-dropout` | LoRA dropout rate | `0.0` |
-| `--image-size` | Training resolution (square crop) | `512` |
-| `--device` | `auto`, `cpu`, `cuda`, `mps` | `auto` |
-| `--seed` | Random seed | `42` |
-| `--save-every` | Save checkpoint every N steps | end only |
+| Option           | Description                                  | Default                                  |
+| ---------------- | -------------------------------------------- | ---------------------------------------- |
+| `--input`, `-i`  | Dataset directory (images + `.txt` captions) | required                                 |
+| `--output`, `-o` | Output LoRA `.safetensors` path              | `lora.safetensors`                       |
+| `--model`, `-m`  | HuggingFace repo ID (base model)             | `black-forest-labs/FLUX.2-klein-base-4B` |
+| `--family`       | Model family: `flux`, `sdxl`, `qwen`         | auto-detected                            |
+| `--steps`        | Number of training steps                     | `100`                                    |
+| `--lr`           | Learning rate                                | `1e-4`                                   |
+| `--lora-rank`    | LoRA rank                                    | `16`                                     |
+| `--lora-alpha`   | LoRA alpha                                   | `16.0`                                   |
+| `--lora-dropout` | LoRA dropout rate                            | `0.0`                                    |
+| `--image-size`   | Training resolution (square crop)            | `512`                                    |
+| `--device`       | `auto`, `cpu`, `cuda`, `mps`                 | `auto`                                   |
+| `--seed`         | Random seed                                  | `42`                                     |
+| `--save-every`   | Save checkpoint every N steps                | end only                                 |
 
 ## Examples
 
@@ -120,23 +120,23 @@ datasety train \
 
 ## VRAM Requirements
 
-| Model | VRAM | Notes |
-| ----- | ---- | ----- |
-| FLUX.2-klein-base-4B | ~8 GB | Default, auto CPU-offload if needed |
-| FLUX.2-klein-base-9B | ~18 GB | Higher quality |
-| SDXL | ~7 GB | Good for object/style LoRAs |
+| Model                | VRAM   | Notes                               |
+| -------------------- | ------ | ----------------------------------- |
+| FLUX.2-klein-base-4B | ~8 GB  | Default, auto CPU-offload if needed |
+| FLUX.2-klein-base-9B | ~18 GB | Higher quality                      |
+| SDXL                 | ~7 GB  | Good for object/style LoRAs         |
 
 CPU offload is applied automatically when free VRAM is below the required amount.
 
 ## LoRA Parameters Guide
 
-| Parameter | Recommended range | Effect |
-| --------- | ---------------- | ------ |
-| `--lora-rank` | 4–64 | Higher = more capacity, larger file |
-| `--lora-alpha` | Equal to rank (default) | Controls effective learning rate scale |
-| `--steps` | 100–2000 | More steps = more fitting (risk of overfitting) |
-| `--lr` | `1e-5` – `1e-3` | Too high causes divergence; too low is slow |
-| `--image-size` | 512 or 1024 | Match your target inference resolution |
+| Parameter      | Recommended range       | Effect                                          |
+| -------------- | ----------------------- | ----------------------------------------------- |
+| `--lora-rank`  | 4–64                    | Higher = more capacity, larger file             |
+| `--lora-alpha` | Equal to rank (default) | Controls effective learning rate scale          |
+| `--steps`      | 100–2000                | More steps = more fitting (risk of overfitting) |
+| `--lr`         | `1e-5` – `1e-3`         | Too high causes divergence; too low is slow     |
+| `--image-size` | 512 or 1024             | Match your target inference resolution          |
 
 ## Output
 

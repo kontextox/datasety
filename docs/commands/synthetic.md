@@ -10,45 +10,45 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 
 ## Supported Models
 
-| Model Family               | Example Model ID                           | Key Params                   |
-| -------------------------- | ------------------------------------------ | ---------------------------- |
-| **FLUX.2 klein FP8** (default) | `black-forest-labs/FLUX.2-klein-4b-fp8` | `--strength`, steps=4, ~5 GB |
-| **FLUX.2 klein 9B FP8**    | `black-forest-labs/FLUX.2-klein-9b-fp8`    | Better face fidelity, ~10 GB |
-| **FLUX.2 klein BF16**      | `black-forest-labs/FLUX.2-klein-4B`        | `--strength`, steps=4        |
-| **FLUX.2 dev**             | `black-forest-labs/FLUX.2-dev`             | `--strength`, steps=28       |
-| **Qwen**                   | `Qwen/Qwen-Image-Edit-2511`                | `--true-cfg-scale`, steps=40 |
-| **FireRed**                | `FireRedTeam/FireRed-Image-Edit-1.0`       | `--true-cfg-scale`, steps=40 |
-| **FLUX Kontext**           | `black-forest-labs/FLUX.1-Kontext-dev`     | steps=28                     |
-| **LongCat**                | `meituan-longcat/LongCat-Image-Edit-Turbo` | steps=50                     |
-| **SDXL**                   | `stabilityai/stable-diffusion-xl-*`        | `--strength`, steps=30       |
-| **HunyuanImage**           | `tencent/HunyuanImage-3.0`                 | steps=50                     |
+| Model Family                   | Example Model ID                           | Key Params                   |
+| ------------------------------ | ------------------------------------------ | ---------------------------- |
+| **FLUX.2 klein FP8** (default) | `black-forest-labs/FLUX.2-klein-4b-fp8`    | `--strength`, steps=4, ~5 GB |
+| **FLUX.2 klein 9B FP8**        | `black-forest-labs/FLUX.2-klein-9b-fp8`    | Better face fidelity, ~10 GB |
+| **FLUX.2 klein BF16**          | `black-forest-labs/FLUX.2-klein-4B`        | `--strength`, steps=4        |
+| **FLUX.2 dev**                 | `black-forest-labs/FLUX.2-dev`             | `--strength`, steps=28       |
+| **Qwen**                       | `Qwen/Qwen-Image-Edit-2511`                | `--true-cfg-scale`, steps=40 |
+| **FireRed**                    | `FireRedTeam/FireRed-Image-Edit-1.0`       | `--true-cfg-scale`, steps=40 |
+| **FLUX Kontext**               | `black-forest-labs/FLUX.1-Kontext-dev`     | steps=28                     |
+| **LongCat**                    | `meituan-longcat/LongCat-Image-Edit-Turbo` | steps=50                     |
+| **SDXL**                       | `stabilityai/stable-diffusion-xl-*`        | `--strength`, steps=30       |
+| **HunyuanImage**               | `tencent/HunyuanImage-3.0`                 | steps=50                     |
 
 ## Options
 
-| Option              | Description                              | Default                             |
-| ------------------- | ---------------------------------------- | ----------------------------------- |
-| `--input`, `-i`     | Input directory                          | (required\*)                        |
-| `--output`, `-o`    | Output directory                         | (required\*)                        |
-| `--input-image`     | Single input image                       |                                     |
-| `--output-image`    | Single output image                      |                                     |
-| `--prompt`, `-p`    | Edit prompt                              | (required)                          |
+| Option              | Description                              | Default                                 |
+| ------------------- | ---------------------------------------- | --------------------------------------- |
+| `--input`, `-i`     | Input directory                          | (required\*)                            |
+| `--output`, `-o`    | Output directory                         | (required\*)                            |
+| `--input-image`     | Single input image                       |                                         |
+| `--output-image`    | Single output image                      |                                         |
+| `--prompt`, `-p`    | Edit prompt                              | (required)                              |
 | `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4b-fp8` |
-| `--image-api`       | Use OpenAI-compatible API for generation | `false`                             |
-| `--weights`         | Fine-tuned weights                       | (none)                              |
-| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     | (none)                              |
-| `--device`          | `auto`, `cpu`, `cuda`, or `mps`          | `auto`                              |
-| `--cpu-offload`     | Force CPU offload                        | `false`                             |
-| `--steps`           | Inference steps                          | `4`                                 |
-| `--cfg-scale`       | Guidance scale                           | `2.5`                               |
-| `--true-cfg-scale`  | True CFG (Qwen only)                     | `4.0`                               |
-| `--negative-prompt` | Negative prompt                          | `" "`                               |
-| `--num-images`      | Images per input                         | `1`                                 |
-| `--seed`            | Random seed                              | (random)                            |
-| `--gguf`            | GGUF path/URL for quantized loading      | (none)                              |
-| `--strength`        | Img2img strength (0.0-1.0)               | `0.7`                               |
-| `--recursive`, `-R` | Search input directory recursively       | `false`                             |
-| `--output-format`   | `png`, `jpg`, `webp`                     | `png`                               |
-| `--dry-run`         | Preview without loading models           | `false`                             |
+| `--image-api`       | Use OpenAI-compatible API for generation | `false`                                 |
+| `--weights`         | Fine-tuned weights                       | (none)                                  |
+| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     | (none)                                  |
+| `--device`          | `auto`, `cpu`, `cuda`, or `mps`          | `auto`                                  |
+| `--cpu-offload`     | Force CPU offload                        | `false`                                 |
+| `--steps`           | Inference steps                          | `4`                                     |
+| `--cfg-scale`       | Guidance scale                           | `2.5`                                   |
+| `--true-cfg-scale`  | True CFG (Qwen only)                     | `4.0`                                   |
+| `--negative-prompt` | Negative prompt                          | `" "`                                   |
+| `--num-images`      | Images per input                         | `1`                                     |
+| `--seed`            | Random seed                              | (random)                                |
+| `--gguf`            | GGUF path/URL for quantized loading      | (none)                                  |
+| `--strength`        | Img2img strength (0.0-1.0)               | `0.7`                                   |
+| `--recursive`, `-R` | Search input directory recursively       | `false`                                 |
+| `--output-format`   | `png`, `jpg`, `webp`                     | `png`                                   |
+| `--dry-run`         | Preview without loading models           | `false`                                 |
 
 ## Examples
 

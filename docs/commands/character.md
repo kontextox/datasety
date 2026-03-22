@@ -23,26 +23,26 @@ By default, images are generated locally using FLUX.2-klein (requires GPU + PyTo
 
 ## Options
 
-| Option                    | Description                                        | Default                             |
-| ------------------------- | -------------------------------------------------- | ----------------------------------- |
-| `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                     |
-| `--output`, `-o`          | Output directory                                   | (required)                          |
-| `--num-images`, `-n`      | Number of images                                   | `10`                                |
+| Option                    | Description                                        | Default                                 |
+| ------------------------- | -------------------------------------------------- | --------------------------------------- |
+| `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                         |
+| `--output`, `-o`          | Output directory                                   | (required)                              |
+| `--num-images`, `-n`      | Number of images                                   | `10`                                    |
 | `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4b-fp8` |
-| `--gguf`                  | GGUF path/URL for quantized loading                |                                     |
-| `--image-api`             | Use OpenAI-compatible API for image generation     | `false`                             |
-| `--character-description` | Text description of character                      |                                     |
-| `--style`                 | Style guidance                                     |                                     |
-| `--prompts-only`          | Only generate prompts                              | `false`                             |
-| `--prompts-file`          | Load prompts from file                             |                                     |
-| `--device`                | `auto`, `cpu`, `cuda`, or `mps`                    | `auto`                              |
-| `--steps`                 | Inference steps                                    | `4`                                 |
-| `--cfg-scale`             | Guidance scale                                     | `4.0`                               |
-| `--seed`                  | Random seed                                        | (random)                            |
-| `--height`                | Output image height                                | `1024`                              |
-| `--width`                 | Output image width                                 | `1024`                              |
-| `--output-format`         | `png`, `jpg`, `webp`                               | `png`                               |
-| `--dry-run`               | Preview prompts without generating images          | `false`                             |
+| `--gguf`                  | GGUF path/URL for quantized loading                |                                         |
+| `--image-api`             | Use OpenAI-compatible API for image generation     | `false`                                 |
+| `--character-description` | Text description of character                      |                                         |
+| `--style`                 | Style guidance                                     |                                         |
+| `--prompts-only`          | Only generate prompts                              | `false`                                 |
+| `--prompts-file`          | Load prompts from file                             |                                         |
+| `--device`                | `auto`, `cpu`, `cuda`, or `mps`                    | `auto`                                  |
+| `--steps`                 | Inference steps                                    | `4`                                     |
+| `--cfg-scale`             | Guidance scale                                     | `4.0`                                   |
+| `--seed`                  | Random seed                                        | (random)                                |
+| `--height`                | Output image height                                | `1024`                                  |
+| `--width`                 | Output image width                                 | `1024`                                  |
+| `--output-format`         | `png`, `jpg`, `webp`                               | `png`                                   |
+| `--dry-run`               | Preview prompts without generating images          | `false`                                 |
 
 ## Examples
 

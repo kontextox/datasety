@@ -116,9 +116,9 @@ datasety workflow              # execute
 
 ### Training
 
-| Command                      | Description                                | Extra Deps    |
-| ---------------------------- | ------------------------------------------ | ------------- |
-| [`train`](/commands/train)   | LoRA fine-tuning for FLUX.2-klein and SDXL | `[synthetic]` |
+| Command                    | Description                                | Extra Deps    |
+| -------------------------- | ------------------------------------------ | ------------- |
+| [`train`](/commands/train) | LoRA fine-tuning for FLUX.2-klein and SDXL | `[synthetic]` |
 
 ## Common Patterns
 

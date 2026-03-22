@@ -3,4 +3,4 @@
 Commands: resize, align, caption, shuffle, synthetic, mask, degrade, character, sweep, workflow.
 """
 
-__version__ = "0.28.0"
+__version__ = "0.29.0"

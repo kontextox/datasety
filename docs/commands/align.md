@@ -48,6 +48,8 @@ datasety align -t ./target -c ./control --server --port 9000
 
 ## Web Server
 
+<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/demo.gif" alt="The web server provides a compare slider to visually inspect control/target pairs">
+
 Use `--server` to start a local web UI for visually comparing aligned pairs.
 
 - **Compare slider** — drag to reveal control vs target side by side
