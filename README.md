@@ -118,7 +118,7 @@ datasety caption -i ./images -o ./captions --llm-api --model gpt-5-nano
 
 ### `align` — Align Control/Target Pairs
 
-Match dimensions, enforce multiples of 32, and unify formats for control/target training pairs.
+Match dimensions, enforce multiples of 32, and unify formats for control/target training pairs. Includes a built-in web server for visual comparison with a compare slider, caption editing, and pair management.
 
 <!-- screenshot: align -->
 
@@ -129,13 +129,16 @@ datasety align --target ./target --control ./control --dry-run
 <details>
 <summary>Options</summary>
 
-| Option            | Description                              | Default       |
-| ----------------- | ---------------------------------------- | ------------- |
-| `--target`, `-t`  | Target images directory                  | required      |
-| `--control`, `-c` | Control images directory                 | required      |
-| `--multiple-of`   | Align dimensions to this multiple        | `32`          |
-| `--output-format` | Convert all images: `jpg`, `png`, `webp` | keep original |
-| `--dry-run`       | Preview changes without modifying files  | off           |
+| Option              | Description                              | Default       |
+| ------------------- | ---------------------------------------- | ------------- |
+| `--target`, `-t`    | Target images directory                  | required      |
+| `--control`, `-c`   | Control images directory                 | required      |
+| `--multiple-of`     | Align dimensions to this multiple        | `32`          |
+| `--output-format`   | Convert all images: `jpg`, `png`, `webp` | keep original |
+| `--recursive`, `-R` | Search input directories recursively     | off           |
+| `--dry-run`         | Preview changes without modifying files  | off           |
+| `--server`          | Start web server for visual comparison   | off           |
+| `--port`            | Port for the comparison web server       | `8787`        |
 
 </details>
 
@@ -143,7 +146,15 @@ datasety align --target ./target --control ./control --dry-run
 # Preview, then apply
 datasety align -t ./target -c ./control --dry-run
 datasety align -t ./target -c ./control --output-format jpg
+
+# Visual comparison web UI
+datasety align -t ./target -c ./control --server
+datasety align -t ./target -c ./control --server --port 9000
 ```
+
+<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/demo.gif" alt="The web server provides a compare slider to visually inspect control/target pairs">
+
+The web server provides a compare slider to visually inspect control/target pairs, edit `.txt` caption files, and delete pairs — with keyboard navigation and mobile support.
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/align)
 
@@ -201,30 +212,30 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 <details>
 <summary>Options</summary>
 
-| Option              | Description                              | Default                             |
-| ------------------- | ---------------------------------------- | ----------------------------------- |
-| `--input`, `-i`     | Input directory                          | required\*                          |
-| `--output`, `-o`    | Output directory                         | required\*                          |
-| `--input-image`     | Single input image                       |                                     |
-| `--output-image`    | Single output image                      |                                     |
-| `--prompt`, `-p`    | Edit instruction                         | required                            |
+| Option              | Description                              | Default                                 |
+| ------------------- | ---------------------------------------- | --------------------------------------- |
+| `--input`, `-i`     | Input directory                          | required\*                              |
+| `--output`, `-o`    | Output directory                         | required\*                              |
+| `--input-image`     | Single input image                       |                                         |
+| `--output-image`    | Single output image                      |                                         |
+| `--prompt`, `-p`    | Edit instruction                         | required                                |
 | `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4b-fp8` |
-| `--image-api`       | Use OpenAI-compatible API for generation | off                                 |
-| `--weights`         | Fine-tuned weights file                  |                                     |
-| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     |                                     |
-| `--device`          | `auto`, `cpu`, `cuda`, `mps`             | `auto`                              |
-| `--cpu-offload`     | Force CPU offload                        | auto                                |
-| `--steps`           | Inference steps                          | `4`                                 |
-| `--cfg-scale`       | Guidance scale                           | `2.5`                               |
-| `--true-cfg-scale`  | True CFG (Qwen only)                     | `4.0`                               |
-| `--negative-prompt` | Negative prompt                          | `" "`                               |
-| `--num-images`      | Images per input                         | `1`                                 |
-| `--seed`            | Random seed                              |                                     |
-| `--gguf`            | GGUF path/URL for quantized loading      |                                     |
-| `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0)  | `0.7`                               |
-| `--recursive`, `-R` | Search input directory recursively       | off                                 |
-| `--output-format`   | `png`, `jpg`, `webp`                     | `png`                               |
-| `--dry-run`         | Preview without loading models           | off                                 |
+| `--image-api`       | Use OpenAI-compatible API for generation | off                                     |
+| `--weights`         | Fine-tuned weights file                  |                                         |
+| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     |                                         |
+| `--device`          | `auto`, `cpu`, `cuda`, `mps`             | `auto`                                  |
+| `--cpu-offload`     | Force CPU offload                        | auto                                    |
+| `--steps`           | Inference steps                          | `4`                                     |
+| `--cfg-scale`       | Guidance scale                           | `2.5`                                   |
+| `--true-cfg-scale`  | True CFG (Qwen only)                     | `4.0`                                   |
+| `--negative-prompt` | Negative prompt                          | `" "`                                   |
+| `--num-images`      | Images per input                         | `1`                                     |
+| `--seed`            | Random seed                              |                                         |
+| `--gguf`            | GGUF path/URL for quantized loading      |                                         |
+| `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0)  | `0.7`                                   |
+| `--recursive`, `-R` | Search input directory recursively       | off                                     |
+| `--output-format`   | `png`, `jpg`, `webp`                     | `png`                                   |
+| `--dry-run`         | Preview without loading models           | off                                     |
 
 </details>
 
@@ -351,30 +362,30 @@ datasety character --output ./dataset --llm-ollama llama3.2 --num-images 20
 <details>
 <summary>Options</summary>
 
-| Option                    | Description                                        | Default                             |
-| ------------------------- | -------------------------------------------------- | ----------------------------------- |
-| `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                     |
-| `--output`, `-o`          | Output directory                                   | required                            |
-| `--num-images`, `-n`      | Number of images to generate                       | `10`                                |
+| Option                    | Description                                        | Default                                 |
+| ------------------------- | -------------------------------------------------- | --------------------------------------- |
+| `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                         |
+| `--output`, `-o`          | Output directory                                   | required                                |
+| `--num-images`, `-n`      | Number of images to generate                       | `10`                                    |
 | `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4b-fp8` |
-| `--gguf`                  | GGUF path/URL for quantized loading                |                                     |
-| `--image-api`             | Use OpenAI-compatible API for image generation     | off                                 |
-| `--character-description` | Text description of the character                  |                                     |
-| `--style`                 | Style guidance (e.g., `photorealistic`)            |                                     |
-| `--prompts-only`          | Only generate prompts, skip images                 | off                                 |
-| `--prompts-file`          | Load prompts from file instead of LLM              |                                     |
-| `--llm-api`               | Use OpenAI-compatible API for prompts              |                                     |
-| `--llm-ollama MODEL`      | Use local Ollama server for prompts                |                                     |
-| `--llm-gguf PATH`         | Use local GGUF model for prompts                   |                                     |
-| `--llm-model REPO`        | Use HuggingFace model for prompts                  |                                     |
-| `--device`                | `auto`, `cpu`, `cuda`, `mps`                       | `auto`                              |
-| `--steps`                 | Inference steps                                    | `4`                                 |
-| `--cfg-scale`             | Guidance scale                                     | `4.0`                               |
-| `--seed`                  | Random seed                                        |                                     |
-| `--height`                | Output image height                                | `1024`                              |
-| `--width`                 | Output image width                                 | `1024`                              |
-| `--output-format`         | `png`, `jpg`, `webp`                               | `png`                               |
-| `--dry-run`               | Preview prompts without generating images          | off                                 |
+| `--gguf`                  | GGUF path/URL for quantized loading                |                                         |
+| `--image-api`             | Use OpenAI-compatible API for image generation     | off                                     |
+| `--character-description` | Text description of the character                  |                                         |
+| `--style`                 | Style guidance (e.g., `photorealistic`)            |                                         |
+| `--prompts-only`          | Only generate prompts, skip images                 | off                                     |
+| `--prompts-file`          | Load prompts from file instead of LLM              |                                         |
+| `--llm-api`               | Use OpenAI-compatible API for prompts              |                                         |
+| `--llm-ollama MODEL`      | Use local Ollama server for prompts                |                                         |
+| `--llm-gguf PATH`         | Use local GGUF model for prompts                   |                                         |
+| `--llm-model REPO`        | Use HuggingFace model for prompts                  |                                         |
+| `--device`                | `auto`, `cpu`, `cuda`, `mps`                       | `auto`                                  |
+| `--steps`                 | Inference steps                                    | `4`                                     |
+| `--cfg-scale`             | Guidance scale                                     | `4.0`                                   |
+| `--seed`                  | Random seed                                        |                                         |
+| `--height`                | Output image height                                | `1024`                                  |
+| `--width`                 | Output image width                                 | `1024`                                  |
+| `--output-format`         | `png`, `jpg`, `webp`                               | `png`                                   |
+| `--dry-run`               | Preview prompts without generating images          | off                                     |
 
 </details>
 
@@ -453,21 +464,21 @@ datasety train --input ./dataset --output lora.safetensors --steps 500
 <details>
 <summary>Options</summary>
 
-| Option | Description | Default |
-| ------ | ----------- | ------- |
-| `--input`, `-i` | Dataset directory (images + `.txt` captions) | required |
-| `--output`, `-o` | Output LoRA `.safetensors` path | `lora.safetensors` |
-| `--model`, `-m` | HuggingFace base model repo ID | `black-forest-labs/FLUX.2-klein-base-4B` |
-| `--family` | Model family: `flux`, `sdxl`, `qwen` | auto-detected |
-| `--steps` | Number of training steps | `100` |
-| `--lr` | Learning rate | `1e-4` |
-| `--lora-rank` | LoRA rank (4–64) | `16` |
-| `--lora-alpha` | LoRA alpha | `16.0` |
-| `--lora-dropout` | LoRA dropout rate | `0.0` |
-| `--image-size` | Training resolution (square crop) | `512` |
-| `--device` | `auto`, `cpu`, `cuda`, `mps` | `auto` |
-| `--seed` | Random seed | `42` |
-| `--save-every` | Save checkpoint every N steps | end only |
+| Option           | Description                                  | Default                                  |
+| ---------------- | -------------------------------------------- | ---------------------------------------- |
+| `--input`, `-i`  | Dataset directory (images + `.txt` captions) | required                                 |
+| `--output`, `-o` | Output LoRA `.safetensors` path              | `lora.safetensors`                       |
+| `--model`, `-m`  | HuggingFace base model repo ID               | `black-forest-labs/FLUX.2-klein-base-4B` |
+| `--family`       | Model family: `flux`, `sdxl`, `qwen`         | auto-detected                            |
+| `--steps`        | Number of training steps                     | `100`                                    |
+| `--lr`           | Learning rate                                | `1e-4`                                   |
+| `--lora-rank`    | LoRA rank (4–64)                             | `16`                                     |
+| `--lora-alpha`   | LoRA alpha                                   | `16.0`                                   |
+| `--lora-dropout` | LoRA dropout rate                            | `0.0`                                    |
+| `--image-size`   | Training resolution (square crop)            | `512`                                    |
+| `--device`       | `auto`, `cpu`, `cuda`, `mps`                 | `auto`                                   |
+| `--seed`         | Random seed                                  | `42`                                     |
+| `--save-every`   | Save checkpoint every N steps                | end only                                 |
 
 </details>
 

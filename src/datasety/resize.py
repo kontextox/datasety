@@ -31,6 +31,28 @@ def _resolution_from_megapixel(megapixel, aspect_ratio):
     return int(width), int(height)
 
 
+def _resolution_from_megapixel_and_dims(megapixel, orig_width, orig_height):
+    """Calculate target width x height from megapixel count, preserving original aspect ratio.
+
+    Args:
+        megapixel: Total megapixels (e.g., 0.5, 1.0)
+        orig_width: Original image width
+        orig_height: Original image height
+
+    Returns:
+        (width, height) rounded to multiples of 8
+    """
+    import math
+
+    total_pixels = megapixel * 1_000_000
+    aspect = orig_width / orig_height
+    height = math.sqrt(total_pixels / aspect)
+    width = height * aspect
+    width = round(width / 8) * 8
+    height = round(height / 8) * 8
+    return int(width), int(height)
+
+
 def calculate_resize_and_crop(
     orig_width: int, orig_height: int, target_width: int, target_height: int, crop_position: str
 ) -> tuple[tuple[int, int], tuple[int, int, int, int]]:
@@ -112,18 +134,22 @@ def cmd_resize(args):
     has_megapixel = getattr(args, "megapixel", None)
     has_aspect = getattr(args, "aspect_ratio", None)
 
+    # when True, resolution is calculated per image from its native aspect ratio
+    per_image_megapixel = False
+    width = height = 0
+
     if has_resolution and has_megapixel:
         print("Error: Cannot use both --resolution and --megapixel. Choose one.")
         sys.exit(1)
     elif has_megapixel:
-        if not has_aspect:
-            print("Error: --aspect-ratio is required when using --megapixel.")
-            sys.exit(1)
-        try:
-            width, height = _resolution_from_megapixel(args.megapixel, args.aspect_ratio)
-        except (ValueError, ZeroDivisionError):
-            print(f"Error: Invalid --aspect-ratio '{args.aspect_ratio}'. Use W:H (e.g., 16:9)")
-            sys.exit(1)
+        if has_aspect:
+            try:
+                width, height = _resolution_from_megapixel(args.megapixel, args.aspect_ratio)
+            except (ValueError, ZeroDivisionError):
+                print(f"Error: Invalid --aspect-ratio '{args.aspect_ratio}'. Use W:H (e.g., 16:9)")
+                sys.exit(1)
+        else:
+            per_image_megapixel = True
     elif has_resolution:
         try:
             width, height = map(int, args.resolution.lower().split("x"))
@@ -133,11 +159,14 @@ def cmd_resize(args):
             )
             sys.exit(1)
     else:
-        print("Error: Either --resolution or --megapixel + --aspect-ratio is required.")
+        print("Error: Either --resolution or --megapixel is required.")
         sys.exit(1)
 
     print(f"Found {len(image_files)} images")
-    print(f"Target resolution: {width}x{height}")
+    if per_image_megapixel:
+        print(f"Target: {args.megapixel} megapixel (per-image aspect ratio)")
+    else:
+        print(f"Target resolution: {width}x{height}")
     print(f"Crop position: {args.crop_position}")
     print(f"Output format: {args.output_format}")
 
@@ -157,22 +186,27 @@ def cmd_resize(args):
                 img = img.convert("RGB")
                 orig_w, orig_h = img.size
 
+                if per_image_megapixel:
+                    width, height = _resolution_from_megapixel_and_dims(
+                        args.megapixel, orig_w, orig_h
+                    )
+
                 # Skip only if image is too small in both dimensions (truly undersized)
                 if orig_w < width and orig_h < height:
                     print(f"[SKIP] {img_path.name}: {orig_w}x{orig_h} < {width}x{height}")
                     skipped += 1
                     continue
 
-                # Calculate resize and crop
-                (new_w, new_h), crop_box = calculate_resize_and_crop(
-                    orig_w, orig_h, width, height, args.crop_position
-                )
-
-                # Resize
-                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
-
-                # Crop
-                img_cropped = img_resized.crop(crop_box)
+                if per_image_megapixel:
+                    # No crop needed — target matches native aspect ratio
+                    img_final = img.resize((width, height), Image.LANCZOS)
+                else:
+                    # Calculate resize and crop
+                    (new_w, new_h), crop_box = calculate_resize_and_crop(
+                        orig_w, orig_h, width, height, args.crop_position
+                    )
+                    img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                    img_final = img_resized.crop(crop_box)
 
                 # Determine output filename
                 if is_single and output_path:
@@ -185,7 +219,7 @@ def cmd_resize(args):
                 # Save with quality settings
                 save_kw = get_save_kwargs(args.output_format)
                 if not dry_run:
-                    img_cropped.save(out_path, **save_kw)
+                    img_final.save(out_path, **save_kw)
 
                 print(
                     f"[{idx}/{total}] [OK] {img_path.name} ({orig_w}x{orig_h}) "
@@ -230,7 +264,8 @@ def register_parser(subparsers):
         "--megapixel",
         type=float,
         default=None,
-        help="Target megapixel count (e.g., 0.5, 1.0). Use with --aspect-ratio.",
+        help="Target megapixel count (e.g., 0.5, 1.0). "
+        "Without --aspect-ratio, preserves each image's native ratio.",
     )
     resize_parser.add_argument(
         "--aspect-ratio",

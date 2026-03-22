@@ -228,21 +228,55 @@ class TestResizeCommand:
             assert h % 8 == 0
 
     def test_megapixel_without_aspect_ratio(self, tmp_path):
-        """--megapixel without --aspect-ratio should error."""
+        """--megapixel without --aspect-ratio preserves native aspect ratio."""
         input_dir = tmp_path / "input"
+        output_dir = tmp_path / "out"
         input_dir.mkdir()
-        make_image(input_dir / "001.jpg", 2000, 2000)
+        make_image(input_dir / "001.jpg", 2000, 1500)  # 4:3 aspect ratio
 
         result = run_resize(
             "-i",
             str(input_dir),
             "-o",
-            str(tmp_path / "out"),
+            str(output_dir),
             "--megapixel",
             "0.5",
         )
-        assert result.returncode != 0
-        assert "aspect-ratio" in result.stdout.lower() or "aspect-ratio" in result.stderr.lower()
+        assert result.returncode == 0
+        assert "Processed: 1" in result.stdout
+        with Image.open(output_dir / "001.jpg") as img:
+            w, h = img.size
+            assert w % 8 == 0
+            assert h % 8 == 0
+            # Should be close to 0.5 megapixels
+            assert abs(w * h - 500_000) < 10_000
+
+    def test_megapixel_without_aspect_ratio_mixed_orientations(self, tmp_path):
+        """Each image keeps its own aspect ratio when --aspect-ratio is omitted."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "out"
+        input_dir.mkdir()
+        make_image(input_dir / "landscape.jpg", 3000, 2000)  # 3:2
+        make_image(input_dir / "portrait.jpg", 2000, 3000)   # 2:3
+
+        result = run_resize(
+            "-i",
+            str(input_dir),
+            "-o",
+            str(output_dir),
+            "--megapixel",
+            "1.0",
+        )
+        assert result.returncode == 0
+        assert "Processed: 2" in result.stdout
+        with Image.open(output_dir / "landscape.jpg") as img:
+            w, h = img.size
+            assert w > h  # still landscape
+            assert w % 8 == 0 and h % 8 == 0
+        with Image.open(output_dir / "portrait.jpg") as img:
+            w, h = img.size
+            assert h > w  # still portrait
+            assert w % 8 == 0 and h % 8 == 0
 
     def test_megapixel_with_resolution_conflict(self, tmp_path):
         """--megapixel and --resolution together should error."""

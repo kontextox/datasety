@@ -10,6 +10,14 @@ from datasety.common import get_image_files, get_save_kwargs
 
 def cmd_align(args):
     """Align control/target image pairs for training compatibility."""
+    if args.server:
+        from datasety.align_server import cmd_align_server
+
+        cmd_align_server(
+            Path(args.target), Path(args.control), args.port, args.recursive
+        )
+        return
+
     target_dir = Path(args.target)
     control_dir = Path(args.control)
 
@@ -186,5 +194,16 @@ def register_parser(subparsers):
         "-R",
         action="store_true",
         help="Search input directories recursively for images",
+    )
+    align_parser.add_argument(
+        "--server",
+        action="store_true",
+        help="Start web server for visual comparison of aligned pairs",
+    )
+    align_parser.add_argument(
+        "--port",
+        type=int,
+        default=8787,
+        help="Port for the comparison web server (default: 8787)",
     )
     align_parser.set_defaults(func=cmd_align)

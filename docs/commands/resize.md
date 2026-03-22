@@ -39,7 +39,10 @@ datasety resize -i ./photos -o ./processed -r 768x1024 --output-name-numbers
 ```
 
 ```bash
-# Megapixel mode: 0.5 MP at 1:1 aspect ratio
+# Megapixel mode: preserves each image's native aspect ratio
+datasety resize -i ./raw -o ./dataset --megapixel 1.0
+
+# Megapixel mode: force specific aspect ratio
 datasety resize -i ./raw -o ./dataset --megapixel 0.5 --aspect-ratio 1:1
 
 # Megapixel mode: 1.0 MP at 16:9
