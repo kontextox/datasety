@@ -12,13 +12,13 @@ Usage:
     datasety mask --input ./in --output ./masks --keywords "face,hair" --model clipseg
     datasety filter --input ./in --output ./rejected --query "leg,male face" --action move
     datasety degrade --input ./in --output ./out --type jpeg --intensity 0.5
-    datasety character --reference face.jpg --output ./dataset --llm-ollama llama3.2
+    datasety character --reference face.jpg --output ./dataset --llm-ollama qwen3.5:4b
     datasety workflow --file datasety.yaml --dry-run
 """
 
 import argparse
 
-from datasety import align, caption, degrade, filter, mask, resize, shuffle, synthetic
+from datasety import align, caption, degrade, filter, inspect, mask, resize, shuffle, synthetic
 
 # Conditionally import new commands
 try:
@@ -60,6 +60,7 @@ def build_parser():
     synthetic.register_parser(subparsers)
     mask.register_parser(subparsers)
     filter.register_parser(subparsers)
+    inspect.register_parser(subparsers)
     degrade.register_parser(subparsers)
 
     if character is not None:

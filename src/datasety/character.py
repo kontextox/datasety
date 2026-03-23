@@ -358,4 +358,11 @@ def register_parser(subparsers):
         help="Use OpenAI-compatible API for image generation (needs OPENAI_API_KEY)",
     )
 
+    char_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=0,
+        help="Flush GPU memory every N images (default: 0 = no flushing)",
+    )
+
     char_parser.set_defaults(func=cmd_character)

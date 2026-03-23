@@ -48,6 +48,9 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 | `--strength`        | Img2img strength (0.0-1.0)               | `0.7`                                   |
 | `--recursive`, `-R` | Search input directory recursively       | `false`                                 |
 | `--output-format`   | `png`, `jpg`, `webp`                     | `png`                                   |
+| `--skip-existing`   | Skip images with existing output         | `false`                                 |
+| `--batch-size`      | Flush GPU memory every N images          | `0` (off)                               |
+| `--progress`        | Show tqdm progress bar                   | `false`                                 |
 | `--dry-run`         | Preview without loading models           | `false`                                 |
 
 ## Examples

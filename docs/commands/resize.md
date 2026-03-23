@@ -23,7 +23,12 @@ datasety resize --input ./images --output ./resized --resolution 768x1024
 | `--input-format`        | Comma-separated formats                    | `jpg,jpeg,png,webp` |
 | `--output-format`       | `jpg`, `png`, `webp`                       | `jpg`               |
 | `--output-name-numbers` | Rename to 1.jpg, 2.jpg, ...                | `false`             |
+| `--upscale`             | Upscale images smaller than target         | `false`             |
+| `--min-resolution`      | Skip images below this size (e.g., 256x256) |                    |
+| `--workers`             | Parallel workers for processing            | `1`                 |
 | `--recursive`, `-R`     | Search input directory recursively         | `false`             |
+| `--progress`            | Show tqdm progress bar                     | `false`             |
+| `--dry-run`             | Preview without writing files              | `false`             |
 
 ## Examples
 

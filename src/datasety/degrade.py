@@ -220,6 +220,10 @@ def cmd_degrade(args):
 
     num_variants = args.num_variants
 
+    dry_run = args.dry_run
+    if dry_run:
+        print("=== DRY RUN (no files will be written) ===")
+
     print(f"Found {len(image_files)} images")
     print(f"Degradation types: {types}")
     print(f"Chain: {args.chain}")
@@ -237,29 +241,34 @@ def cmd_degrade(args):
     total = len(image_files)
     out_ext = args.output_format
 
-    for idx, img_path in enumerate(image_files, 1):
-        try:
-            with Image.open(img_path) as img:
-                image = img.convert("RGB")
+    def _process_one_degrade(idx, img_path):
+        """Process a single image through degradation. Returns (idx, logs) or raises."""
+        if getattr(args, "skip_existing", False) and not is_single:
+            out_check = output_dir / f"{img_path.stem}.{out_ext}"
+            if out_check.exists():
+                return idx, "skip", []
 
-                variant_logs = []
+        with Image.open(img_path) as img:
+            image = img.convert("RGB")
 
-                for variant_idx in range(num_variants):
-                    degraded, steps = apply_degradations(
-                        image,
-                        types,
-                        intensity=intensity_value,
-                        chain=args.chain,
-                        intensity_range=intensity_range,
-                    )
+            variant_logs = []
+            count = 0
 
-                    # Build filename suffix for variants
-                    if num_variants > 1:
-                        stem = f"{img_path.stem}_{variant_idx + 1}"
-                    else:
-                        stem = img_path.stem
+            for variant_idx in range(num_variants):
+                degraded, steps = apply_degradations(
+                    image,
+                    types,
+                    intensity=intensity_value,
+                    chain=args.chain,
+                    intensity_range=intensity_range,
+                )
 
-                    # Determine output path and save
+                if num_variants > 1:
+                    stem = f"{img_path.stem}_{variant_idx + 1}"
+                else:
+                    stem = img_path.stem
+
+                if not dry_run:
                     if is_single and output_path:
                         degraded.save(output_path)
                     elif paired:
@@ -268,16 +277,48 @@ def cmd_degrade(args):
                         degraded.save(ctrl_path)
                         image.save(tgt_path)
                     else:
-                        out_path = output_dir / f"{stem}.{out_ext}"
-                        degraded.save(out_path)
+                        o_path = output_dir / f"{stem}.{out_ext}"
+                        degraded.save(o_path)
 
-                    processed += 1
+                count += 1
+                steps_str = " > ".join(f"{name}:{intens:.2f}" for name, intens in steps)
+                variant_logs.append((f"{stem}.{out_ext}", steps_str))
 
-                    # Format steps for logging
-                    steps_str = " > ".join(f"{name}:{intens:.2f}" for name, intens in steps)
-                    variant_logs.append((f"{stem}.{out_ext}", steps_str))
+        return idx, "ok", variant_logs
 
-                # Print results
+    if args.workers > 1:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            futures = {
+                pool.submit(_process_one_degrade, idx, img_path): (idx, img_path)
+                for idx, img_path in enumerate(image_files, 1)
+            }
+            for future in as_completed(futures):
+                idx, img_path = futures[future]
+                try:
+                    _, status, variant_logs = future.result()
+                    if status == "skip":
+                        print(f"[{idx}/{total}] [SKIP] {img_path.name} (output exists)")
+                        continue
+                    processed += len(variant_logs)
+                    if num_variants > 1:
+                        print(f"[{idx}/{total}] [OK] {img_path.name} -> {num_variants} variants")
+                        for fname, steps_str in variant_logs:
+                            print(f"     {fname} ({steps_str})")
+                    else:
+                        fname, steps_str = variant_logs[0]
+                        print(f"[{idx}/{total}] [OK] {img_path.name} -> {fname} ({steps_str})")
+                except Exception as e:
+                    print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
+    else:
+        for idx, img_path in enumerate(image_files, 1):
+            try:
+                _, status, variant_logs = _process_one_degrade(idx, img_path)
+                if status == "skip":
+                    print(f"[{idx}/{total}] [SKIP] {img_path.name} (output exists)")
+                    continue
+                processed += len(variant_logs)
                 if num_variants > 1:
                     print(f"[{idx}/{total}] [OK] {img_path.name} -> {num_variants} variants")
                     for fname, steps_str in variant_logs:
@@ -285,12 +326,13 @@ def cmd_degrade(args):
                 else:
                     fname, steps_str = variant_logs[0]
                     print(f"[{idx}/{total}] [OK] {img_path.name} -> {fname} ({steps_str})")
-
-        except Exception as e:
-            print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
+            except Exception as e:
+                print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
 
     print("-" * 50)
     print(f"Done! Processed: {processed} images")
+    if dry_run and processed > 0:
+        print(f"\nRun without --dry-run to process {processed} images.")
 
 
 def register_parser(subparsers):
@@ -357,5 +399,26 @@ def register_parser(subparsers):
         "-R",
         action="store_true",
         help="Search input directory recursively for images",
+    )
+    degrade_parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel workers for processing (default: 1)",
+    )
+    degrade_parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show tqdm progress bar instead of per-file output",
+    )
+    degrade_parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip images whose output file already exists",
+    )
+    degrade_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview degradation operations without writing files",
     )
     degrade_parser.set_defaults(func=cmd_degrade)

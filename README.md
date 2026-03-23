@@ -20,7 +20,7 @@ pip install datasety[mask]           # + segmentation masks (SAM 3, CLIPSeg)
 pip install datasety[filter]         # + content filtering (CLIP, NudeNet)
 pip install datasety[character]      # + character dataset generation
 pip install datasety[workflow]       # + YAML workflow support
-pip install datasety[synthetic]      # + LoRA training (FLUX, SDXL)
+pip install datasety[train]          # + LoRA training (FLUX, SDXL)
 pip install datasety[all]            # everything
 ```
 
@@ -54,7 +54,11 @@ datasety resize --input ./raw --output ./resized --resolution 768x1024 --crop-po
 | `--input-format`        | Comma-separated input formats                  | `jpg,jpeg,png,webp` |
 | `--output-format`       | `jpg`, `png`, `webp`                           | `jpg`               |
 | `--output-name-numbers` | Rename output files to 1.jpg, 2.jpg, ...       | off                 |
+| `--upscale`             | Upscale images smaller than target             | off                 |
+| `--min-resolution`      | Skip images below this size (e.g., `256x256`)  |                     |
+| `--workers`             | Parallel workers for processing                | `1`                 |
 | `--recursive`, `-R`     | Search input directory recursively             | off                 |
+| `--progress`            | Show tqdm progress bar                         | off                 |
 | `--dry-run`             | Preview without modifying files                | off                 |
 
 </details>
@@ -100,7 +104,11 @@ datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
 | `--llm-api`          | Use OpenAI-compatible vision API            |                           |
 | `--max-tokens`       | Max response tokens (API mode)              | `300`                     |
 | `--temperature`      | Temperature (API mode)                      | `0.3`                     |
+| `--skip-existing`    | Skip images that already have a .txt file   | off                       |
+| `--append`           | Append text to existing captions            |                           |
+| `--prepend`          | Prepend text to existing captions           |                           |
 | `--recursive`, `-R`  | Search input directory recursively          | off                       |
+| `--progress`         | Show tqdm progress bar                      | off                       |
 | `--dry-run`          | Preview without processing                  | off                       |
 
 </details>
@@ -236,6 +244,9 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 | `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0)  | `0.7`                                   |
 | `--recursive`, `-R` | Search input directory recursively       | off                                     |
 | `--output-format`   | `png`, `jpg`, `webp`                     | `png`                                   |
+| `--skip-existing`   | Skip images with existing output         | off                                     |
+| `--batch-size`      | Flush GPU memory every N images          | `0` (off)                               |
+| `--progress`        | Show tqdm progress bar                   | off                                     |
 | `--dry-run`         | Preview without loading models           | off                                     |
 
 </details>
@@ -289,8 +300,10 @@ datasety mask --input ./dataset --output ./masks --keywords "face,hair" --device
 | `--invert`          | Invert mask colors                 | off        |
 | `--naming`          | `folder` or `suffix` (`_mask`)     | `folder`   |
 | `--output-format`   | `png`, `jpg`, `webp`               | `png`      |
+| `--skip-existing`   | Skip images with existing masks    | off        |
 | `--dry-run`         | Preview detections without saving  | off        |
 | `--recursive`, `-R` | Search input directory recursively | off        |
+| `--progress`        | Show tqdm progress bar             | off        |
 
 </details>
 
@@ -331,9 +344,11 @@ datasety filter --input ./dataset --output ./rejected --query "leg,male face" --
 | `--device`             | `auto`, `cpu`, `cuda`, `mps`                            | `auto`   |
 | `--confirm`            | Required for destructive actions (`delete`, `keep`)     | off      |
 | `--preserve-structure` | Keep subfolder hierarchy in output (with `--recursive`) | off      |
+| `--invert`             | Invert match logic (act on non-matches)                 | off      |
 | `--log`                | Write CSV log of all decisions to this path             |          |
 | `--dry-run`            | Preview detections without modifying files              | off      |
 | `--recursive`, `-R`    | Search input directory recursively                      | off      |
+| `--progress`           | Show tqdm progress bar                                  | off      |
 
 </details>
 
@@ -356,6 +371,44 @@ datasety filter -i ./dataset -o ./rejected --query "outdoor" --action copy --log
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/filter)
+
+---
+
+### `inspect` — Dataset Statistics
+
+Scan a dataset directory and report image count, resolution distribution, format breakdown, file sizes, caption coverage, and optionally detect duplicate images via perceptual hashing.
+
+<!-- screenshot: inspect -->
+
+```bash
+datasety inspect --input ./dataset --duplicates
+```
+
+<details>
+<summary>Options</summary>
+
+| Option              | Description                               | Default  |
+| ------------------- | ----------------------------------------- | -------- |
+| `--input`, `-i`     | Input directory                           | required |
+| `--duplicates`      | Detect duplicate/near-duplicate images    | off      |
+| `--json`            | Export report as JSON to this path        |          |
+| `--csv`             | Export per-image data as CSV to this path |          |
+| `--recursive`, `-R` | Search input directory recursively        | off      |
+
+</details>
+
+```bash
+# Full report with duplicate detection
+datasety inspect -i ./dataset --duplicates
+
+# Export report to JSON
+datasety inspect -i ./dataset --json report.json
+
+# Export per-image data to CSV
+datasety inspect -i ./dataset --csv images.csv -R
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/inspect)
 
 ---
 
@@ -386,6 +439,10 @@ datasety degrade --input ./originals --output ./dataset --type random --intensit
 | `--paired`          | Create `control/` + `target/` subdirs | off        |
 | `--seed`            | Random seed                           |            |
 | `--output-format`   | `png`, `jpg`, `webp`                  | `png`      |
+| `--skip-existing`   | Skip images with existing output      | off        |
+| `--workers`         | Parallel workers for processing       | `1`        |
+| `--progress`        | Show tqdm progress bar                | off        |
+| `--dry-run`         | Preview without writing files         | off        |
 
 **Degradation types:** `lowres`, `oversharpen`, `noise`, `blur`, `jpeg`, `motion-blur`, `pixelate`, `color-bands`, `upscale-sim`, `random`
 
@@ -410,7 +467,7 @@ Generate character datasets using LLM-generated prompts + text-to-image (FLUX.2-
 <!-- screenshot: character -->
 
 ```bash
-datasety character --output ./dataset --llm-ollama llama3.2 --num-images 20
+datasety character --output ./dataset --llm-ollama qwen3.5:4b --num-images 20
 ```
 
 <details>
@@ -439,13 +496,14 @@ datasety character --output ./dataset --llm-ollama llama3.2 --num-images 20
 | `--height`                | Output image height                                | `1024`                                  |
 | `--width`                 | Output image width                                 | `1024`                                  |
 | `--output-format`         | `png`, `jpg`, `webp`                               | `png`                                   |
+| `--batch-size`            | Flush GPU memory every N images                    | `0` (off)                               |
 | `--dry-run`               | Preview prompts without generating images          | off                                     |
 
 </details>
 
 ```bash
 # Generate with local pipeline + Ollama prompts
-datasety character -o ./dataset --llm-ollama llama3.2 --num-images 20
+datasety character -o ./dataset --llm-ollama qwen3.5:4b --num-images 20
 
 # Cloud API for images (no GPU needed)
 OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
@@ -518,21 +576,23 @@ datasety train --input ./dataset --output lora.safetensors --steps 500
 <details>
 <summary>Options</summary>
 
-| Option           | Description                                  | Default                                  |
-| ---------------- | -------------------------------------------- | ---------------------------------------- |
-| `--input`, `-i`  | Dataset directory (images + `.txt` captions) | required                                 |
-| `--output`, `-o` | Output LoRA `.safetensors` path              | `lora.safetensors`                       |
-| `--model`, `-m`  | HuggingFace base model repo ID               | `black-forest-labs/FLUX.2-klein-base-4B` |
-| `--family`       | Model family: `flux`, `sdxl`, `qwen`         | auto-detected                            |
-| `--steps`        | Number of training steps                     | `100`                                    |
-| `--lr`           | Learning rate                                | `1e-4`                                   |
-| `--lora-rank`    | LoRA rank (4–64)                             | `16`                                     |
-| `--lora-alpha`   | LoRA alpha                                   | `16.0`                                   |
-| `--lora-dropout` | LoRA dropout rate                            | `0.0`                                    |
-| `--image-size`   | Training resolution (square crop)            | `512`                                    |
-| `--device`       | `auto`, `cpu`, `cuda`, `mps`                 | `auto`                                   |
-| `--seed`         | Random seed                                  | `42`                                     |
-| `--save-every`   | Save checkpoint every N steps                | end only                                 |
+| Option               | Description                                  | Default                                  |
+| -------------------- | -------------------------------------------- | ---------------------------------------- |
+| `--input`, `-i`      | Dataset directory (images + `.txt` captions) | required                                 |
+| `--output`, `-o`     | Output LoRA `.safetensors` path              | `lora.safetensors`                       |
+| `--model`, `-m`      | HuggingFace base model repo ID               | `black-forest-labs/FLUX.2-klein-base-4B` |
+| `--family`           | Model family: `flux`, `sdxl`                 | auto-detected                            |
+| `--steps`            | Number of training steps                     | `100`                                    |
+| `--lr`               | Learning rate                                | `1e-4`                                   |
+| `--lora-rank`        | LoRA rank (4–64)                             | `16`                                     |
+| `--lora-alpha`       | LoRA alpha                                   | `16.0`                                   |
+| `--lora-dropout`     | LoRA dropout rate                            | `0.0`                                    |
+| `--image-size`       | Training resolution (square crop)            | `512`                                    |
+| `--device`           | `auto`, `cpu`, `cuda`, `mps`                 | `auto`                                   |
+| `--seed`             | Random seed                                  | `42`                                     |
+| `--save-every`       | Save checkpoint every N steps                | end only                                 |
+| `--resume`           | Resume from a LoRA checkpoint (.safetensors) |                                          |
+| `--validation-split` | Fraction of dataset for validation (0.0-0.5) |                                          |
 
 </details>
 

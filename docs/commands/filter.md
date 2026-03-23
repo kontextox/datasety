@@ -53,11 +53,13 @@ Companion files (`.txt`, `.caption`, `.json`) are always handled alongside their
 | `--action`             | `move`, `copy`, `delete`, or `keep`                   | `move`     |
 | `--threshold`          | Confidence threshold (0.0-1.0)                        | `0.5`      |
 | `--device`             | `auto`, `cpu`, `cuda`, or `mps`                       | `auto`     |
+| `--invert`             | Invert match logic (act on non-matches)               | `false`    |
 | `--confirm`            | Required for destructive actions                      | `false`    |
 | `--preserve-structure` | Keep subfolder hierarchy in output (with `--recursive`) | `false`    |
 | `--log`                | Write CSV log of all decisions to this path           |            |
 | `--dry-run`            | Preview detections without modifying files            | `false`    |
 | `--recursive`, `-R`    | Search input directory recursively                    | `false`    |
+| `--progress`           | Show tqdm progress bar                                | `false`    |
 
 ## Examples
 

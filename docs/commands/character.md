@@ -5,7 +5,7 @@ Generate character datasets using LLM-generated prompts + text-to-image (FLUX.2-
 ## Usage
 
 ```bash
-datasety character --output ./dataset --llm-ollama llama3.2
+datasety character --output ./dataset --llm-ollama qwen3.5:4b
 ```
 
 ## LLM Backends (for prompt generation)
@@ -42,13 +42,14 @@ By default, images are generated locally using FLUX.2-klein (requires GPU + PyTo
 | `--height`                | Output image height                                | `1024`                                  |
 | `--width`                 | Output image width                                 | `1024`                                  |
 | `--output-format`         | `png`, `jpg`, `webp`                               | `png`                                   |
+| `--batch-size`            | Flush GPU memory every N images                    | `0` (off)                               |
 | `--dry-run`               | Preview prompts without generating images          | `false`                                 |
 
 ## Examples
 
 ```bash
 # Local pipeline with Ollama prompts
-datasety character -o ./dataset --llm-ollama llama3.2 --num-images 20
+datasety character -o ./dataset --llm-ollama qwen3.5:4b --num-images 20
 
 # Cloud API for images (no GPU needed)
 OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \

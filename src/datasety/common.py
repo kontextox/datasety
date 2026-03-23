@@ -103,6 +103,18 @@ def resolve_device(device_arg: str) -> str:
     return device_arg
 
 
+def progress_bar(iterable, total=None, enabled=False, desc=None):
+    """Wrap an iterable with tqdm if enabled and available, else passthrough."""
+    if not enabled:
+        return iterable
+    try:
+        from tqdm import tqdm
+
+        return tqdm(iterable, total=total, desc=desc)
+    except ImportError:
+        return iterable
+
+
 def get_save_kwargs(fmt: str) -> dict:
     """Return Pillow save kwargs for the given output format."""
     fmt = fmt.lower()

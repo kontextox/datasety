@@ -88,10 +88,10 @@ class TestLLMBackendFactory:
         assert isinstance(backend, _OpenAIBackend)
 
     def test_ollama_backend(self):
-        args = SimpleNamespace(llm_api=False, llm_ollama="llama3.2", llm_gguf="", llm_model="")
+        args = SimpleNamespace(llm_api=False, llm_ollama="qwen3.5:4b", llm_gguf="", llm_model="")
         backend = _create_llm_backend(args)
         assert isinstance(backend, _OllamaBackend)
-        assert backend.model == "llama3.2"
+        assert backend.model == "qwen3.5:4b"
 
     def test_no_backend(self):
         args = SimpleNamespace(llm_api=False, llm_ollama="", llm_gguf="", llm_model="")
@@ -144,7 +144,7 @@ class TestOpenAIBackend:
 
 class TestOllamaBackend:
     def test_generate(self):
-        backend = _OllamaBackend("llama3.2")
+        backend = _OllamaBackend("qwen3.5:4b")
 
         response_data = {"message": {"content": "prompt 1\nprompt 2"}}
 
@@ -162,7 +162,7 @@ class TestOllamaBackend:
         call_args = mock_open.call_args
         req = call_args[0][0]
         body = json.loads(req.data.decode())
-        assert body["model"] == "llama3.2"
+        assert body["model"] == "qwen3.5:4b"
         assert body["stream"] is False
 
 

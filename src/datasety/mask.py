@@ -287,6 +287,16 @@ def cmd_mask(args):
 
     for idx, img_path in enumerate(image_files, 1):
         try:
+            # Skip if output already exists
+            if getattr(args, "skip_existing", False) and not is_single:
+                if args.naming == "folder":
+                    out_check = output_dir / f"{img_path.stem}.{out_fmt}"
+                else:
+                    out_check = Path(args.input) / f"{img_path.stem}_mask.{out_fmt}"
+                if out_check.exists():
+                    print(f"[{idx}/{total}] [SKIP] {img_path.name} (output exists)")
+                    continue
+
             with Image.open(img_path) as img:
                 image = img.convert("RGB")
                 w, h = image.size
@@ -442,5 +452,15 @@ def register_parser(subparsers):
         "-R",
         action="store_true",
         help="Search input directory recursively for images",
+    )
+    mask_parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show tqdm progress bar instead of per-file output",
+    )
+    mask_parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip images whose output mask already exists",
     )
     mask_parser.set_defaults(func=cmd_mask)

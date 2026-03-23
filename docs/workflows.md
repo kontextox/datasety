@@ -406,7 +406,7 @@ steps:
     args:
       output: ./character_dataset
       num-images: 50
-      llm-ollama: llama3.2
+      llm-ollama: qwen3.5:4b
       model: black-forest-labs/FLUX.2-klein-4b-fp8
       character-description: "a young woman with short auburn hair and freckles"
       steps: 4

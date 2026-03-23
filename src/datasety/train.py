@@ -140,11 +140,39 @@ def _train_flux_klein(args):
     pipe.transformer = get_peft_model(pipe.transformer, lora_config)
     pipe.transformer.print_trainable_parameters()
 
+    # Resume from checkpoint
+    if args.resume:
+        from safetensors.torch import load_file
+
+        print(f"Resuming from checkpoint: {args.resume}")
+        state = load_file(args.resume)
+        # Strip lora_ family prefix if present
+        cleaned = {}
+        for k, v in state.items():
+            for prefix in ("lora_flux2-klein.", "lora_flux."):
+                if k.startswith(prefix):
+                    k = k[len(prefix):]
+                    break
+            cleaned[k] = v
+        pipe.transformer.load_state_dict(cleaned, strict=False)
+
     # Dataset
     samples = _build_dataset(args.input, image_size=args.image_size)
     if len(samples) == 0:
         print("Error: No samples to train on.")
         sys.exit(1)
+
+    # Validation split
+    val_samples = []
+    if args.validation_split > 0:
+        import random as _rnd
+
+        _rnd.seed(args.seed if args.seed is not None else 42)
+        _rnd.shuffle(samples)
+        n_val = max(1, int(len(samples) * args.validation_split))
+        val_samples = samples[:n_val]
+        samples = samples[n_val:]
+        print(f"Validation split: {len(val_samples)} val, {len(samples)} train")
 
     # Optimizer — only update LoRA parameters
     trainable = [p for p in pipe.transformer.parameters() if p.requires_grad]
@@ -158,7 +186,8 @@ def _train_flux_klein(args):
     print("-" * 60)
 
     pipe.transformer.train()
-    generator = torch.Generator(device=exec_device).manual_seed(args.seed or 42)
+    seed = args.seed if args.seed is not None else 42
+    generator = torch.Generator(device=exec_device).manual_seed(seed)
 
     for step in range(args.steps):
         # Pick a sample (cycle through dataset)
@@ -228,6 +257,35 @@ def _train_flux_klein(args):
     if not output_path.endswith(".safetensors"):
         output_path += ".safetensors"
     _save_lora(pipe.transformer, output_path, "flux2-klein")
+
+    # Validation loss
+    if val_samples:
+        pipe.transformer.eval()
+        val_losses = []
+        with torch.no_grad():
+            for vs in val_samples:
+                prompt_embeds, text_ids = pipe.encode_prompt(
+                    prompt=vs["caption"], device=exec_device, num_images_per_prompt=1,
+                )
+                vt = _pil_to_tensor(vs["image"], dtype=dtype, device=exec_device)
+                vl = pipe._encode_vae_image(vt, generator=generator)
+                vp = pipe._pack_latents(vl)
+                vid = pipe._prepare_latent_ids(vl).to(exec_device)
+                t = torch.rand(1, device=exec_device, dtype=dtype)
+                n = torch.randn_like(vp)
+                noisy = (1.0 - t) * vp + t * n
+                ts = (t * 1000.0).expand(1).to(dtype=dtype)
+                pred = pipe.transformer(
+                    hidden_states=noisy.to(dtype), timestep=ts / 1000.0,
+                    guidance=None, encoder_hidden_states=prompt_embeds.to(dtype),
+                    txt_ids=text_ids, img_ids=vid, return_dict=False,
+                )[0]
+                target = n - vp
+                sl = vp.shape[1]
+                val_losses.append(F.mse_loss(pred[:, :sl], target.to(dtype)).item())
+        avg_val = sum(val_losses) / len(val_losses)
+        print(f"\nValidation loss: {avg_val:.6f} (over {len(val_samples)} images)")
+
     print("\nTraining complete!")
 
 
@@ -296,6 +354,19 @@ def _train_sdxl(args):
     )
     pipe.unet = get_peft_model(pipe.unet, lora_config)
     pipe.unet.print_trainable_parameters()
+
+    # Resume from checkpoint
+    if args.resume:
+        from safetensors.torch import load_file
+
+        print(f"Resuming from checkpoint: {args.resume}")
+        state = load_file(args.resume)
+        cleaned = {}
+        for k, v in state.items():
+            if k.startswith("lora_sdxl."):
+                k = k[len("lora_sdxl."):]
+            cleaned[k] = v
+        pipe.unet.load_state_dict(cleaned, strict=False)
 
     noise_scheduler = DDPMScheduler.from_pretrained(args.model, subfolder="scheduler")
 
@@ -453,7 +524,11 @@ def cmd_train(args):
         if is_klein or "flux.2" in model_lower or "flux2" in model_lower:
             family = "flux"
         elif "qwen" in model_lower or "firered" in model_lower:
-            family = "qwen"
+            print(
+                "Error: Qwen LoRA training is not yet supported. "
+                "Use a FLUX or SDXL model instead."
+            )
+            sys.exit(1)
         else:
             family = "sdxl"
         print(f"Auto-detected model family: {family}")
@@ -501,7 +576,7 @@ def register_parser(subparsers):
     )
     train_parser.add_argument(
         "--family",
-        choices=["flux", "sdxl", "qwen"],
+        choices=["flux", "sdxl"],
         default=None,
         help="Model family — auto-detected from --model if not set",
     )
@@ -558,5 +633,16 @@ def register_parser(subparsers):
         type=int,
         default=None,
         help="Save checkpoint every N steps (default: only save at the end)",
+    )
+    train_parser.add_argument(
+        "--resume",
+        default=None,
+        help="Resume training from a checkpoint .safetensors file",
+    )
+    train_parser.add_argument(
+        "--validation-split",
+        type=float,
+        default=0.0,
+        help="Hold out this fraction of images for validation (e.g., 0.1 = 10%%)",
     )
     train_parser.set_defaults(func=cmd_train)

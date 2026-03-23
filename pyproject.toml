@@ -77,6 +77,14 @@ filter = [
     "torch>=2.0.0",
     "transformers>=4.38.0",
 ]
+train = [
+    "torch>=2.0.0",
+    "diffusers>=0.32.0",
+    "transformers>=4.38.0",
+    "accelerate",
+    "safetensors",
+    "peft>=0.6.0",
+]
 degrade = []
 character = [
     "torch>=2.0.0",
@@ -86,7 +94,7 @@ character = [
     "safetensors",
 ]
 all = [
-    "datasety[caption,synthetic,mask,filter,degrade,character,workflow]",
+    "datasety[caption,synthetic,mask,filter,degrade,character,train,workflow]",
 ]
 dev = [
     "pytest>=7.0.0",

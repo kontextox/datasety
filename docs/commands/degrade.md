@@ -38,6 +38,10 @@ datasety degrade --input ./originals --output ./dataset --type random --paired
 | `--paired`          | Create control/ + target/ subdirs | `false`      |
 | `--seed`            | Random seed                       | (random)     |
 | `--output-format`   | `png`, `jpg`, `webp`              | `png`        |
+| `--skip-existing`   | Skip images with existing output  | `false`      |
+| `--workers`         | Parallel workers for processing   | `1`          |
+| `--progress`        | Show tqdm progress bar            | `false`      |
+| `--dry-run`         | Preview without writing files     | `false`      |
 
 ## Examples
 

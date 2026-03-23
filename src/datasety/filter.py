@@ -202,6 +202,8 @@ def cmd_filter(args):
 
             max_query, max_score = max(scores, key=lambda x: x[1])
             is_match = max_score >= threshold
+            if args.invert:
+                is_match = not is_match
 
             status = "MATCH" if is_match else "skip"
             score_str = ", ".join(f"{q}={s:.3f}" for q, s in scores)
@@ -313,6 +315,11 @@ def register_parser(subparsers):
         help="Device to run model on (default: auto-detect GPU/MPS)",
     )
     p.add_argument(
+        "--invert",
+        action="store_true",
+        help="Invert match logic (act on images that do NOT match)",
+    )
+    p.add_argument(
         "--confirm",
         action="store_true",
         help="Confirm destructive actions (required for --action delete)",
@@ -326,6 +333,11 @@ def register_parser(subparsers):
         "--log",
         default="",
         help="Write a CSV log of all decisions to this path",
+    )
+    p.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show tqdm progress bar instead of per-file output",
     )
     p.add_argument(
         "--dry-run",
