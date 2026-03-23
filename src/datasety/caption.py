@@ -177,8 +177,7 @@ def _cmd_caption_llm_api(args, image_files, output_path, output_dir, is_single, 
                 caption_path = output_path
             else:
                 caption_path = output_dir / f"{img_path.stem}.txt"
-            if not dry_run:
-                caption_path.write_text(caption)
+            _write_caption(caption_path, caption, args, dry_run)
 
             print(f"[{idx}/{total}] [OK] {img_path.name}")
             print(f"     {caption[:100]}{'...' if len(caption) > 100 else ''}")
@@ -191,6 +190,23 @@ def _cmd_caption_llm_api(args, image_files, output_path, output_dir, is_single, 
     print(f"Done! Processed: {processed} images")
     if dry_run and processed > 0:
         print(f"\nRun without --dry-run to write {processed} caption files.")
+
+
+def _write_caption(caption_path, caption, args, dry_run):
+    """Write caption, handling --append and --prepend modes."""
+    if dry_run:
+        return
+    append_text = getattr(args, "append", "")
+    prepend_text = getattr(args, "prepend", "")
+    if append_text or prepend_text:
+        existing = ""
+        if caption_path.exists():
+            existing = caption_path.read_text(encoding="utf-8").strip()
+        if prepend_text:
+            caption = f"{prepend_text} {existing}" if existing else prepend_text
+        elif append_text:
+            caption = f"{existing} {append_text}" if existing else append_text
+    caption_path.write_text(caption.strip())
 
 
 def cmd_caption(args):
@@ -225,6 +241,20 @@ def cmd_caption(args):
     dry_run = args.dry_run
     if dry_run:
         print("=== DRY RUN (no files will be written) ===")
+
+    # Filter out images with existing captions if --skip-existing
+    if args.skip_existing and not is_single:
+        before = len(image_files)
+        image_files = [
+            f for f in image_files
+            if not (output_dir / f"{f.stem}.txt").exists()
+        ]
+        skipped = before - len(image_files)
+        if skipped:
+            print(f"Skipped {skipped} images with existing captions")
+        if not image_files:
+            print("All images already have captions.")
+            return
 
     # ── LLM API path ──
     if args.llm_api:
@@ -326,8 +356,7 @@ def cmd_caption(args):
                     caption_path = output_path
                 else:
                     caption_path = output_dir / f"{img_path.stem}.txt"
-                if not dry_run:
-                    caption_path.write_text(caption.strip())
+                _write_caption(caption_path, caption, args, dry_run)
 
                 print(f"[{idx}/{total}] [OK] {img_path.name}")
                 print(f"     {caption[:100]}{'...' if len(caption) > 100 else ''}")
@@ -436,5 +465,25 @@ def register_parser(subparsers):
         "--dry-run",
         action="store_true",
         help="Preview captions without writing files (inference still runs)",
+    )
+    caption_parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show tqdm progress bar instead of per-file output",
+    )
+    caption_parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip images that already have a .txt caption file",
+    )
+    caption_parser.add_argument(
+        "--append",
+        default="",
+        help="Append this text to existing captions instead of overwriting",
+    )
+    caption_parser.add_argument(
+        "--prepend",
+        default="",
+        help="Prepend this text to existing captions instead of overwriting",
     )
     caption_parser.set_defaults(func=cmd_caption)

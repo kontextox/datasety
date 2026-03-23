@@ -33,8 +33,10 @@ datasety mask --input ./dataset --output ./masks --keywords "face,hair"
 | `--invert`          | Invert mask colors                 | `false`      |
 | `--naming`          | `folder` or `suffix` (\_mask)      | `folder`     |
 | `--output-format`   | `png`, `jpg`, `webp`               | `png`        |
+| `--skip-existing`   | Skip images with existing masks    | `false`      |
 | `--dry-run`         | Preview without saving             | `false`      |
 | `--recursive`, `-R` | Search input directory recursively | `false`      |
+| `--progress`        | Show tqdm progress bar             | `false`      |
 
 ## Examples
 

@@ -656,6 +656,13 @@ def cmd_synthetic(args):
 
     for idx, img_path in enumerate(image_files, 1):
         try:
+            # Skip if output already exists
+            if getattr(args, "skip_existing", False) and not is_single:
+                out_check = output_dir / f"{img_path.stem}.{out_ext}"
+                if out_check.exists():
+                    print(f"[{idx}/{total}] [SKIP] {img_path.name} (output exists)")
+                    continue
+
             with Image.open(img_path) as img:
                 image = img.convert("RGB").copy()
 
@@ -674,6 +681,17 @@ def cmd_synthetic(args):
 
             print(f"[{idx}/{total}] [OK] {img_path.name} -> {len(output.images)} image(s)")
             processed += 1
+
+            # Flush GPU memory periodically
+            batch_size = getattr(args, "batch_size", 0)
+            if batch_size and processed % batch_size == 0:
+                try:
+                    import torch
+
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
@@ -787,5 +805,21 @@ def register_parser(subparsers):
         "--image-api",
         action="store_true",
         help="Use OpenAI-compatible API for image generation (needs OPENAI_API_KEY)",
+    )
+    synthetic_parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show tqdm progress bar instead of per-file output",
+    )
+    synthetic_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=0,
+        help="Flush GPU memory every N images (default: 0 = no flushing)",
+    )
+    synthetic_parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip images whose output file already exists",
     )
     synthetic_parser.set_defaults(func=cmd_synthetic)

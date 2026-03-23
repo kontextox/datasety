@@ -18,7 +18,7 @@ Usage:
 
 import argparse
 
-from datasety import align, caption, degrade, filter, mask, resize, shuffle, synthetic
+from datasety import align, caption, degrade, filter, inspect, mask, resize, shuffle, synthetic
 
 # Conditionally import new commands
 try:
@@ -60,6 +60,7 @@ def build_parser():
     synthetic.register_parser(subparsers)
     mask.register_parser(subparsers)
     filter.register_parser(subparsers)
+    inspect.register_parser(subparsers)
     degrade.register_parser(subparsers)
 
     if character is not None:

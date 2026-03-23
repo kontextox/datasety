@@ -2,7 +2,7 @@
 
 Train a LoRA adapter for image generation models from a local dataset of image + caption pairs.
 
-Supported model families: **FLUX.2-klein** (flow-matching) and **SDXL** (DDPM). Qwen support is planned.
+Supported model families: **FLUX.2-klein** (flow-matching) and **SDXL** (DDPM).
 
 ```bash
 datasety train --input ./dataset --output lora.safetensors
@@ -43,7 +43,7 @@ The tool will print a warning if you pass a distilled model.
 | `--input`, `-i`  | Dataset directory (images + `.txt` captions) | required                                 |
 | `--output`, `-o` | Output LoRA `.safetensors` path              | `lora.safetensors`                       |
 | `--model`, `-m`  | HuggingFace repo ID (base model)             | `black-forest-labs/FLUX.2-klein-base-4B` |
-| `--family`       | Model family: `flux`, `sdxl`, `qwen`         | auto-detected                            |
+| `--family`       | Model family: `flux`, `sdxl`                 | auto-detected                            |
 | `--steps`        | Number of training steps                     | `100`                                    |
 | `--lr`           | Learning rate                                | `1e-4`                                   |
 | `--lora-rank`    | LoRA rank                                    | `16`                                     |
@@ -53,6 +53,8 @@ The tool will print a warning if you pass a distilled model.
 | `--device`       | `auto`, `cpu`, `cuda`, `mps`                 | `auto`                                   |
 | `--seed`         | Random seed                                  | `42`                                     |
 | `--save-every`   | Save checkpoint every N steps                | end only                                 |
+| `--resume`       | Resume from a LoRA checkpoint (.safetensors) |                                          |
+| `--validation-split` | Fraction of dataset for validation (0.0-0.5) |                                      |
 
 ## Examples
 
@@ -106,6 +108,26 @@ datasety train \
     --output test_lora.safetensors \
     --steps 20 \
     --save-every 10
+```
+
+### Resume from checkpoint
+
+```bash
+datasety train \
+    --input ./dataset \
+    --output lora.safetensors \
+    --resume lora_step200.safetensors \
+    --steps 500
+```
+
+### Training with validation
+
+```bash
+datasety train \
+    --input ./dataset \
+    --output lora.safetensors \
+    --steps 500 \
+    --validation-split 0.1    # 10% of images held out for validation loss
 ```
 
 ### Save checkpoints during training

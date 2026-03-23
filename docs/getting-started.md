@@ -16,6 +16,7 @@ pip install datasety[synthetic]      # Image editing (FLUX, Qwen, SDXL, etc.)
 pip install datasety[mask]           # Mask generation (SAM 3, SAM 2, CLIPSeg)
 pip install datasety[filter]         # Content filtering (CLIP, NudeNet)
 pip install datasety[character]      # Character dataset generation
+pip install datasety[train]          # LoRA training (FLUX, SDXL)
 pip install datasety[workflow]       # YAML/JSON workflow support
 pip install datasety[all]            # Everything
 ```
@@ -99,6 +100,7 @@ datasety workflow              # execute
 | [`align`](/commands/align)     | Align control/target image pairs       | --          |
 | [`mask`](/commands/mask)       | Text-prompted segmentation masks       | `[mask]`    |
 | [`filter`](/commands/filter)   | Filter by content (CLIP or NudeNet)    | `[filter]`  |
+| [`inspect`](/commands/inspect) | Dataset statistics and duplicate detection | --       |
 | [`degrade`](/commands/degrade) | Degraded versions for upscale training | --          |
 
 ### Generation
@@ -120,7 +122,7 @@ datasety workflow              # execute
 
 | Command                    | Description                                | Extra Deps    |
 | -------------------------- | ------------------------------------------ | ------------- |
-| [`train`](/commands/train) | LoRA fine-tuning for FLUX.2-klein and SDXL | `[synthetic]` |
+| [`train`](/commands/train) | LoRA fine-tuning for FLUX.2-klein and SDXL | `[train]`     |
 
 ## Common Patterns
 

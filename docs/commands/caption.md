@@ -30,7 +30,12 @@ datasety caption --input ./images --output ./captions --llm-api --model gpt-5-na
 | `--llm-api`          | Use OpenAI-compatible vision API   |                           |
 | `--max-tokens`       | Max response tokens (API mode)     | `300`                     |
 | `--temperature`      | Temperature (API mode)             | `0.3`                     |
+| `--skip-existing`    | Skip images with existing .txt     | `false`                   |
+| `--append`           | Append text to existing captions   |                           |
+| `--prepend`          | Prepend text to existing captions  |                           |
 | `--recursive`, `-R`  | Search input directory recursively | `false`                   |
+| `--progress`         | Show tqdm progress bar             | `false`                   |
+| `--dry-run`          | Preview without writing files      | `false`                   |
 
 ## Environment Variables
 

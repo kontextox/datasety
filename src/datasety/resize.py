@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from datasety.common import _resolve_io_mode, get_image_files, get_save_kwargs
+from datasety.common import _resolve_io_mode, get_image_files, get_save_kwargs, progress_bar
 
 
 def _resolution_from_megapixel(megapixel, aspect_ratio):
@@ -180,56 +180,99 @@ def cmd_resize(args):
     skipped = 0
     total = len(image_files)
 
-    for idx, img_path in enumerate(image_files, start=1):
+    # Parse min-resolution once
+    min_w = min_h = 0
+    if args.min_resolution:
         try:
-            with Image.open(img_path) as img:
-                img = img.convert("RGB")
-                orig_w, orig_h = img.size
+            min_w, min_h = map(int, args.min_resolution.lower().split("x"))
+        except ValueError:
+            print(
+                f"Error: Invalid --min-resolution '{args.min_resolution}'. "
+                "Use WxH (e.g., 256x256)"
+            )
+            sys.exit(1)
 
-                if per_image_megapixel:
-                    width, height = _resolution_from_megapixel_and_dims(
-                        args.megapixel, orig_w, orig_h
-                    )
+    def _process_one(idx, img_path, seq_num):
+        """Process a single image. Returns (status, message, out_name)."""
+        with Image.open(img_path) as img:
+            img = img.convert("RGB")
+            orig_w, orig_h = img.size
+            w, h = width, height
 
-                # Skip only if image is too small in both dimensions (truly undersized)
-                if orig_w < width and orig_h < height:
-                    print(f"[SKIP] {img_path.name}: {orig_w}x{orig_h} < {width}x{height}")
-                    skipped += 1
-                    continue
+            if per_image_megapixel:
+                w, h = _resolution_from_megapixel_and_dims(args.megapixel, orig_w, orig_h)
 
-                if per_image_megapixel:
-                    # No crop needed — target matches native aspect ratio
-                    img_final = img.resize((width, height), Image.LANCZOS)
-                else:
-                    # Calculate resize and crop
-                    (new_w, new_h), crop_box = calculate_resize_and_crop(
-                        orig_w, orig_h, width, height, args.crop_position
-                    )
-                    img_resized = img.resize((new_w, new_h), Image.LANCZOS)
-                    img_final = img_resized.crop(crop_box)
+            if min_w and (orig_w < min_w or orig_h < min_h):
+                return "skip", f"{orig_w}x{orig_h} below minimum {min_w}x{min_h}", None
 
-                # Determine output filename
-                if is_single and output_path:
-                    out_path = output_path
-                elif args.output_name_numbers:
-                    out_path = output_dir / f"{processed + 1}.{args.output_format}"
-                else:
-                    out_path = output_dir / f"{img_path.stem}.{args.output_format}"
+            if orig_w < w and orig_h < h and not args.upscale:
+                return "skip", f"{orig_w}x{orig_h} < {w}x{h}", None
 
-                # Save with quality settings
-                save_kw = get_save_kwargs(args.output_format)
-                if not dry_run:
-                    img_final.save(out_path, **save_kw)
-
-                print(
-                    f"[{idx}/{total}] [OK] {img_path.name} ({orig_w}x{orig_h}) "
-                    f"-> {out_path.name} ({width}x{height})"
+            if per_image_megapixel:
+                img_final = img.resize((w, h), Image.LANCZOS)
+            else:
+                (new_w, new_h), crop_box = calculate_resize_and_crop(
+                    orig_w, orig_h, w, h, args.crop_position
                 )
-                processed += 1
+                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+                img_final = img_resized.crop(crop_box)
 
-        except Exception as e:
-            print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
-            skipped += 1
+            if is_single and output_path:
+                out_path = output_path
+            elif args.output_name_numbers:
+                out_path = output_dir / f"{seq_num}.{args.output_format}"
+            else:
+                out_path = output_dir / f"{img_path.stem}.{args.output_format}"
+
+            save_kw = get_save_kwargs(args.output_format)
+            if not dry_run:
+                img_final.save(out_path, **save_kw)
+
+            msg = f"{img_path.name} ({orig_w}x{orig_h}) -> {out_path.name} ({w}x{h})"
+            return "ok", msg, out_path.name
+
+    if args.workers > 1 and not args.output_name_numbers:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        # Workers can't use sequential numbering (order-dependent)
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            futures = {
+                pool.submit(_process_one, idx, img_path, idx): (idx, img_path)
+                for idx, img_path in enumerate(image_files, 1)
+            }
+            for future in as_completed(futures):
+                idx, img_path = futures[future]
+                try:
+                    status, msg, _ = future.result()
+                    if status == "ok":
+                        print(f"[{idx}/{total}] [OK] {msg}")
+                        processed += 1
+                    else:
+                        print(f"[{idx}/{total}] [SKIP] {msg}")
+                        skipped += 1
+                except Exception as e:
+                    print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
+                    skipped += 1
+    else:
+        use_progress = getattr(args, "progress", False)
+        items = progress_bar(
+            enumerate(image_files, 1), total=total, enabled=use_progress, desc="Resizing"
+        )
+        for idx, img_path in items:
+            try:
+                status, msg, _ = _process_one(idx, img_path, processed + 1)
+                if status == "ok":
+                    if not use_progress:
+                        print(f"[{idx}/{total}] [OK] {msg}")
+                    processed += 1
+                else:
+                    if not use_progress:
+                        print(f"[{idx}/{total}] [SKIP] {msg}")
+                    skipped += 1
+            except Exception as e:
+                if not use_progress:
+                    print(f"[{idx}/{total}] [ERROR] {img_path.name}: {e}")
+                skipped += 1
 
     print("-" * 50)
     print(f"Done! Processed: {processed}, Skipped: {skipped}")
@@ -299,6 +342,27 @@ def register_parser(subparsers):
         "-R",
         action="store_true",
         help="Search input directory recursively for images",
+    )
+    resize_parser.add_argument(
+        "--upscale",
+        action="store_true",
+        help="Upscale images smaller than target instead of skipping them",
+    )
+    resize_parser.add_argument(
+        "--min-resolution",
+        default=None,
+        help="Skip images below this resolution (e.g., 256x256)",
+    )
+    resize_parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel workers for processing (default: 1)",
+    )
+    resize_parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show tqdm progress bar instead of per-file output",
     )
     resize_parser.add_argument(
         "--dry-run", action="store_true", help="Preview resize operations without writing files"

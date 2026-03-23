@@ -42,6 +42,7 @@ By default, images are generated locally using FLUX.2-klein (requires GPU + PyTo
 | `--height`                | Output image height                                | `1024`                                  |
 | `--width`                 | Output image width                                 | `1024`                                  |
 | `--output-format`         | `png`, `jpg`, `webp`                               | `png`                                   |
+| `--batch-size`            | Flush GPU memory every N images                    | `0` (off)                               |
 | `--dry-run`               | Preview prompts without generating images          | `false`                                 |
 
 ## Examples
