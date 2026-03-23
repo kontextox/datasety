@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "datasety"
 dynamic = ["version"]
-description = "CLI tool for dataset preparation: resize, align, caption, shuffle, synthetic, mask, degrade, and character generation."
+description = "CLI tool for dataset preparation: resize, align, caption, shuffle, synthetic, mask, filter, degrade, and character generation."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -73,6 +73,10 @@ mask = [
 workflow = [
     "pyyaml>=6.0",
 ]
+filter = [
+    "torch>=2.0.0",
+    "transformers>=4.38.0",
+]
 degrade = []
 character = [
     "torch>=2.0.0",
@@ -82,7 +86,7 @@ character = [
     "safetensors",
 ]
 all = [
-    "datasety[caption,synthetic,mask,degrade,character,workflow]",
+    "datasety[caption,synthetic,mask,filter,degrade,character,workflow]",
 ]
 dev = [
     "pytest>=7.0.0",

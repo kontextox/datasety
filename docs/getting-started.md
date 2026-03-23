@@ -14,6 +14,7 @@ Add features as needed:
 pip install datasety[caption]        # Florence-2 captioning
 pip install datasety[synthetic]      # Image editing (FLUX, Qwen, SDXL, etc.)
 pip install datasety[mask]           # Mask generation (SAM 3, SAM 2, CLIPSeg)
+pip install datasety[filter]         # Content filtering (CLIP, NudeNet)
 pip install datasety[character]      # Character dataset generation
 pip install datasety[workflow]       # YAML/JSON workflow support
 pip install datasety[all]            # Everything
@@ -97,6 +98,7 @@ datasety workflow              # execute
 | [`caption`](/commands/caption) | Generate captions (Florence-2 or API)  | `[caption]` |
 | [`align`](/commands/align)     | Align control/target image pairs       | --          |
 | [`mask`](/commands/mask)       | Text-prompted segmentation masks       | `[mask]`    |
+| [`filter`](/commands/filter)   | Filter by content (CLIP or NudeNet)    | `[filter]`  |
 | [`degrade`](/commands/degrade) | Degraded versions for upscale training | --          |
 
 ### Generation

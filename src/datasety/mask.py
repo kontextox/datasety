@@ -191,7 +191,6 @@ def _segment_clipseg(model, processor, image, keywords, threshold, device):
             text=[keyword],
             images=[image],
             return_tensors="pt",
-            padding=True,
         ).to(device)
         with torch.no_grad():
             outputs = model(**inputs)
