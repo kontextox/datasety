@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-datasety - resize, align, caption, shuffle, synthetic, mask, degrade, character, sweep, workflow.
+datasety - resize, align, caption, shuffle, synthetic, mask, filter, degrade,
+character, sweep, workflow.
 
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
@@ -9,6 +10,7 @@ Usage:
     datasety shuffle --input ./in --output ./out --group "Hello.|Hey!" --group "World.|Earth!"
     datasety synthetic --input ./in --output ./out --prompt "add a winter hat"
     datasety mask --input ./in --output ./masks --keywords "face,hair" --model clipseg
+    datasety filter --input ./in --output ./rejected --query "leg,male face" --action move
     datasety degrade --input ./in --output ./out --type jpeg --intensity 0.5
     datasety character --reference face.jpg --output ./dataset --llm-ollama llama3.2
     datasety workflow --file datasety.yaml --dry-run
@@ -16,7 +18,7 @@ Usage:
 
 import argparse
 
-from datasety import align, caption, degrade, mask, resize, shuffle, synthetic
+from datasety import align, caption, degrade, filter, mask, resize, shuffle, synthetic
 
 # Conditionally import new commands
 try:
@@ -57,6 +59,7 @@ def build_parser():
     shuffle.register_parser(subparsers)
     synthetic.register_parser(subparsers)
     mask.register_parser(subparsers)
+    filter.register_parser(subparsers)
     degrade.register_parser(subparsers)
 
     if character is not None:

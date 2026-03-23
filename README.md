@@ -17,6 +17,7 @@ pip install datasety                 # core (resize, align, shuffle, degrade)
 pip install datasety[caption]        # + Florence-2 captioning
 pip install datasety[synthetic]      # + image editing (FLUX, Qwen, SDXL)
 pip install datasety[mask]           # + segmentation masks (SAM 3, CLIPSeg)
+pip install datasety[filter]         # + content filtering (CLIP, NudeNet)
 pip install datasety[character]      # + character dataset generation
 pip install datasety[workflow]       # + YAML workflow support
 pip install datasety[synthetic]      # + LoRA training (FLUX, SDXL)
@@ -302,6 +303,59 @@ datasety mask -i ./dataset -o ./masks -k "hat,glasses" --model sam2 --padding 5 
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/mask)
+
+---
+
+### `filter` — Filter Dataset by Content
+
+Filter, curate, or clean datasets based on image content. Use CLIP for arbitrary text queries or NudeNet for NSFW label detection.
+
+<!-- screenshot: filter -->
+
+```bash
+datasety filter --input ./dataset --output ./rejected --query "leg,male face" --action move
+```
+
+<details>
+<summary>Options</summary>
+
+| Option                 | Description                                             | Default  |
+| ---------------------- | ------------------------------------------------------- | -------- |
+| `--input`, `-i`        | Input directory                                         | required |
+| `--output`, `-o`       | Output directory for matched/rejected images            |          |
+| `--query`, `-q`        | Comma-separated text queries (CLIP)                     |          |
+| `--labels`, `-l`       | Comma-separated NudeNet labels                          |          |
+| `--model`              | `clip`, `nudenet`                                       | `clip`   |
+| `--action`             | `move`, `copy`, `delete`, `keep`                        | `move`   |
+| `--threshold`          | Confidence threshold (0.0-1.0)                          | `0.5`    |
+| `--device`             | `auto`, `cpu`, `cuda`, `mps`                            | `auto`   |
+| `--confirm`            | Required for destructive actions (`delete`, `keep`)     | off      |
+| `--preserve-structure` | Keep subfolder hierarchy in output (with `--recursive`) | off      |
+| `--log`                | Write CSV log of all decisions to this path             |          |
+| `--dry-run`            | Preview detections without modifying files              | off      |
+| `--recursive`, `-R`    | Search input directory recursively                      | off      |
+
+</details>
+
+```bash
+# Move images containing legs or male faces to a reject folder
+datasety filter -i ./dataset -o ./rejected --query "leg,male face" --action move
+
+# Delete NSFW images using NudeNet labels
+datasety filter -i ./dataset --labels "FEMALE_BREAST_EXPOSED,MALE_GENITALIA_EXPOSED" \
+    --action delete --model nudenet --threshold 0.6 --confirm
+
+# Keep only images with "hat and socks", move the rest out
+datasety filter -i ./dataset -o ./rejected --query "hat and socks" --action keep
+
+# Dry-run to preview what would be filtered
+datasety filter -i ./dataset --query "blurry,low quality" --action delete --dry-run -R
+
+# Write a decision log for review
+datasety filter -i ./dataset -o ./rejected --query "outdoor" --action copy --log filter_log.csv
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/filter)
 
 ---
 

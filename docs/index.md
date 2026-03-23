@@ -4,7 +4,7 @@ layout: home
 hero:
   name: ~# datasety
   text: Dataset - it's easy!
-  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, degrade, train LoRA adapters, and automate with workflows.
+  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, filter, degrade, train LoRA adapters, and automate with workflows.
   image:
     src: mascot.png
     alt: Full dataset pipeline
@@ -36,6 +36,11 @@ features:
     title: Segmentation Masks
     details: Text-prompted masks with SAM 3, SAM 2, or CLIPSeg. Padding, blur, invert options.
     link: /commands/mask
+    linkText: Learn more
+  - icon: "&#x1F50E;"
+    title: Content Filter
+    details: Filter datasets by content with CLIP (any text) or NudeNet (NSFW). Move, copy, delete, or keep.
+    link: /commands/filter
     linkText: Learn more
   - icon: "&#x1F9D1;"
     title: Character Generation
