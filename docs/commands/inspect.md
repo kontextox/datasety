@@ -10,13 +10,13 @@ datasety inspect --input ./dataset
 
 ## Options
 
-| Option              | Description                                        | Default    |
-| ------------------- | -------------------------------------------------- | ---------- |
-| `--input`, `-i`     | Input directory                                    | (required) |
-| `--duplicates`      | Detect duplicate/near-duplicate images             | `false`    |
-| `--json`            | Export report as JSON to this path                  |            |
-| `--csv`             | Export per-image data as CSV to this path           |            |
-| `--recursive`, `-R` | Search input directory recursively                 | `false`    |
+| Option              | Description                               | Default    |
+| ------------------- | ----------------------------------------- | ---------- |
+| `--input`, `-i`     | Input directory                           | (required) |
+| `--duplicates`      | Detect duplicate/near-duplicate images    | `false`    |
+| `--json`            | Export report as JSON to this path        |            |
+| `--csv`             | Export per-image data as CSV to this path |            |
+| `--recursive`, `-R` | Search input directory recursively        | `false`    |
 
 ## Report Contents
 
@@ -70,11 +70,11 @@ datasety inspect -i ./dataset -R --duplicates --json report.json --csv images.cs
 
 ## CSV Output Format
 
-| Column       | Description                    |
-| ------------ | ------------------------------ |
-| `file`       | Image file path                |
-| `width`      | Image width in pixels          |
-| `height`     | Image height in pixels         |
-| `format`     | File extension                 |
-| `size_kb`    | File size in KB                |
-| `has_caption`| Whether a .txt file exists     |
+| Column        | Description                |
+| ------------- | -------------------------- |
+| `file`        | Image file path            |
+| `width`       | Image width in pixels      |
+| `height`      | Image height in pixels     |
+| `format`      | File extension             |
+| `size_kb`     | File size in KB            |
+| `has_caption` | Whether a .txt file exists |

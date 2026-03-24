@@ -1,0 +1,101 @@
+# cyanotype-lora workflow
+#
+# Trains a "Cyanotype" style LoRA — the 19th-century UV contact-print photographic
+# process (Anna Atkins, 1843) — applied to any modern subject.
+#
+# What makes this unique: the base model can approximate "blue image" but cannot
+# reproduce the precise tonal signature of real cyanotype prints: Prussian-iron
+# blue midtones, UV-bleached white highlights, deep indigo shadows, and the fine
+# grain of salted-paper contact printing. The LoRA learns this specific palette
+# and texture from 30 curated training images, then activates it reliably via
+# the "cyanotype," trigger word.
+#
+# Prerequisites:
+#   export OPENAI_API_KEY=<openrouter-key>
+#   export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+#   export HF_TOKEN=<hf-token>
+#
+# Usage:
+#   datasety workflow -f workflow.yaml --dry-run   # validate
+#   datasety workflow -f workflow.yaml             # run
+
+steps:
+  # ── Step 1: Generate training images via FLUX API ─────────────────────────
+  - command: character
+    args:
+      output: ./dataset/raw
+      num-images: 30
+      prompts-file: ./prompts.txt
+      image-api: true
+      model: black-forest-labs/flux.2-klein-4b
+      api-aspect-ratio: "1:1"
+      api-image-size: 1K
+      output-format: png
+
+  # ── Step 2: Resize to 512×512 training resolution ─────────────────────────
+  - command: resize
+    args:
+      input: ./dataset/raw
+      output: ./dataset/prepared
+      resolution: 512x512
+      crop-position: center
+
+  # ── Step 3: Caption with vision LLM + trigger word ────────────────────────
+  # Gemini 2.5 Flash describes each image's subject (not the style),
+  # then datasety prepends "cyanotype," as the training trigger.
+  - command: caption
+    args:
+      input: ./dataset/prepared
+      output: ./dataset/prepared
+      trigger-word: "cyanotype,"
+      llm-api: true
+      model: google/gemini-2.5-flash
+      prompt: >
+        Describe this image's subject, composition, and any notable details
+        in one concise sentence. Focus on WHAT is depicted (the object or
+        creature), not the photographic style or color.
+      temperature: 0.3
+      max-tokens: 80
+
+  # ── Step 4a: Train FLUX.2-klein-base-4B LoRA ──────────────────────────────
+  # ~8 GB VRAM · 500 steps · ~15 min on A100
+  - command: train
+    args:
+      input: ./dataset/prepared
+      output: ./lora/cyanotype_flux4b.safetensors
+      model: black-forest-labs/FLUX.2-klein-base-4B
+      family: flux
+      steps: 500
+      lr: 1e-4
+      lora-rank: 16
+      lora-alpha: 16
+      image-size: 512
+      timestep-type: sigmoid
+      caption-dropout: 0.05
+      lr-scheduler: cosine
+      lr-warmup-steps: 50
+      save-every: 250
+      validation-split: 0.1
+      seed: 42
+
+  # ── Step 4b: Train Qwen-Image-Edit-2511 LoRA ──────────────────────────────
+  # ~30 GB VRAM · 300 steps · ~20 min on A100
+  # After training, use --lora to convert any photo to cyanotype style.
+  - command: train
+    args:
+      input: ./dataset/prepared
+      output: ./lora/cyanotype_qwen.safetensors
+      model: Qwen/Qwen-Image-Edit-2511
+      family: qwen
+      steps: 300
+      lr: 5e-5
+      lora-rank: 16
+      lora-alpha: 16
+      image-size: 512
+      timestep-type: sigmoid
+      caption-dropout: 0.05
+      lr-scheduler: cosine
+      lr-warmup-steps: 30
+      save-every: 150
+      validation-split: 0.1
+      seed: 42

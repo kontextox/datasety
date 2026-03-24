@@ -10,10 +10,10 @@ datasety filter --input ./dataset --output ./rejected --query "leg,male face" --
 
 ## Supported Models
 
-| Model              | Description                                        | Speed     |
-| ------------------ | -------------------------------------------------- | --------- |
-| `clip` (default)   | CLIP ViT-B/32 — zero-shot classification, any text | ~50ms/img |
-| `nudenet`          | NudeNet ONNX — NSFW detection, 18 fixed labels     | ~10ms/img |
+| Model            | Description                                        | Speed     |
+| ---------------- | -------------------------------------------------- | --------- |
+| `clip` (default) | CLIP ViT-B/32 — zero-shot classification, any text | ~50ms/img |
+| `nudenet`        | NudeNet ONNX — NSFW detection, 18 fixed labels     | ~10ms/img |
 
 ### NudeNet Labels
 
@@ -28,14 +28,15 @@ BUTTOCKS_COVERED
 
 ## Actions
 
-| Action   | Behavior                                                       |
-| -------- | -------------------------------------------------------------- |
-| `move`   | Move matching images to `--output` (default)                   |
-| `copy`   | Copy matching images to `--output`                             |
-| `delete` | Permanently delete matching images (requires `--confirm`)      |
-| `keep`   | Inverse — remove/move everything that does NOT match           |
+| Action   | Behavior                                                  |
+| -------- | --------------------------------------------------------- |
+| `move`   | Move matching images to `--output` (default)              |
+| `copy`   | Copy matching images to `--output`                        |
+| `delete` | Permanently delete matching images (requires `--confirm`) |
+| `keep`   | Inverse — remove/move everything that does NOT match      |
 
 With `--action keep`:
+
 - If `--output` is set, non-matching images are moved there (safe).
 - Without `--output`, non-matching images are deleted (requires `--confirm`).
 
@@ -43,23 +44,23 @@ Companion files (`.txt`, `.caption`, `.json`) are always handled alongside their
 
 ## Options
 
-| Option                 | Description                                           | Default    |
-| ---------------------- | ----------------------------------------------------- | ---------- |
-| `--input`, `-i`        | Input directory                                       | (required) |
-| `--output`, `-o`       | Output directory for matched/rejected images          |            |
-| `--query`, `-q`        | Comma-separated text queries (CLIP)                   |            |
-| `--labels`, `-l`       | Comma-separated NudeNet labels                        |            |
-| `--model`              | `clip` or `nudenet`                                   | `clip`     |
-| `--action`             | `move`, `copy`, `delete`, or `keep`                   | `move`     |
-| `--threshold`          | Confidence threshold (0.0-1.0)                        | `0.5`      |
-| `--device`             | `auto`, `cpu`, `cuda`, or `mps`                       | `auto`     |
-| `--invert`             | Invert match logic (act on non-matches)               | `false`    |
-| `--confirm`            | Required for destructive actions                      | `false`    |
+| Option                 | Description                                             | Default    |
+| ---------------------- | ------------------------------------------------------- | ---------- |
+| `--input`, `-i`        | Input directory                                         | (required) |
+| `--output`, `-o`       | Output directory for matched/rejected images            |            |
+| `--query`, `-q`        | Comma-separated text queries (CLIP)                     |            |
+| `--labels`, `-l`       | Comma-separated NudeNet labels                          |            |
+| `--model`              | `clip` or `nudenet`                                     | `clip`     |
+| `--action`             | `move`, `copy`, `delete`, or `keep`                     | `move`     |
+| `--threshold`          | Confidence threshold (0.0-1.0)                          | `0.5`      |
+| `--device`             | `auto`, `cpu`, `cuda`, or `mps`                         | `auto`     |
+| `--invert`             | Invert match logic (act on non-matches)                 | `false`    |
+| `--confirm`            | Required for destructive actions                        | `false`    |
 | `--preserve-structure` | Keep subfolder hierarchy in output (with `--recursive`) | `false`    |
-| `--log`                | Write CSV log of all decisions to this path           |            |
-| `--dry-run`            | Preview detections without modifying files            | `false`    |
-| `--recursive`, `-R`    | Search input directory recursively                    | `false`    |
-| `--progress`           | Show tqdm progress bar                                | `false`    |
+| `--log`                | Write CSV log of all decisions to this path             |            |
+| `--dry-run`            | Preview detections without modifying files              | `false`    |
+| `--recursive`, `-R`    | Search input directory recursively                      | `false`    |
+| `--progress`           | Show tqdm progress bar                                  | `false`    |
 
 ## Examples
 

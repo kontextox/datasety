@@ -10,25 +10,25 @@ datasety resize --input ./images --output ./resized --resolution 768x1024
 
 ## Options
 
-| Option                  | Description                                | Default             |
-| ----------------------- | ------------------------------------------ | ------------------- |
-| `--input`, `-i`         | Input directory                            | (required\*)        |
-| `--output`, `-o`        | Output directory                           | (required\*)        |
-| `--input-image`         | Single input image                         |                     |
-| `--output-image`        | Single output image                        |                     |
-| `--resolution`, `-r`    | Target resolution (WIDTHxHEIGHT)           |                     |
-| `--megapixel`           | Target megapixel count (e.g., 0.5, 1.0)    |                     |
-| `--aspect-ratio`        | Aspect ratio W:H (e.g., 1:1, 16:9, 3:2)    |                     |
-| `--crop-position`       | `top`, `center`, `bottom`, `left`, `right` | `center`            |
-| `--input-format`        | Comma-separated formats                    | `jpg,jpeg,png,webp` |
-| `--output-format`       | `jpg`, `png`, `webp`                       | `jpg`               |
-| `--output-name-numbers` | Rename to 1.jpg, 2.jpg, ...                | `false`             |
-| `--upscale`             | Upscale images smaller than target         | `false`             |
-| `--min-resolution`      | Skip images below this size (e.g., 256x256) |                    |
-| `--workers`             | Parallel workers for processing            | `1`                 |
-| `--recursive`, `-R`     | Search input directory recursively         | `false`             |
-| `--progress`            | Show tqdm progress bar                     | `false`             |
-| `--dry-run`             | Preview without writing files              | `false`             |
+| Option                  | Description                                 | Default             |
+| ----------------------- | ------------------------------------------- | ------------------- |
+| `--input`, `-i`         | Input directory                             | (required\*)        |
+| `--output`, `-o`        | Output directory                            | (required\*)        |
+| `--input-image`         | Single input image                          |                     |
+| `--output-image`        | Single output image                         |                     |
+| `--resolution`, `-r`    | Target resolution (WIDTHxHEIGHT)            |                     |
+| `--megapixel`           | Target megapixel count (e.g., 0.5, 1.0)     |                     |
+| `--aspect-ratio`        | Aspect ratio W:H (e.g., 1:1, 16:9, 3:2)     |                     |
+| `--crop-position`       | `top`, `center`, `bottom`, `left`, `right`  | `center`            |
+| `--input-format`        | Comma-separated formats                     | `jpg,jpeg,png,webp` |
+| `--output-format`       | `jpg`, `png`, `webp`                        | `jpg`               |
+| `--output-name-numbers` | Rename to 1.jpg, 2.jpg, ...                 | `false`             |
+| `--upscale`             | Upscale images smaller than target          | `false`             |
+| `--min-resolution`      | Skip images below this size (e.g., 256x256) |                     |
+| `--workers`             | Parallel workers for processing             | `1`                 |
+| `--recursive`, `-R`     | Search input directory recursively          | `false`             |
+| `--progress`            | Show tqdm progress bar                      | `false`             |
+| `--dry-run`             | Preview without writing files               | `false`             |
 
 ## Examples
 

@@ -95,6 +95,10 @@ def cmd_character(args):
             sys.exit(1)
 
         print(f"Generated {len(prompts)} prompts")
+        # Limit to requested count (thinking models may return extras)
+        if len(prompts) > args.num_images:
+            prompts = prompts[: args.num_images]
+            print(f"Trimmed to {args.num_images} prompts")
 
     # Save prompts for reproducibility
     prompts_out = output_dir / "prompts.txt"
@@ -145,6 +149,8 @@ def cmd_character(args):
                     base_url,
                     model,
                     seed=args.seed,
+                    aspect_ratio=getattr(args, "api_aspect_ratio", None),
+                    image_size=getattr(args, "api_image_size", None),
                     width=args.width,
                     height=args.height,
                 )
@@ -191,13 +197,20 @@ def cmd_character(args):
             )
             kwargs["transformer"] = transformer
 
+        # FLUX.2-klein-9b-kv uses a dedicated KV-cache pipeline for faster inference
+        model_lower = args.model.lower()
+        use_kv_pipeline = "kv" in model_lower and "klein" in model_lower
+
         try:
-            from diffusers import Flux2KleinPipeline
+            if use_kv_pipeline:
+                from diffusers import Flux2KleinKVPipeline as _FluxPipeline
+            else:
+                from diffusers import Flux2KleinPipeline as _FluxPipeline
         except ImportError:
             import subprocess
 
             print(
-                "Flux2KleinPipeline not found, upgrading diffusers from "
+                "Required Flux pipeline not found, upgrading diffusers from "
                 "official HuggingFace repo..."
             )
             print("Installing: git+https://github.com/huggingface/diffusers.git")
@@ -216,9 +229,12 @@ def cmd_character(args):
             for _key in [k for k in sys.modules if k.startswith("diffusers")]:
                 del sys.modules[_key]
             importlib.invalidate_caches()
-            from diffusers import Flux2KleinPipeline
+            if use_kv_pipeline:
+                from diffusers import Flux2KleinKVPipeline as _FluxPipeline
+            else:
+                from diffusers import Flux2KleinPipeline as _FluxPipeline
 
-        pipeline = Flux2KleinPipeline.from_pretrained(args.model, **kwargs)
+        pipeline = _FluxPipeline.from_pretrained(args.model, **kwargs)
         pipeline.enable_model_cpu_offload()
         pipeline.set_progress_bar_config(disable=False)
 
@@ -230,12 +246,15 @@ def cmd_character(args):
         processed = 0
         out_ext = args.output_format
 
+        # Flux2KleinKVPipeline does not accept guidance_scale
+        supports_guidance = not use_kv_pipeline
         gen_kwargs = {
             "height": args.height,
             "width": args.width,
             "num_inference_steps": args.steps,
-            "guidance_scale": args.cfg_scale,
         }
+        if supports_guidance:
+            gen_kwargs["guidance_scale"] = args.cfg_scale
 
         if args.seed is not None:
             gen_kwargs["generator"] = torch.Generator(device="cpu").manual_seed(args.seed)
@@ -356,6 +375,19 @@ def register_parser(subparsers):
         "--image-api",
         action="store_true",
         help="Use OpenAI-compatible API for image generation (needs OPENAI_API_KEY)",
+    )
+    char_parser.add_argument(
+        "--api-aspect-ratio",
+        default=None,
+        metavar="RATIO",
+        help="Aspect ratio for --image-api (e.g. '16:9', '1:1'). "
+        "Derived from --width/--height if not set.",
+    )
+    char_parser.add_argument(
+        "--api-image-size",
+        default=None,
+        choices=["0.5K", "1K", "2K", "4K"],
+        help="Output resolution for --image-api (default: 1K).",
     )
 
     char_parser.add_argument(

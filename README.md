@@ -210,7 +210,7 @@ datasety shuffle -i ./images -o ./captions \
 
 ### `synthetic` — Synthetic Image Editing
 
-Generate synthetic variations using image editing models (FLUX.2-klein FP8, Qwen, SDXL, LongCat, HunyuanImage). The default model `FLUX.2-klein-4b-fp8` requires no HuggingFace token and fits in ~5 GB VRAM.
+Generate synthetic variations using image editing models (FLUX.2-klein FP8, FLUX.2-klein-9b-kv, Qwen-Image-Edit-2511, SDXL, LongCat, HunyuanImage). The default model `FLUX.2-klein-4b-fp8` requires no HuggingFace token and fits in ~5 GB VRAM.
 
 <!-- screenshot: synthetic -->
 
@@ -221,33 +221,35 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 <details>
 <summary>Options</summary>
 
-| Option              | Description                              | Default                                 |
-| ------------------- | ---------------------------------------- | --------------------------------------- |
-| `--input`, `-i`     | Input directory                          | required\*                              |
-| `--output`, `-o`    | Output directory                         | required\*                              |
-| `--input-image`     | Single input image                       |                                         |
-| `--output-image`    | Single output image                      |                                         |
-| `--prompt`, `-p`    | Edit instruction                         | required                                |
-| `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4b-fp8` |
-| `--image-api`       | Use OpenAI-compatible API for generation | off                                     |
-| `--weights`         | Fine-tuned weights file                  |                                         |
-| `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     |                                         |
-| `--device`          | `auto`, `cpu`, `cuda`, `mps`             | `auto`                                  |
-| `--cpu-offload`     | Force CPU offload                        | auto                                    |
-| `--steps`           | Inference steps                          | `4`                                     |
-| `--cfg-scale`       | Guidance scale                           | `2.5`                                   |
-| `--true-cfg-scale`  | True CFG (Qwen only)                     | `4.0`                                   |
-| `--negative-prompt` | Negative prompt                          | `" "`                                   |
-| `--num-images`      | Images per input                         | `1`                                     |
-| `--seed`            | Random seed                              |                                         |
-| `--gguf`            | GGUF path/URL for quantized loading      |                                         |
-| `--strength`        | Img2img strength (SDXL/FLUX.2, 0.0-1.0)  | `0.7`                                   |
-| `--recursive`, `-R` | Search input directory recursively       | off                                     |
-| `--output-format`   | `png`, `jpg`, `webp`                     | `png`                                   |
-| `--skip-existing`   | Skip images with existing output         | off                                     |
-| `--batch-size`      | Flush GPU memory every N images          | `0` (off)                               |
-| `--progress`        | Show tqdm progress bar                   | off                                     |
-| `--dry-run`         | Preview without loading models           | off                                     |
+| Option               | Description                                                 | Default                                 |
+| -------------------- | ----------------------------------------------------------- | --------------------------------------- |
+| `--input`, `-i`      | Input directory                                             | required\*                              |
+| `--output`, `-o`     | Output directory                                            | required\*                              |
+| `--input-image`      | Single input image                                          |                                         |
+| `--output-image`     | Single output image                                         |                                         |
+| `--prompt`, `-p`     | Edit instruction                                            | required                                |
+| `--model`            | Model (auto-detects family or API model)                    | `black-forest-labs/FLUX.2-klein-4b-fp8` |
+| `--image-api`        | Use OpenAI-compatible API for generation                    | off                                     |
+| `--api-aspect-ratio` | Aspect ratio for `--image-api` (e.g. `16:9`, `9:16`, `1:1`) | auto                                    |
+| `--api-image-size`   | Resolution for `--image-api`: `0.5K`, `1K`, `2K`, `4K`      | `1K`                                    |
+| `--weights`          | Fine-tuned weights file                                     |                                         |
+| `--lora`             | LoRA adapter (repeatable, `:WEIGHT`)                        |                                         |
+| `--device`           | `auto`, `cpu`, `cuda`, `mps`                                | `auto`                                  |
+| `--cpu-offload`      | Force CPU offload                                           | auto                                    |
+| `--steps`            | Inference steps                                             | `4`                                     |
+| `--cfg-scale`        | Guidance scale                                              | `2.5`                                   |
+| `--true-cfg-scale`   | True CFG (Qwen only)                                        | `4.0`                                   |
+| `--negative-prompt`  | Negative prompt                                             | `" "`                                   |
+| `--num-images`       | Images per input                                            | `1`                                     |
+| `--seed`             | Random seed                                                 |                                         |
+| `--gguf`             | GGUF path/URL for quantized loading                         |                                         |
+| `--strength`         | Img2img strength (SDXL/FLUX.2, 0.0-1.0)                     | `0.7`                                   |
+| `--recursive`, `-R`  | Search input directory recursively                          | off                                     |
+| `--output-format`    | `png`, `jpg`, `webp`                                        | `png`                                   |
+| `--skip-existing`    | Skip images with existing output                            | off                                     |
+| `--batch-size`       | Flush GPU memory every N images                             | `0` (off)                               |
+| `--progress`         | Show tqdm progress bar                                      | off                                     |
+| `--dry-run`          | Preview without loading models                              | off                                     |
 
 </details>
 
@@ -256,12 +258,25 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 datasety synthetic --input-image photo.jpg --output-image edited.png \
     --prompt "add sunglasses" --steps 4
 
-# Cloud API (no GPU needed)
+# Cloud API — FLUX.2-flex (no GPU needed)
 OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
   datasety synthetic -i ./images -o ./synthetic \
-  --prompt "add a winter hat" --image-api --model black-forest-labs/flux.2-klein-4b
+  --prompt "add a winter hat" --image-api --model black-forest-labs/flux.2-flex \
+  --api-aspect-ratio 1:1
 
-# Qwen with LoRA
+# Cloud API — Gemini 2.5 Flash (text+image, supports image-to-image)
+OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+  datasety synthetic -i ./images -o ./synthetic \
+  --prompt "transform into oil painting style" \
+  --model google/gemini-2.5-flash-image --image-api \
+  --api-aspect-ratio 3:4 --api-image-size 2K
+
+# FLUX.2-klein-9b-kv (KV-cache, faster multi-reference, ~29 GB VRAM)
+datasety synthetic -i ./images -o ./synthetic \
+    --model "black-forest-labs/FLUX.2-klein-9b-kv" \
+    --prompt "add sunglasses" --steps 4
+
+# Qwen-Image-Edit-2511 with LoRA
 datasety synthetic -i ./dataset -o ./synthetic \
     --model "Qwen/Qwen-Image-Edit-2511" \
     --lora "adapter.safetensors:0.8" \
@@ -473,31 +488,33 @@ datasety character --output ./dataset --llm-ollama qwen3.5:4b --num-images 20
 <details>
 <summary>Options</summary>
 
-| Option                    | Description                                        | Default                                 |
-| ------------------------- | -------------------------------------------------- | --------------------------------------- |
-| `--reference`, `-r`       | Reference face image(s) (optional, prompt context) |                                         |
-| `--output`, `-o`          | Output directory                                   | required                                |
-| `--num-images`, `-n`      | Number of images to generate                       | `10`                                    |
-| `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4b-fp8` |
-| `--gguf`                  | GGUF path/URL for quantized loading                |                                         |
-| `--image-api`             | Use OpenAI-compatible API for image generation     | off                                     |
-| `--character-description` | Text description of the character                  |                                         |
-| `--style`                 | Style guidance (e.g., `photorealistic`)            |                                         |
-| `--prompts-only`          | Only generate prompts, skip images                 | off                                     |
-| `--prompts-file`          | Load prompts from file instead of LLM              |                                         |
-| `--llm-api`               | Use OpenAI-compatible API for prompts              |                                         |
-| `--llm-ollama MODEL`      | Use local Ollama server for prompts                |                                         |
-| `--llm-gguf PATH`         | Use local GGUF model for prompts                   |                                         |
-| `--llm-model REPO`        | Use HuggingFace model for prompts                  |                                         |
-| `--device`                | `auto`, `cpu`, `cuda`, `mps`                       | `auto`                                  |
-| `--steps`                 | Inference steps                                    | `4`                                     |
-| `--cfg-scale`             | Guidance scale                                     | `4.0`                                   |
-| `--seed`                  | Random seed                                        |                                         |
-| `--height`                | Output image height                                | `1024`                                  |
-| `--width`                 | Output image width                                 | `1024`                                  |
-| `--output-format`         | `png`, `jpg`, `webp`                               | `png`                                   |
-| `--batch-size`            | Flush GPU memory every N images                    | `0` (off)                               |
-| `--dry-run`               | Preview prompts without generating images          | off                                     |
+| Option                    | Description                                            | Default                                 |
+| ------------------------- | ------------------------------------------------------ | --------------------------------------- |
+| `--reference`, `-r`       | Reference face image(s) (optional, prompt context)     |                                         |
+| `--output`, `-o`          | Output directory                                       | required                                |
+| `--num-images`, `-n`      | Number of images to generate                           | `10`                                    |
+| `--model`                 | Model for generation (local HF or API model ID)        | `black-forest-labs/FLUX.2-klein-4b-fp8` |
+| `--gguf`                  | GGUF path/URL for quantized loading                    |                                         |
+| `--image-api`             | Use OpenAI-compatible API for image generation         | off                                     |
+| `--api-aspect-ratio`      | Aspect ratio for `--image-api` (e.g. `9:16`, `1:1`)    | derived from `--width`/`--height`       |
+| `--api-image-size`        | Resolution for `--image-api`: `0.5K`, `1K`, `2K`, `4K` |                                         |
+| `--character-description` | Text description of the character                      |                                         |
+| `--style`                 | Style guidance (e.g., `photorealistic`)                |                                         |
+| `--prompts-only`          | Only generate prompts, skip images                     | off                                     |
+| `--prompts-file`          | Load prompts from file instead of LLM                  |                                         |
+| `--llm-api`               | Use OpenAI-compatible API for prompts                  |                                         |
+| `--llm-ollama MODEL`      | Use local Ollama server for prompts                    |                                         |
+| `--llm-gguf PATH`         | Use local GGUF model for prompts                       |                                         |
+| `--llm-model REPO`        | Use HuggingFace model for prompts                      |                                         |
+| `--device`                | `auto`, `cpu`, `cuda`, `mps`                           | `auto`                                  |
+| `--steps`                 | Inference steps                                        | `4`                                     |
+| `--cfg-scale`             | Guidance scale                                         | `4.0`                                   |
+| `--seed`                  | Random seed                                            |                                         |
+| `--height`                | Output image height                                    | `1024`                                  |
+| `--width`                 | Output image width                                     | `1024`                                  |
+| `--output-format`         | `png`, `jpg`, `webp`                                   | `png`                                   |
+| `--batch-size`            | Flush GPU memory every N images                        | `0` (off)                               |
+| `--dry-run`               | Preview prompts without generating images              | off                                     |
 
 </details>
 
@@ -508,7 +525,7 @@ datasety character -o ./dataset --llm-ollama qwen3.5:4b --num-images 20
 # Cloud API for images (no GPU needed)
 OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
   datasety character -o ./dataset --prompts-file prompts.txt \
-  --image-api --model black-forest-labs/flux.2-klein-4b
+  --image-api --model black-forest-labs/flux.2-flex --api-aspect-ratio 2:3
 
 # Preview prompts only
 datasety character -o ./dataset --llm-api --prompts-only
@@ -563,9 +580,9 @@ datasety sweep -i ./images -o ./sweep -p "add a hat" --steps 4,8 --cfg-scale 2.0
 
 ### `train` — LoRA Fine-Tuning
 
-Train a LoRA adapter for image generation models from a local dataset of image + caption pairs. Supports **FLUX.2-klein** (flow-matching) and **SDXL** (DDPM).
+Train a LoRA adapter for image generation models from a local dataset of image + caption pairs.
 
-> **Use the base (undistilled) model for training.** Distilled models (`FLUX.2-klein-4B`) are for inference only. Use `FLUX.2-klein-base-4B` for LoRA training.
+Supported model families: **FLUX.2-klein** (flow-matching), **SDXL** (DDPM), and **Qwen** (flow-matching, image-editing).
 
 <!-- screenshot: train -->
 
@@ -576,23 +593,32 @@ datasety train --input ./dataset --output lora.safetensors --steps 500
 <details>
 <summary>Options</summary>
 
-| Option               | Description                                  | Default                                  |
-| -------------------- | -------------------------------------------- | ---------------------------------------- |
-| `--input`, `-i`      | Dataset directory (images + `.txt` captions) | required                                 |
-| `--output`, `-o`     | Output LoRA `.safetensors` path              | `lora.safetensors`                       |
-| `--model`, `-m`      | HuggingFace base model repo ID               | `black-forest-labs/FLUX.2-klein-base-4B` |
-| `--family`           | Model family: `flux`, `sdxl`                 | auto-detected                            |
-| `--steps`            | Number of training steps                     | `100`                                    |
-| `--lr`               | Learning rate                                | `1e-4`                                   |
-| `--lora-rank`        | LoRA rank (4–64)                             | `16`                                     |
-| `--lora-alpha`       | LoRA alpha                                   | `16.0`                                   |
-| `--lora-dropout`     | LoRA dropout rate                            | `0.0`                                    |
-| `--image-size`       | Training resolution (square crop)            | `512`                                    |
-| `--device`           | `auto`, `cpu`, `cuda`, `mps`                 | `auto`                                   |
-| `--seed`             | Random seed                                  | `42`                                     |
-| `--save-every`       | Save checkpoint every N steps                | end only                                 |
-| `--resume`           | Resume from a LoRA checkpoint (.safetensors) |                                          |
-| `--validation-split` | Fraction of dataset for validation (0.0-0.5) |                                          |
+| Option                          | Description                                               | Default                                  |
+| ------------------------------- | --------------------------------------------------------- | ---------------------------------------- |
+| `--input`, `-i`                 | Dataset directory (images + `.txt` captions)              | required                                 |
+| `--output`, `-o`                | Output LoRA `.safetensors` path                           | `lora.safetensors`                       |
+| `--model`, `-m`                 | HuggingFace repo ID (base model)                          | `black-forest-labs/FLUX.2-klein-base-4B` |
+| `--family`                      | Model family: `flux`, `sdxl`, `qwen`                      | auto-detected                            |
+| `--steps`                       | Number of training steps                                  | `100`                                    |
+| `--lr`                          | Learning rate                                             | `1e-4`                                   |
+| `--lora-rank`                   | LoRA rank                                                 | `16`                                     |
+| `--lora-alpha`                  | LoRA alpha                                                | `16.0`                                   |
+| `--lora-dropout`                | LoRA dropout rate                                         | `0.0`                                    |
+| `--image-size`                  | Training resolution (square crop)                         | `512`                                    |
+| `--device`                      | `auto`, `cpu`, `cuda`, `mps`                              | `auto`                                   |
+| `--seed`                        | Random seed                                               | `42`                                     |
+| `--save-every`                  | Save checkpoint every N steps                             | end only                                 |
+| `--resume`                      | Resume from a LoRA checkpoint (.safetensors)              |                                          |
+| `--validation-split`            | Fraction of dataset for validation (0.0-0.5)              |                                          |
+| `--timestep-type`               | Timestep sampling: `sigmoid`, `lognorm`, `linear`         | `sigmoid`                                |
+| `--caption-dropout`             | Probability of dropping caption (unconditional)           | `0.05`                                   |
+| `--gradient-checkpointing`      | Enable gradient checkpointing (saves VRAM)                | off                                      |
+| `--optimizer`                   | `adamw` or `adamw8bit` (requires bitsandbytes)            | `adamw`                                  |
+| `--lr-scheduler`                | LR schedule: `constant`, `cosine`, `linear`               | `constant`                               |
+| `--lr-warmup-steps`             | Linear warmup steps before target LR                      | `0`                                      |
+| `--gradient-accumulation-steps` | Accumulate gradients over N steps                         | `1`                                      |
+| `--min-snr-gamma`               | Min-SNR-γ loss weighting for SDXL (recommended: 5.0)      | disabled                                 |
+| `--noise-offset`                | Per-channel noise offset for SDXL (recommended: 0.05–0.1) | `0.0`                                    |
 
 </details>
 
