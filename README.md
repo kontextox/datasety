@@ -210,7 +210,7 @@ datasety shuffle -i ./images -o ./captions \
 
 ### `synthetic` — Synthetic Image Editing
 
-Generate synthetic variations using image editing models (FLUX.2-klein FP8, Qwen, SDXL, LongCat, HunyuanImage). The default model `FLUX.2-klein-4b-fp8` requires no HuggingFace token and fits in ~5 GB VRAM.
+Generate synthetic variations using image editing models (FLUX.2-klein FP8, FLUX.2-klein-9b-kv, Qwen-Image-Edit-2511, SDXL, LongCat, HunyuanImage). The default model `FLUX.2-klein-4b-fp8` requires no HuggingFace token and fits in ~5 GB VRAM.
 
 <!-- screenshot: synthetic -->
 
@@ -230,6 +230,8 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 | `--prompt`, `-p`    | Edit instruction                         | required                                |
 | `--model`           | Model (auto-detects family or API model) | `black-forest-labs/FLUX.2-klein-4b-fp8` |
 | `--image-api`       | Use OpenAI-compatible API for generation | off                                     |
+| `--api-aspect-ratio` | Aspect ratio for `--image-api` (e.g. `16:9`, `9:16`, `1:1`) | auto |
+| `--api-image-size`  | Resolution for `--image-api`: `0.5K`, `1K`, `2K`, `4K`      | `1K` |
 | `--weights`         | Fine-tuned weights file                  |                                         |
 | `--lora`            | LoRA adapter (repeatable, `:WEIGHT`)     |                                         |
 | `--device`          | `auto`, `cpu`, `cuda`, `mps`             | `auto`                                  |
@@ -256,12 +258,25 @@ datasety synthetic --input ./images --output ./synthetic --prompt "add a winter 
 datasety synthetic --input-image photo.jpg --output-image edited.png \
     --prompt "add sunglasses" --steps 4
 
-# Cloud API (no GPU needed)
+# Cloud API — FLUX.2-flex (no GPU needed)
 OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
   datasety synthetic -i ./images -o ./synthetic \
-  --prompt "add a winter hat" --image-api --model black-forest-labs/flux.2-klein-4b
+  --prompt "add a winter hat" --image-api --model black-forest-labs/flux.2-flex \
+  --api-aspect-ratio 1:1
 
-# Qwen with LoRA
+# Cloud API — Gemini 2.5 Flash (text+image, supports image-to-image)
+OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+  datasety synthetic -i ./images -o ./synthetic \
+  --prompt "transform into oil painting style" \
+  --model google/gemini-2.5-flash-image --image-api \
+  --api-aspect-ratio 3:4 --api-image-size 2K
+
+# FLUX.2-klein-9b-kv (KV-cache, faster multi-reference, ~29 GB VRAM)
+datasety synthetic -i ./images -o ./synthetic \
+    --model "black-forest-labs/FLUX.2-klein-9b-kv" \
+    --prompt "add sunglasses" --steps 4
+
+# Qwen-Image-Edit-2511 with LoRA
 datasety synthetic -i ./dataset -o ./synthetic \
     --model "Qwen/Qwen-Image-Edit-2511" \
     --lora "adapter.safetensors:0.8" \
@@ -481,6 +496,8 @@ datasety character --output ./dataset --llm-ollama qwen3.5:4b --num-images 20
 | `--model`                 | Model for generation (local HF or API model ID)    | `black-forest-labs/FLUX.2-klein-4b-fp8` |
 | `--gguf`                  | GGUF path/URL for quantized loading                |                                         |
 | `--image-api`             | Use OpenAI-compatible API for image generation     | off                                     |
+| `--api-aspect-ratio`      | Aspect ratio for `--image-api` (e.g. `9:16`, `1:1`) | derived from `--width`/`--height`     |
+| `--api-image-size`        | Resolution for `--image-api`: `0.5K`, `1K`, `2K`, `4K` |                                    |
 | `--character-description` | Text description of the character                  |                                         |
 | `--style`                 | Style guidance (e.g., `photorealistic`)            |                                         |
 | `--prompts-only`          | Only generate prompts, skip images                 | off                                     |
@@ -508,7 +525,7 @@ datasety character -o ./dataset --llm-ollama qwen3.5:4b --num-images 20
 # Cloud API for images (no GPU needed)
 OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
   datasety character -o ./dataset --prompts-file prompts.txt \
-  --image-api --model black-forest-labs/flux.2-klein-4b
+  --image-api --model black-forest-labs/flux.2-flex --api-aspect-ratio 2:3
 
 # Preview prompts only
 datasety character -o ./dataset --llm-api --prompts-only
@@ -565,7 +582,7 @@ datasety sweep -i ./images -o ./sweep -p "add a hat" --steps 4,8 --cfg-scale 2.0
 
 Train a LoRA adapter for image generation models from a local dataset of image + caption pairs. Supports **FLUX.2-klein** (flow-matching) and **SDXL** (DDPM).
 
-> **Use the base (undistilled) model for training.** Distilled models (`FLUX.2-klein-4B`) are for inference only. Use `FLUX.2-klein-base-4B` for LoRA training.
+> **Use the base (undistilled) model for training.** Distilled models (`FLUX.2-klein-4B`, `FLUX.2-klein-9B`, `FLUX.2-klein-9b-kv`) are for inference only. Use `FLUX.2-klein-base-4B` or `FLUX.2-klein-base-9B` for LoRA training.
 
 <!-- screenshot: train -->
 

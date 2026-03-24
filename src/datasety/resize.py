@@ -232,13 +232,17 @@ def cmd_resize(args):
             return "ok", msg, out_path.name
 
     if args.workers > 1 and not args.output_name_numbers:
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+        from concurrent.futures import ThreadPoolExecutor as _Pool
+        from concurrent.futures import as_completed
 
-        # Workers can't use sequential numbering (order-dependent)
-        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+        # Workers can't use sequential numbering (order-dependent).
+        # ThreadPoolExecutor is used because ProcessPoolExecutor can't pickle
+        # the local _process_one closure.  Pillow's I/O and resize operations
+        # release the GIL, so threads still benefit from parallelism.
+        with _Pool(max_workers=args.workers) as pool:
             futures = {
-                pool.submit(_process_one, idx, img_path, idx): (idx, img_path)
-                for idx, img_path in enumerate(image_files, 1)
+                pool.submit(_process_one, idx, img_path, processed + i): (idx, img_path)
+                for i, (idx, img_path) in enumerate(enumerate(image_files, 1))
             }
             for future in as_completed(futures):
                 idx, img_path = futures[future]

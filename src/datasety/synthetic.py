@@ -19,6 +19,7 @@ _MODEL_VRAM_GB = {
     # Distilled (inference) variants — fast few-step generation, NOT for training
     "flux2-klein": 8,          # 4B bf16 distilled
     "flux2-klein-9b": 18,      # 9B bf16 distilled
+    "flux2-klein-9b-kv": 29,   # 9B KV-cache optimized, ~29 GB VRAM
     "flux2-klein-4b-fp8": 5,   # 4B fp8 distilled — ~4-5 GB (local: falls back to bf16)
     "flux2-klein-9b-fp8": 10,  # 9B fp8 distilled — ~9-10 GB (local: falls back to bf16)
     # Base (undistilled) variants — recommended for LoRA fine-tuning
@@ -46,11 +47,14 @@ def _detect_model_family(model_name: str) -> str:
         is_base = "base" in name_lower
         is_9b = "9b" in name_lower
         is_fp8 = "fp8" in name_lower
+        is_kv = "kv" in name_lower
         if is_base:
             if is_fp8:
                 return "flux2-klein-base-9b-fp8" if is_9b else "flux2-klein-base-4b-fp8"
             return "flux2-klein-base-9b" if is_9b else "flux2-klein-base"
         else:
+            if is_kv and is_9b:
+                return "flux2-klein-9b-kv"
             if is_fp8:
                 return "flux2-klein-9b-fp8" if is_9b else "flux2-klein-4b-fp8"
             return "flux2-klein-9b" if is_9b else "flux2-klein"
@@ -104,6 +108,40 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
             )
             kwargs["transformer"] = transformer
         pipeline = FluxKontextPipeline.from_pretrained(model_name, **kwargs)
+
+    elif family == "flux2-klein-9b-kv":
+        kwargs = {"torch_dtype": torch_dtype}
+        if gguf_path:
+            from diffusers import Flux2Transformer2DModel, GGUFQuantizationConfig
+
+            transformer = Flux2Transformer2DModel.from_single_file(
+                gguf_path,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=torch_dtype),
+                torch_dtype=torch_dtype,
+                config=model_name,
+                subfolder="transformer",
+            )
+            kwargs["transformer"] = transformer
+        try:
+            from diffusers import Flux2KleinKVPipeline
+        except ImportError:
+            import subprocess
+
+            print(
+                "Flux2KleinKVPipeline not found, upgrading diffusers from "
+                "official HuggingFace repo..."
+            )
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "-q",
+                 "git+https://github.com/huggingface/diffusers.git"]
+            )
+            import importlib
+
+            for _key in [k for k in sys.modules if k.startswith("diffusers")]:
+                del sys.modules[_key]
+            importlib.invalidate_caches()
+            from diffusers import Flux2KleinKVPipeline
+        pipeline = Flux2KleinKVPipeline.from_pretrained(model_name, **kwargs)
 
     elif family in (
         "flux2-klein",
@@ -264,6 +302,10 @@ def _run_synthetic_pipeline(pipeline, family, image, args, device, cpu_offload):
     elif family == "flux-kontext":
         gen_kwargs["image"] = image
         gen_kwargs["guidance_scale"] = args.cfg_scale
+
+    elif family == "flux2-klein-9b-kv":
+        # Flux2KleinKVPipeline does not accept guidance_scale
+        gen_kwargs["image"] = [image]
 
     elif family in (
         "flux2-klein",
@@ -438,6 +480,7 @@ def cmd_synthetic(args):
             "black-forest-labs/FLUX.2-klein-9b-fp8": "black-forest-labs/flux.2-klein-9b",
             "black-forest-labs/FLUX.2-klein-4B": "black-forest-labs/flux.2-klein-4b",
             "black-forest-labs/FLUX.2-klein-9B": "black-forest-labs/flux.2-klein-9b",
+            "black-forest-labs/FLUX.2-klein-9b-kv": "black-forest-labs/flux.2-klein-9b",
             "black-forest-labs/FLUX.2-klein-base-4B": "black-forest-labs/flux.2-klein-4b",
             "black-forest-labs/FLUX.2-klein-base-9B": "black-forest-labs/flux.2-klein-9b",
             "black-forest-labs/FLUX.2-klein-base-4b-fp8": "black-forest-labs/flux.2-klein-4b",
@@ -471,6 +514,8 @@ def cmd_synthetic(args):
                     model,
                     input_image=input_image,
                     seed=args.seed,
+                    aspect_ratio=getattr(args, "api_aspect_ratio", None),
+                    image_size=getattr(args, "api_image_size", None),
                 )
 
                 if is_single and output_path:
@@ -805,6 +850,19 @@ def register_parser(subparsers):
         "--image-api",
         action="store_true",
         help="Use OpenAI-compatible API for image generation (needs OPENAI_API_KEY)",
+    )
+    synthetic_parser.add_argument(
+        "--api-aspect-ratio",
+        default=None,
+        metavar="RATIO",
+        help="Aspect ratio for --image-api (e.g. '16:9', '1:1', '3:2'). "
+        "Auto-detected from input image if not set.",
+    )
+    synthetic_parser.add_argument(
+        "--api-image-size",
+        default=None,
+        choices=["0.5K", "1K", "2K", "4K"],
+        help="Output resolution for --image-api (default: 1K).",
     )
     synthetic_parser.add_argument(
         "--progress",

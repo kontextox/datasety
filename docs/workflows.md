@@ -391,6 +391,104 @@ steps:
       trigger-word: "ohwx person,"
 ```
 
+### Cyanotype Style LoRA (API dataset + two models)
+
+Train a **cyanotype photographic style** LoRA — the 1842 UV contact-print process
+producing Prussian-blue and bleached-white prints — on images generated via the
+FLUX API. The finished LoRAs let you:
+
+- **FLUX.2-klein-base-4B**: add the cyanotype style to any img2img edit
+- **Qwen-Image-Edit-2511**: convert any photograph to a cyanotype print
+
+> This workflow was run end-to-end and produced working LoRAs. See
+> `examples/cyanotype_lora/` for the full output including trained weights,
+> dataset, and inference results.
+
+```yaml
+# cyanotype-lora.yaml
+# Requires: OPENAI_API_KEY + OPENAI_BASE_URL (OpenRouter) + HF_TOKEN
+steps:
+  - command: character
+    args:
+      output: ./dataset/raw
+      num-images: 30
+      prompts-file: ./prompts.txt       # 30 curated cyanotype subject prompts
+      image-api: true
+      model: black-forest-labs/flux.2-klein-4b
+      api-aspect-ratio: "1:1"
+      api-image-size: 1K
+      output-format: png
+
+  - command: resize
+    args:
+      input: ./dataset/raw
+      output: ./dataset/prepared
+      resolution: 512x512
+      crop-position: center
+
+  - command: caption
+    args:
+      input: ./dataset/prepared
+      output: ./dataset/prepared
+      trigger-word: "cyanotype,"
+      llm-api: true
+      model: google/gemini-2.5-flash
+      prompt: >
+        Describe this image's subject and composition in one sentence.
+        Focus on WHAT is depicted, not the style or color.
+      temperature: 0.3
+      max-tokens: 80
+
+  - command: train
+    args:
+      input: ./dataset/prepared
+      output: ./lora/cyanotype_flux4b.safetensors
+      model: black-forest-labs/FLUX.2-klein-base-4B
+      steps: 500
+      lr: 1e-4
+      lora-rank: 16
+      timestep-type: sigmoid
+      caption-dropout: 0.05
+      lr-scheduler: cosine
+      lr-warmup-steps: 50
+      validation-split: 0.1
+      seed: 42
+
+  - command: train
+    args:
+      input: ./dataset/prepared
+      output: ./lora/cyanotype_qwen.safetensors
+      model: Qwen/Qwen-Image-Edit-2511
+      steps: 300
+      lr: 5e-5
+      lora-rank: 16
+      timestep-type: sigmoid
+      caption-dropout: 0.05
+      lr-scheduler: cosine
+      lr-warmup-steps: 30
+      validation-split: 0.1
+      seed: 42
+```
+
+```bash
+datasety workflow -f cyanotype-lora.yaml --dry-run
+datasety workflow -f cyanotype-lora.yaml
+
+# Apply trained LoRA — FLUX img2img
+datasety synthetic --input-image photo.jpg --output-image out.png \
+    --model black-forest-labs/FLUX.2-klein-base-4B \
+    --lora ./lora/cyanotype_flux4b.safetensors:0.9 \
+    --prompt "cyanotype, botanical specimen, Prussian blue and white" \
+    --steps 20 --cfg-scale 3.5 --strength 0.75
+
+# Apply trained LoRA — Qwen photo-to-cyanotype
+datasety synthetic --input-image photo.jpg --output-image out.png \
+    --model Qwen/Qwen-Image-Edit-2511 \
+    --lora ./lora/cyanotype_qwen.safetensors:0.8 \
+    --prompt "cyanotype, convert to cyanotype print style, Prussian blue and white" \
+    --steps 40 --true-cfg-scale 4.0
+```
+
 ### Train a LoRA from a Character Dataset
 
 Prepare a character dataset using `character` (LLM-generated prompts + FLUX.2), then train a LoRA adapter on the result.

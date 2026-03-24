@@ -32,14 +32,62 @@ def _pil_to_data_url(image):
     return f"data:image/png;base64,{b64}"
 
 
+def _model_output_modalities(model: str) -> list:
+    """Return the correct output modalities list for a given model.
+
+    OpenRouter docs:
+    - Models that output both text and images (Gemini): ["image", "text"]
+    - Models that only output images (Flux, Sourceful, etc.): ["image"]
+    """
+    name = model.lower()
+    if "gemini" in name or "google/" in name:
+        return ["image", "text"]
+    return ["image"]
+
+
+def _dims_to_aspect_ratio(width: int, height: int) -> str:
+    """Convert pixel dimensions to the nearest OpenRouter aspect-ratio string.
+
+    Supported: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
+    """
+    candidates = {
+        "1:1": (1, 1),
+        "2:3": (2, 3),
+        "3:2": (3, 2),
+        "3:4": (3, 4),
+        "4:3": (4, 3),
+        "4:5": (4, 5),
+        "5:4": (5, 4),
+        "9:16": (9, 16),
+        "16:9": (16, 9),
+        "21:9": (21, 9),
+    }
+    target = width / height
+    best = min(candidates.items(), key=lambda kv: abs(kv[1][0] / kv[1][1] - target))
+    return best[0]
+
+
 def _generate_image_via_api(
-    prompt, api_key, base_url, model, input_image=None, seed=None, width=None, height=None
+    prompt,
+    api_key,
+    base_url,
+    model,
+    input_image=None,
+    seed=None,
+    width=None,
+    height=None,
+    aspect_ratio=None,
+    image_size=None,
 ):
     """Generate an image via OpenAI-compatible API (OpenRouter, etc).
 
     For text-to-image: just prompt.
     For image-to-image: prompt + input_image (PIL Image).
-    width/height: optional output dimensions (passed to API if supported).
+
+    aspect_ratio: OpenRouter aspect-ratio string e.g. "16:9" (overrides width/height).
+    image_size: OpenRouter size string e.g. "1K", "2K", "4K".
+    width/height: pixel dimensions — converted to nearest aspect_ratio if no
+                  explicit aspect_ratio given.
     Returns PIL Image.
     """
     import urllib.request
@@ -60,19 +108,31 @@ def _generate_image_via_api(
         )
     content.append({"type": "text", "text": prompt})
 
+    # Determine modalities based on model
+    modalities = _model_output_modalities(model)
+
     payload = {
         "model": model,
-        "modalities": ["image"],
+        "modalities": modalities,
         "messages": [
             {"role": "user", "content": content},
         ],
     }
+
     if seed is not None:
         payload["seed"] = seed
-    if width is not None:
-        payload["width"] = width
-    if height is not None:
-        payload["height"] = height
+
+    # Build image_config: aspect_ratio + optional image_size
+    image_config = {}
+    ar = aspect_ratio
+    if ar is None and width and height:
+        ar = _dims_to_aspect_ratio(width, height)
+    if ar:
+        image_config["aspect_ratio"] = ar
+    if image_size:
+        image_config["image_size"] = image_size
+    if image_config:
+        payload["image_config"] = image_config
 
     req = urllib.request.Request(
         url,
@@ -95,8 +155,19 @@ def _generate_image_via_api(
             b64_data = img_url.split(",", 1)[-1]
             return Image.open(io.BytesIO(base64.b64decode(b64_data)))
 
-    # Fallback: extract base64 data URL from markdown in content
-    text_content = msg.get("content", "")
+    # Fallback: extract base64 data URL from markdown in content field
+    text_content = msg.get("content", "") or ""
+    if isinstance(text_content, list):
+        # content may be a list of blocks
+        for block in text_content:
+            if isinstance(block, dict):
+                inner = block.get("image_url", {}).get("url", "")
+                if inner.startswith("data:image"):
+                    b64_data = inner.split(",", 1)[-1]
+                    return Image.open(io.BytesIO(base64.b64decode(b64_data)))
+        text_content = " ".join(
+            b.get("text", "") for b in text_content if isinstance(b, dict)
+        )
     m = re.search(r"data:image/[^;]+;base64,([A-Za-z0-9+/=]+)", text_content)
     if m:
         return Image.open(io.BytesIO(base64.b64decode(m.group(1))))
@@ -241,13 +312,61 @@ class _HFModelBackend:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-        output = self._pipeline(
-            messages,
-            max_new_tokens=2048,
-            temperature=0.9,
-            do_sample=True,
+        # Attempt to disable thinking mode for Qwen3/Qwen3.5 models.
+        # `tokenizer_kwargs` is passed to apply_chat_template; silently ignored
+        # for models whose tokenizer doesn't support `enable_thinking`.
+        try:
+            output = self._pipeline(
+                messages,
+                max_new_tokens=2048,
+                temperature=0.9,
+                do_sample=True,
+                tokenizer_kwargs={"enable_thinking": False},
+            )
+        except (TypeError, ValueError):
+            output = self._pipeline(
+                messages,
+                max_new_tokens=2048,
+                temperature=0.9,
+                do_sample=True,
+            )
+        text = output[0]["generated_text"][-1]["content"]
+        # Strip any remaining Qwen3/Qwen3.5-style thinking blocks (<think>…</think>)
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        # Filter out meta-commentary lines (reasoning exposed as plain text by thinking models)
+        _reasoning_prefixes = (
+            "wait,", "let me", "let's", "i will", "i'll", "i need",
+            "actually,", "looking", "final check", "ok,", "okay,",
+            "now,", "so,", "note:", "note that", "important:", "step ",
+            "thinking", "reasoning", "analysis", "conclusion",
+            "let me check", "i should", "here are", "here is",
+            "the prompts", "these prompts", "revised", "draft",
+            "constraint", "output one", "nothing else",
+            "character:", "format:", "variation:", "style:", "task:",
+            "instruction:", "prompt:", "goal:", "requirement:",
+            "idea ", "option ", "version ", "example ",
         )
-        return output[0]["generated_text"][-1]["content"]
+        filtered_lines = []
+        seen = set()
+        for line in text.splitlines():
+            # Strip leading bullet chars (*、•、-) and whitespace
+            stripped = re.sub(r"^[\s\*\-•]+", "", line).strip()
+            # Strip leading "N: " or "N. " or "N) " numbering prefix from bullet prompts
+            stripped = re.sub(r"^\d+[.:)]\s*", "", stripped).strip()
+            low = stripped.lower()
+            if not stripped:
+                continue
+            # Skip lines that start with reasoning words
+            if any(low.startswith(p) for p in _reasoning_prefixes):
+                continue
+            # Skip very short lines (likely meta-text, not prompts)
+            if len(stripped) < 30:
+                continue
+            # Deduplicate
+            if stripped not in seen:
+                seen.add(stripped)
+                filtered_lines.append(stripped)
+        return "\n".join(filtered_lines) if filtered_lines else text
 
 
 def _create_llm_backend(args):
