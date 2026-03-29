@@ -8,20 +8,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from datasety.common import get_image_files
-
-
-def _image_phash(img, hash_size=8):
-    """Compute a simple perceptual hash (average hash) for duplicate detection."""
-    img = img.convert("L").resize((hash_size, hash_size), Image.LANCZOS)
-    pixels = list(img.getdata())
-    avg = sum(pixels) / len(pixels)
-    return "".join("1" if p > avg else "0" for p in pixels)
-
-
-def _hamming_distance(h1, h2):
-    """Count differing bits between two hash strings."""
-    return sum(a != b for a, b in zip(h1, h2))
+from datasety.common import get_image_files, hamming_distance, image_phash
 
 
 def cmd_inspect(args):
@@ -84,7 +71,7 @@ def cmd_inspect(args):
 
                 # Duplicate detection
                 if args.duplicates:
-                    phash = _image_phash(img)
+                    phash = image_phash(img)
                     hashes.setdefault(phash, []).append(str(img_path))
 
         except Exception as e:
@@ -183,7 +170,7 @@ def cmd_inspect(args):
                 h2, paths2 = hash_list[j]
                 if h2 in seen:
                     continue
-                if _hamming_distance(h1, h2) <= 4:
+                if hamming_distance(h1, h2) <= 4:
                     group.extend(paths2)
                     seen.add(h2)
             if len(group) > 1:

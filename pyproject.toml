@@ -93,8 +93,16 @@ character = [
     "accelerate",
     "safetensors",
 ]
+audio = [
+    "yt-dlp>=2026.3.17",
+    "demucs>=4.0.1",
+    "faster-whisper>=1.2.1",
+    "soundfile>=0.13.1",
+    "num2words>=0.5.14",
+    "nemo-text-processing>=1.1.0",
+]
 all = [
-    "datasety[caption,synthetic,mask,filter,degrade,character,train,workflow]",
+    "datasety[caption,synthetic,mask,filter,degrade,character,train,workflow,audio]",
 ]
 dev = [
     "pytest>=7.0.0",
@@ -127,6 +135,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/datasety/server.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

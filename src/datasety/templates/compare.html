@@ -1,0 +1,150 @@
+<!-- Compare page - side-by-side image comparison -->
+<style>
+.cmp-view{flex:1;display:flex;flex-direction:column;min-height:0}
+.cmp-picker{display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.pick-slot{flex:1;height:40px;border:1px dashed var(--border2);display:flex;
+  align-items:center;padding:0 12px;font-size:12px;color:var(--fg2);cursor:pointer}
+.pick-slot:hover{background:var(--bg3)}.pick-slot.filled{border-style:solid;color:var(--fg)}
+.pick-hint{font-size:12px;color:var(--fg2);margin-left:auto;white-space:nowrap}
+.cmp-area{flex:1;position:relative;overflow:hidden;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;min-height:0}
+.cmp-container{position:relative;max-width:100%;max-height:100%}
+.cmp-container img{display:block;max-width:100%;max-height:100%;object-fit:contain}
+.cmp-clip{position:absolute;top:0;left:0;width:50%;height:100%;overflow:hidden}
+.cmp-clip img{display:block;width:var(--fw);max-width:none;height:var(--fh)}
+.cmp-div{position:absolute;top:0;left:50%;width:2px;height:100%;
+  background:var(--fg);opacity:.7;pointer-events:none;transform:translateX(-1px)}
+.cmp-lbl{position:absolute;top:8px;font-size:11px;font-weight:700;
+  padding:3px 8px;background:rgba(0,0,0,.55);color:#fff;
+  pointer-events:none;letter-spacing:.04em;text-transform:uppercase}
+.cmp-lbl.l{left:8px}.cmp-lbl.r{right:8px}
+.cmp-hint{display:flex;align-items:center;justify-content:center;flex:1;color:var(--fg2)}
+</style>
+<div id="cmp-view" class="cmp-view" style="display:flex;flex:1">
+  <div class="cmp-picker">
+    <div class="pick-slot" id="pick-a" data-slot="a">A &#x2014; pick from gallery</div>
+    <span style="color:var(--fg2);font-size:12px;flex-shrink:0">vs</span>
+    <div class="pick-slot" id="pick-b" data-slot="b">B &#x2014; pick from gallery</div>
+    <button id="btn-swap">Swap</button>
+    <button id="btn-clr-cmp">Clear</button>
+    <span class="pick-hint">
+      <kbd>[</kbd> <kbd>]</kbd> slider &nbsp;
+      <kbd>Shift+&#x2190;&#x2192;</kbd> fine
+    </span>
+  </div>
+  <div class="cmp-area" id="cmp-area">
+    <div class="cmp-hint" id="cmp-hint">Select images from the Gallery to compare</div>
+    <div class="cmp-container hidden" id="cmp-con">
+      <img id="cmp-img-a" draggable="false">
+      <div class="cmp-clip" id="cmp-clip">
+        <img id="cmp-img-b" draggable="false">
+      </div>
+      <div class="cmp-div" id="cmp-div"></div>
+      <div class="cmp-lbl l" id="cmp-lbl-a">A</div>
+      <div class="cmp-lbl r" id="cmp-lbl-b">B</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const on=(el,ev,fn,opts)=>el.addEventListener(ev,fn,opts);
+
+// State
+let cmpA=null,cmpB=null;
+let sliderX=0.5;
+
+function updateCmp(){
+  const hint=$('cmp-hint'),con=$('cmp-con');
+  if(!cmpA||!cmpB){hint.classList.remove('hidden');con.classList.add('hidden');return}
+  hint.classList.add('hidden');con.classList.remove('hidden');
+  $('cmp-img-a').src='/api/image?path='+encodeURIComponent(cmpB.path);
+  $('cmp-img-b').src='/api/image?path='+encodeURIComponent(cmpA.path);
+  $('cmp-lbl-a').textContent=cmpB.name;
+  $('cmp-lbl-b').textContent=cmpA.name;
+  setSlider('cmp-clip','cmp-div',sliderX);
+}
+
+function setSlider(clipId,divId,x){
+  sliderX=Math.max(0,Math.min(1,x));
+  const clip=$(clipId),div=$(divId),con=$('cmp-con');
+  if(!con||con.classList.contains('hidden'))return;
+  const img=$('cmp-img-a');
+  const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  if(w&&h){
+    clip.style.setProperty('--fw',w+'px');
+    clip.style.setProperty('--fh',h+'px');
+  }
+  clip.style.width=(sliderX*100)+'%';
+  div.style.left=(sliderX*100)+'%';
+}
+
+// Pick slots
+function pickSlot(slot){
+  location.href='/gallery';
+}
+on($('pick-a'),'click',()=>pickSlot('a'));
+on($('pick-b'),'click',()=>pickSlot('b'));
+
+on($('btn-swap'),'click',()=>{
+  const tmp=cmpA;cmpA=cmpB;cmpB=tmp;
+  try{sessionStorage.setItem('ds_cmp_a',JSON.stringify(cmpA));
+      sessionStorage.setItem('ds_cmp_b',JSON.stringify(cmpB))}catch{}
+  updateCmp();
+});
+
+on($('btn-clr-cmp'),'click',()=>{
+  cmpA=cmpB=null;sliderX=0.5;
+  try{sessionStorage.removeItem('ds_cmp_a');sessionStorage.removeItem('ds_cmp_b')}catch{}
+  $('pick-a').textContent='A \u2014 pick from gallery';
+  $('pick-a').classList.remove('filled');
+  $('pick-b').textContent='B \u2014 pick from gallery';
+  $('pick-b').classList.remove('filled');
+  updateCmp();
+});
+
+// Load from sessionStorage
+async function loadCompare(){
+  await loadDatasetInfo();
+  try{
+    const a=sessionStorage.getItem('ds_cmp_a'),b=sessionStorage.getItem('ds_cmp_b');
+    if(a)cmpA=JSON.parse(a);if(b)cmpB=JSON.parse(b);
+  }catch{}
+  if(cmpA){$('pick-a').textContent=cmpA.name;$('pick-a').classList.add('filled')}
+  if(cmpB){$('pick-b').textContent=cmpB.name;$('pick-b').classList.add('filled')}
+  updateCmp();
+}
+
+// Drag slider
+const cmpArea=$('cmp-area');
+let isDragging=false;
+on(cmpArea,'mousedown',e=>{if(cmpA&&cmpB){isDragging=true;moveSlider(e)}});
+on(cmpArea,'touchstart',e=>{if(cmpA&&cmpB){isDragging=true;moveSlider(e.touches[0])}});
+on(document,'mousemove',e=>{if(isDragging)moveSlider(e)});
+on(document,'touchmove',e=>{if(isDragging)moveSlider(e.touches[0])});
+on(document,'mouseup',()=>isDragging=false);
+on(document,'touchend',()=>isDragging=false);
+
+function moveSlider(e){
+  const con=$('cmp-con');
+  if(!con||con.classList.contains('hidden'))return;
+  const rect=con.getBoundingClientRect();
+  sliderX=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+  setSlider('cmp-clip','cmp-div',sliderX);
+}
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;
+  if(e.key==='['){e.preventDefault();setSlider('cmp-clip','cmp-div',sliderX-.05)}
+  if(e.key===']'){e.preventDefault();setSlider('cmp-clip','cmp-div',sliderX+.05)}
+  if(e.key==='ArrowLeft'&&e.shiftKey){e.preventDefault();setSlider('cmp-clip','cmp-div',sliderX-.02)}
+  if(e.key==='ArrowRight'&&e.shiftKey){e.preventDefault();setSlider('cmp-clip','cmp-div',sliderX+.02)}
+});
+
+loadCompare();
+})();
+</script>

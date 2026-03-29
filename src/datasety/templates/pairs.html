@@ -1,0 +1,191 @@
+<!-- Pairs page - control/target image comparison -->
+<style>
+.pairs-view{flex:1;display:flex;flex-direction:column;min-height:0}
+.pairs-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;
+  background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.pairs-stem{font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pairs-ctr{font-size:12px;color:var(--fg2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pairs-body{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:1fr;flex:1;min-height:0}
+.pairs-cap{display:flex;flex-direction:column;background:var(--bg2);min-width:0;min-height:0}
+.pairs-cap.left{border-right:1px solid var(--border)}
+.pairs-cap.right{border-left:1px solid var(--border)}
+.pairs-cap-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--fg2);padding:6px 10px 4px;border-bottom:1px solid var(--border);flex-shrink:0}
+.pairs-cap textarea{flex:1;border:none;resize:none;padding:8px 10px;font-family:inherit;
+  font-size:12px;line-height:1.5;background:transparent;color:var(--fg);min-height:60px}
+.pairs-save{display:flex;align-items:center;gap:6px;padding:6px 10px;
+  border-top:1px solid var(--border);flex-shrink:0}
+.pairs-save-st{font-size:11px;color:var(--fg2);flex:1}
+.cmp-area{flex:1;position:relative;overflow:hidden;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;min-height:0}
+.cmp-container{position:relative;max-width:100%;max-height:100%}
+.cmp-container img{display:block;max-width:100%;max-height:100%;object-fit:contain}
+.cmp-clip{position:absolute;top:0;left:0;width:50%;height:100%;overflow:hidden}
+.cmp-clip img{display:block;width:var(--fw);max-width:none;height:var(--fh)}
+.cmp-div{position:absolute;top:0;left:50%;width:2px;height:100%;
+  background:var(--fg);opacity:.7;pointer-events:none;transform:translateX(-1px)}
+.cmp-lbl{position:absolute;top:8px;font-size:11px;font-weight:700;
+  padding:3px 8px;background:rgba(0,0,0,.55);color:#fff;
+  pointer-events:none;letter-spacing:.04em;text-transform:uppercase}
+.cmp-lbl.l{left:8px}.cmp-lbl.r{right:8px}
+.cmp-hint{display:flex;align-items:center;justify-content:center;flex:1;color:var(--fg2)}
+</style>
+<div id="pairs-view" class="pairs-view" style="display:flex;flex:1">
+  <div class="pairs-hdr">
+    <button id="btn-pair-prev">Prev</button>
+    <span class="pairs-ctr" id="pairs-ctr">0/0</span>
+    <button id="btn-pair-next">Next</button>
+    <span class="pairs-stem" id="pairs-stem"></span>
+    <button id="btn-pair-del" class="danger">Delete pair</button>
+  </div>
+  <div class="pairs-body" id="pairs-body">
+    <div class="pairs-cap left" id="pairs-cap-ctrl">
+      <div class="pairs-cap-lbl">Control</div>
+      <textarea id="pairs-cap-ctrl-txt" placeholder="No caption file"></textarea>
+      <div class="pairs-save">
+        <span class="pairs-save-st" id="pairs-save-st"></span>
+        <button id="btn-pairs-save">Save captions</button>
+      </div>
+    </div>
+    <div class="cmp-area" id="pairs-cmp-area">
+      <div class="cmp-hint" id="pairs-hint">Loading&#x2026;</div>
+      <div class="cmp-container hidden" id="pairs-con">
+        <img id="pairs-img-tgt" draggable="false">
+        <div class="cmp-clip" id="pairs-clip">
+          <img id="pairs-img-ctrl" draggable="false">
+        </div>
+        <div class="cmp-div" id="pairs-div"></div>
+        <div class="cmp-lbl l">Control</div>
+        <div class="cmp-lbl r">Target</div>
+      </div>
+    </div>
+    <div class="pairs-cap right" id="pairs-cap-tgt">
+      <div class="pairs-cap-lbl">Target</div>
+      <textarea id="pairs-cap-tgt-txt" placeholder="No caption file"></textarea>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const on=(el,ev,fn,opts)=>el.addEventListener(ev,fn,opts);
+
+// State
+let pairs=[];
+let pairIdx=0;
+let sliderX=0.5;
+
+async function loadPairs(){
+  await loadDatasetInfo();
+  try{pairs=await api('/api/pairs')}catch{pairs=[]}
+  $('pairs-ctr').textContent=`${pairs.length?pairIdx+1:0}/${pairs.length}`;
+  if(pairs.length)showPair(0);
+  else{$('pairs-hint').textContent='No pairs found'}
+}
+
+function showPair(idx){
+  if(idx<0||idx>=pairs.length)return;
+  pairIdx=idx;
+  const p=pairs[idx];
+  $('pairs-stem').textContent=p.stem;
+  $('pairs-ctr').textContent=`${pairIdx+1}/${pairs.length}`;
+  $('pairs-img-tgt').src='/api/image?path='+encodeURIComponent(p.target);
+  $('pairs-img-ctrl').src='/api/image?path='+encodeURIComponent(p.control);
+  $('pairs-img-tgt').onload=()=>setSlider('pairs-clip','pairs-div',0.5);
+  $('pairs-cap-ctrl-txt').value='';
+  $('pairs-cap-tgt-txt').value='';
+  $('pairs-save-st').textContent='';
+  // Load captions
+  Promise.all([
+    api('/api/caption?path='+encodeURIComponent(p.control_caption)),
+    api('/api/caption?path='+encodeURIComponent(p.target_caption))
+  ]).then(([c,t])=>{
+    $('pairs-cap-ctrl-txt').value=c.text||'';
+    $('pairs-cap-tgt-txt').value=t.text||'';
+  });
+  $('pairs-con').classList.remove('hidden');
+  $('pairs-hint').classList.add('hidden');
+}
+
+function setSlider(clipId,divId,x){
+  sliderX=Math.max(0,Math.min(1,x));
+  const clip=$(clipId),div=$(divId),con=$('pairs-con');
+  if(!con||con.classList.contains('hidden'))return;
+  const img=$('pairs-img-tgt');
+  const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  if(w&&h){
+    clip.style.setProperty('--fw',w+'px');
+    clip.style.setProperty('--fh',h+'px');
+  }
+  clip.style.width=(sliderX*100)+'%';
+  div.style.left=(sliderX*100)+'%';
+}
+
+on($('btn-pair-prev'),'click',()=>showPair(pairIdx-1));
+on($('btn-pair-next'),'click',()=>showPair(pairIdx+1));
+
+on($('btn-pairs-save'),'click',async()=>{
+  const p=pairs[pairIdx];
+  const ctrl=$('pairs-cap-ctrl-txt').value;
+  const tgt=$('pairs-cap-tgt-txt').value;
+  try{
+    await Promise.all([
+      api('/api/caption',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({path:p.control_caption,text:ctrl})}),
+      api('/api/caption',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({path:p.target_caption,text:tgt})})
+    ]);
+    $('pairs-save-st').textContent='Saved';
+    setTimeout(()=>$('pairs-save-st').textContent='',2000);
+  }catch(e){console.error(e)}
+});
+
+on($('btn-pair-del'),'click',async()=>{
+  if(!confirm('Delete this pair?'))return;
+  const p=pairs[pairIdx];
+  try{
+    await api('/api/pair/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({stem:p.stem})});
+    pairs.splice(pairIdx,1);
+    if(pairIdx>=pairs.length)pairIdx=Math.max(0,pairs.length-1);
+    $('pairs-ctr').textContent=`${pairs.length?pairIdx+1:0}/${pairs.length}`;
+    if(pairs.length)showPair(pairIdx);
+    else{$('pairs-con').classList.add('hidden');$('pairs-hint').textContent='No pairs';$('pairs-hint').classList.remove('hidden')}
+  }catch(e){console.error(e)}
+});
+
+// Drag slider
+const cmpArea=$('pairs-cmp-area');
+let isDragging=false;
+on(cmpArea,'mousedown',e=>{isDragging=true;moveSlider(e)});
+on(cmpArea,'touchstart',e=>{isDragging=true;moveSlider(e.touches[0])});
+on(document,'mousemove',e=>{if(isDragging)moveSlider(e)});
+on(document,'touchmove',e=>{if(isDragging)moveSlider(e.touches[0])});
+on(document,'mouseup',()=>isDragging=false);
+on(document,'touchend',()=>isDragging=false);
+
+function moveSlider(e){
+  const con=$('pairs-con');
+  if(!con||con.classList.contains('hidden'))return;
+  const rect=con.getBoundingClientRect();
+  sliderX=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+  setSlider('pairs-clip','pairs-div',sliderX);
+}
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();$('btn-pairs-save').click();return}
+  if(e.key==='ArrowLeft')showPair(pairIdx-1);
+  if(e.key==='ArrowRight')showPair(pairIdx+1);
+  if(e.key==='['){e.preventDefault();setSlider('pairs-clip','pairs-div',sliderX-.05)}
+  if(e.key===']'){e.preventDefault();setSlider('pairs-clip','pairs-div',sliderX+.05)}
+  if(e.key==='ArrowLeft'&&e.shiftKey){e.preventDefault();setSlider('pairs-clip','pairs-div',sliderX-.02)}
+  if(e.key==='ArrowRight'&&e.shiftKey){e.preventDefault();setSlider('pairs-clip','pairs-div',sliderX+.02)}
+});
+
+loadPairs();
+})();
+</script>

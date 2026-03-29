@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 datasety - resize, align, caption, shuffle, synthetic, mask, filter, degrade,
-character, sweep, workflow.
+character, sweep, workflow, inspect, server.
 
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
@@ -14,11 +14,24 @@ Usage:
     datasety degrade --input ./in --output ./out --type jpeg --intensity 0.5
     datasety character --reference face.jpg --output ./dataset --llm-ollama qwen3.5:4b
     datasety workflow --file datasety.yaml --dry-run
+    datasety inspect --input ./dataset --duplicates
+    datasety server --input ./dataset --port 8080
 """
 
 import argparse
 
-from datasety import align, caption, degrade, filter, inspect, mask, resize, shuffle, synthetic
+from datasety import (
+    align,
+    caption,
+    degrade,
+    filter,
+    inspect,
+    mask,
+    resize,
+    server,
+    shuffle,
+    synthetic,
+)
 
 # Conditionally import new commands
 try:
@@ -41,6 +54,11 @@ try:
 except ImportError:
     train = None
 
+try:
+    from datasety import audio
+except ImportError:
+    audio = None
+
 
 def build_parser():
     """Build and return the main argument parser with all subcommands."""
@@ -62,6 +80,7 @@ def build_parser():
     filter.register_parser(subparsers)
     inspect.register_parser(subparsers)
     degrade.register_parser(subparsers)
+    server.register_parser(subparsers)
 
     if character is not None:
         character.register_parser(subparsers)
@@ -74,6 +93,9 @@ def build_parser():
 
     if train is not None:
         train.register_parser(subparsers)
+
+    if audio is not None:
+        audio.register_parser(subparsers)
 
     return parser
 

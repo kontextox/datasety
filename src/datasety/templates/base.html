@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>{{ page_title }} - datasety</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root,[data-theme="light"]{
+  --bg:#f5f5f5;--bg2:#fff;--bg3:#e8e8e8;
+  --fg:#1a1a1a;--fg2:#666;--fg3:#aaa;
+  --border:#d0d0d0;--border2:#c0c0c0;
+  --sel:#1a5fb4;--sel-fg:#fff;
+  --danger:#a33;--danger-h:#c44;
+  --overlay:rgba(0,0,0,.45);--modal-bg:#fff;
+  --kbd-bg:#e8e8e8;--kbd-border:#ccc;
+  --thumb-bg:#e0e0e0;
+}
+[data-theme="dark"]{
+  --bg:#111;--bg2:#1a1a1a;--bg3:#252525;
+  --fg:#e0e0e0;--fg2:#888;--fg3:#444;
+  --border:#333;--border2:#3a3a3a;
+  --sel:#2a6abf;--sel-fg:#fff;
+  --danger:#a44;--danger-h:#c55;
+  --overlay:rgba(0,0,0,.65);--modal-bg:#1e1e1e;
+  --kbd-bg:#333;--kbd-border:#555;
+  --thumb-bg:#222;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-size:13px;background:var(--bg);color:var(--fg);display:flex;flex-direction:column}
+button{font-family:inherit;font-size:12px;font-weight:500;background:var(--bg3);
+  color:var(--fg);border:1px solid var(--border);padding:6px 12px;cursor:pointer;
+  border-radius:0;line-height:1;transition:background .1s}
+button:hover{background:var(--border)}button:active{opacity:.8}
+button:disabled{opacity:.35;cursor:default}button:disabled:hover{background:var(--bg3)}
+button.primary{background:var(--sel);color:var(--sel-fg);border-color:var(--sel)}
+button.primary:hover{opacity:.85;background:var(--sel)}
+button.danger{color:var(--danger)}
+button.danger:hover{background:var(--danger-h);color:#fff}
+button.icon{padding:6px 8px;font-size:15px;line-height:1}
+input,textarea,select{font-family:inherit;font-size:12px;background:var(--bg);
+  color:var(--fg);border:1px solid var(--border);outline:none;border-radius:0}
+input:focus,textarea:focus,select:focus{border-color:var(--fg2)}
+select{padding:5px 8px;cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;padding-right:24px}
+a{color:var(--fg);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Header */
+.hdr{display:flex;align-items:stretch;padding:0 12px;background:var(--bg2);
+  border-bottom:1px solid var(--border);flex-shrink:0;height:44px;gap:8px}
+.hdr-left{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.hdr-title{font-size:13px;font-weight:700;letter-spacing:.02em}
+.hdr-title a{color:inherit;text-decoration:none}
+.hdr-dir{font-size:11px;color:var(--fg2);max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.hdr-nav{display:flex;align-items:stretch;height:100%;margin:0 4px;gap:2px}
+.hdr-right{display:flex;align-items:center;gap:6px;margin-left:auto}
+.nav-link{display:flex;align-items:center;padding:0 14px;font-size:12px;font-weight:500;
+  letter-spacing:.02em;color:var(--fg2);border-bottom:2px solid transparent;transition:all .1s}
+.nav-link:hover{background:var(--bg3);text-decoration:none;color:var(--fg)}
+.nav-link.active{border-bottom-color:var(--fg);color:var(--fg)}
+
+/* Layout */
+.body{display:flex;flex:1;min-height:0;overflow:hidden}
+
+/* Sidebar */
+.sidebar{width:196px;flex-shrink:0;background:var(--bg2);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-inner{flex:1;overflow-y:auto}
+.sb-section{border-bottom:1px solid var(--border)}
+.sb-section:last-child{border-bottom:none}
+.sb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--fg2);padding:10px 12px 4px}
+.sb-item{display:flex;justify-content:space-between;align-items:center;
+  padding:4px 12px;font-size:12px;cursor:pointer;user-select:none}
+.sb-item:hover{background:var(--bg3)}
+.sb-item.active{background:var(--sel);color:var(--sel-fg)}
+.sb-item .ct{font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}
+.sb-item.active .ct{color:rgba(255,255,255,.65)}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:var(--overlay);
+  display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:var(--modal-bg);border:1px solid var(--border);
+  max-width:480px;width:100%;max-height:80vh;overflow-y:auto;display:flex;flex-direction:column}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border)}
+.modal-hdr h2{font-size:13px;font-weight:600}
+.modal-body{padding:16px}
+.modal-body table{width:100%;border-collapse:collapse;font-size:12px}
+.modal-body td{padding:5px 0;vertical-align:top}
+.modal-body td:first-child{white-space:nowrap;padding-right:14px;width:1%}
+kbd{display:inline-block;background:var(--kbd-bg);border:1px solid var(--kbd-border);
+  padding:1px 6px;font-family:inherit;font-size:11px;line-height:1.6;
+  min-width:22px;text-align:center}
+.hidden{display:none!important}
+.empty{display:flex;align-items:center;justify-content:center;
+  flex:1;color:var(--fg2);font-size:14px;padding:40px}
+</style>
+{{ extra_styles }}
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-left">
+    <button class="icon" id="btn-help" title="Help (?)">?</button>
+    <button class="icon" id="btn-theme" title="Toggle theme (T)">&#9790;</button>
+    <span class="hdr-title"><a href="/">datasety</a></span>
+    <span class="hdr-dir" id="hdr-dir"></span>
+  </div>
+  <nav class="hdr-nav">
+    <a href="/" class="nav-link{{ nav_active_index }}">Stats</a>
+    <a href="/gallery" class="nav-link{{ nav_active_gallery }}">Gallery</a>
+    <a href="/compare" class="nav-link{{ nav_active_compare }}">Compare</a>
+    <a href="/pairs" class="nav-link{{ nav_active_pairs }}" id="nav-pairs">Pairs</a>
+    <a href="/run" class="nav-link{{ nav_active_run }}">Run</a>
+  </nav>
+  <div class="hdr-right">
+    {{ header_extra }}
+  </div>
+</div>
+
+<div class="body">
+{{ content }}
+</div>
+
+<script>
+(function(){
+'use strict';
+
+const $=id=>document.getElementById(id);
+
+// Theme
+const THEMES=['dark','light'];
+const TICONS={dark:'\u263E',light:'\u2600'};
+let themeIdx=0;
+function applyTheme(){
+  const t=THEMES[themeIdx];
+  document.documentElement.setAttribute('data-theme',t);
+  $('btn-theme').textContent=TICONS[t];
+  try{localStorage.setItem('ds-theme',t)}catch{}
+}
+(function(){
+  try{const s=localStorage.getItem('ds-theme');if(s){const i=THEMES.indexOf(s);if(i>=0)themeIdx=i}}catch{}
+  applyTheme();
+})();
+$('btn-theme').addEventListener('click',()=>{themeIdx=(themeIdx+1)%THEMES.length;applyTheme()});
+
+// API helper
+window.api=async function(path,opts={}){const r=await fetch(path,opts);return r.json()};
+
+// Modal
+window.showModal=function(html){
+  if(document.querySelector('.overlay'))return;
+  const el=document.createElement('div');el.className='overlay';
+  el.innerHTML=html;
+  document.body.appendChild(el);
+  el.querySelector('.btn-close')?.addEventListener('click',closeModal);
+  el.addEventListener('click',ev=>{if(ev.target===el)closeModal()});
+};
+window.closeModal=function(){const o=document.querySelector('.overlay');if(o)o.remove()};
+$('btn-help')?.addEventListener('click',()=>{
+  if(document.querySelector('.overlay'))closeModal();
+  else showModal(`<div class="modal">
+    <div class="modal-hdr"><h2>Keyboard shortcuts</h2><button class="icon btn-close">&times;</button></div>
+    <div class="modal-body"><table>
+      <tr><td><kbd>t</kbd></td><td>Toggle dark / light theme</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Close modal</td></tr>
+    </table></div></div>`);
+});
+
+// Load dataset info
+window.loadDatasetInfo=async function(){
+  const [dr,mr]=await Promise.all([api('/api/dataset'),api('/api/mode')]);
+  $('hdr-dir').textContent=dr.input_dir||'';
+  const hasPairs=mr.has_pairs||false;
+  const pairsLink=$('nav-pairs');
+  if(pairsLink)pairsLink.style.display=hasPairs?'':'none';
+  return {hasPairs};
+};
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.querySelector('.overlay')){e.preventDefault();closeModal()}
+  if(e.key==='?'||e.key==='F1'){e.preventDefault();document.querySelector('.overlay')?closeModal():$('btn-help').click()}
+  if(e.key==='t'&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){
+    themeIdx=(themeIdx+1)%THEMES.length;applyTheme()
+  }
+});
+})();
+</script>
+{{ extra_scripts }}
+</body>
+</html>

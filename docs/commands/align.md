@@ -1,6 +1,6 @@
 # align
 
-Align control/target image pairs for training compatibility. Ensures matching dimensions, multiples of 32, and consistent formats. Includes a built-in web server for visual comparison.
+Align control/target image pairs for training compatibility. Ensures matching dimensions, multiples of 32, and consistent formats.
 
 ## Usage
 
@@ -18,8 +18,6 @@ datasety align --target ./target --control ./control --dry-run
 | `--output-format`   | Convert images to format: `jpg`, `png`, `webp` | (keep original) |
 | `--recursive`, `-R` | Search input directories recursively           | `false`         |
 | `--dry-run`         | Preview changes without modifying files        | `false`         |
-| `--server`          | Start web server for visual comparison         | `false`         |
-| `--port`            | Port for the comparison web server             | `8787`          |
 
 ## Examples
 
@@ -32,11 +30,9 @@ datasety align -t ./target -c ./control
 
 # Fix and convert to jpg
 datasety align -t ./target -c ./control --output-format jpg
-
-# Visual comparison web UI
-datasety align -t ./target -c ./control --server
-datasety align -t ./target -c ./control --server --port 9000
 ```
+
+> **Visual comparison:** use [`datasety server --control`](/commands/server) to browse and compare aligned pairs in the browser.
 
 ## How It Works
 
@@ -46,15 +42,3 @@ datasety align -t ./target -c ./control --server --port 9000
 4. Optionally converts all images to a single format
 5. Reports missing pairs, orphan controls, and dimension issues
 
-## Web Server
-
-<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/demo.gif" alt="The web server provides a compare slider to visually inspect control/target pairs">
-
-Use `--server` to start a local web UI for visually comparing aligned pairs.
-
-- **Compare slider** — drag to reveal control vs target side by side
-- **Caption editing** — view and edit `.txt` caption files for both sides; saving an empty caption deletes the file
-- **Delete pairs** — remove image pairs and associated caption files
-- **Keyboard shortcuts** — arrow keys to navigate, `[`/`]` to move the slider, `Ctrl+S` to save, `?` for help
-- **Responsive** — on wide screens, captions appear beside the image; on mobile, they stack below
-- **Light/dark theme** — toggle via the header button

@@ -4,6 +4,8 @@ import re
 import sys
 from pathlib import Path
 
+from PIL import Image
+
 
 def _resolve_io_mode(args):
     """Resolve directory mode vs single-image mode.
@@ -125,3 +127,24 @@ def get_save_kwargs(fmt: str) -> dict:
     if fmt == "png":
         return {"optimize": True}
     return {}
+
+
+def image_phash(img, hash_size: int = 8) -> str:
+    """Compute a perceptual hash (average hash) for duplicate detection.
+
+    Args:
+        img: PIL Image object
+        hash_size: Size of the hash grid (default 8x8)
+
+    Returns:
+        Binary string like '00110111...'
+    """
+    img = img.convert("L").resize((hash_size, hash_size), Image.LANCZOS)
+    pixels = list(img.getdata())
+    avg = sum(pixels) / len(pixels)
+    return "".join("1" if p > avg else "0" for p in pixels)
+
+
+def hamming_distance(h1: str, h2: str) -> int:
+    """Count differing bits between two hash strings."""
+    return sum(a != b for a, b in zip(h1, h2))

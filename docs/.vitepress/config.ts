@@ -3,7 +3,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "datasety",
   description:
-    "CLI tool for dataset preparation: resize, caption, align, shuffle, synthetic, mask, filter, degrade, character, sweep, workflow, train",
+    "CLI tool for dataset preparation: resize, caption, align, shuffle, synthetic, mask, filter, degrade, character, sweep, workflow, train, audio",
   base: "/datasety/",
   head: [
     ["meta", { name: "theme-color", content: "#5b7ee5" }],
@@ -40,6 +40,8 @@ export default defineConfig({
           { text: "sweep", link: "/commands/sweep" },
           { text: "workflow", link: "/commands/workflow" },
           { text: "train", link: "/commands/train" },
+          { text: "server", link: "/commands/server" },
+          { text: "audio", link: "/commands/audio" },
         ],
       },
       { text: "Workflows", link: "/workflows" },
@@ -89,6 +91,20 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: "train", link: "/commands/train" },
+          ],
+        },
+        {
+          text: "Dashboard",
+          collapsed: false,
+          items: [
+            { text: "server", link: "/commands/server" },
+          ],
+        },
+        {
+          text: "Audio",
+          collapsed: false,
+          items: [
+            { text: "audio", link: "/commands/audio" },
           ],
         },
       ],

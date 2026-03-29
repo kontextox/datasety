@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, LoRA training, and multi-step workflows.
+CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, LoRA training, audio TTS datasets, and multi-step workflows.
 
 [Full documentation →](https://kontextox.github.io/datasety/)
 
@@ -22,6 +22,7 @@ pip install datasety[character]      # + character dataset generation
 pip install datasety[workflow]       # + YAML workflow support
 pip install datasety[train]          # + LoRA training (FLUX, SDXL)
 pip install datasety[all]            # everything
+pip install datasety[audio]          # + TTS audio datasets (YouTube, VAD, Piper)
 ```
 
 ---
@@ -146,8 +147,6 @@ datasety align --target ./target --control ./control --dry-run
 | `--output-format`   | Convert all images: `jpg`, `png`, `webp` | keep original |
 | `--recursive`, `-R` | Search input directories recursively     | off           |
 | `--dry-run`         | Preview changes without modifying files  | off           |
-| `--server`          | Start web server for visual comparison   | off           |
-| `--port`            | Port for the comparison web server       | `8787`        |
 
 </details>
 
@@ -155,15 +154,9 @@ datasety align --target ./target --control ./control --dry-run
 # Preview, then apply
 datasety align -t ./target -c ./control --dry-run
 datasety align -t ./target -c ./control --output-format jpg
-
-# Visual comparison web UI
-datasety align -t ./target -c ./control --server
-datasety align -t ./target -c ./control --server --port 9000
 ```
 
-<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/demo.gif" alt="The web server provides a compare slider to visually inspect control/target pairs">
-
-The web server provides a compare slider to visually inspect control/target pairs, edit `.txt` caption files, and delete pairs — with keyboard navigation and mobile support.
+> **Visual comparison:** use `datasety server -i ./target --control ./control` to browse and compare aligned pairs in the browser.
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/align)
 
@@ -427,6 +420,51 @@ datasety inspect -i ./dataset --csv images.csv -R
 
 ---
 
+### `server` — Dataset Management Dashboard
+
+<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/demo.png" alt="Start a universal web server for managing your entire dataset from the browser.">
+
+Start a universal web server for managing your entire dataset from the browser. Browse images in a gallery, edit and create captions, delete or compare images, view statistics, upload new images, and detect duplicates — all in one interface.
+
+```bash
+datasety server --input ./dataset
+```
+
+<details>
+<summary>Options</summary>
+
+| Option              | Description                                           | Default  |
+| ------------------- | ----------------------------------------------------- | -------- |
+| `--input`, `-i`     | Dataset directory to manage                           | required |
+| `--control`, `-c`   | Control images directory (enables Pairs tab)          |          |
+| `--port`            | Port for the web server                               | `8080`   |
+| `--recursive`, `-R` | Search directories recursively for images             | off      |
+| `--duplicates`      | Pre-compute perceptual hashes for duplicate detection | off      |
+
+</details>
+
+```bash
+# Start the dashboard on the default port
+datasety server -i ./dataset
+
+# With duplicate detection pre-computed
+datasety server -i ./dataset --duplicates --port 9000
+
+# Pairs comparison (align workflow)
+datasety server -i ./target --control ./control
+```
+
+The dashboard provides:
+
+- **Gallery** — thumbnail grid with sorting and filtering; click any image for the detail panel (caption editor, file info, delete)
+- **Compare** — drag-slider side-by-side comparison for any two images
+- **Pairs** _(with `--control`)_ — compare control/target pairs with a drag slider; edit captions for both sides; delete pairs; arrow-key navigation
+- **Stats** — live dataset overview: image count, total size, caption coverage, format and orientation breakdown
+- **Upload** — drag images into the browser or use the Upload button to add images to the dataset
+- **Keyboard navigation** — arrow keys to move through gallery or pairs, `Ctrl+S` to save, `T` to toggle theme, `?` for help
+
+---
+
 ### `degrade` — Image Degradation
 
 Create degraded versions of images for upscale/enhance training. Pure Pillow, no extra dependencies.
@@ -648,6 +686,67 @@ datasety train \
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/train)
+
+---
+
+### `audio` — Build TTS Audio Datasets
+
+Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, and local files. Extracts audio, transcribes with faster-whisper, normalizes text, and outputs Piper/LJSpeech-compatible datasets.
+
+```bash
+datasety audio --input ./video.mp4 --output ./dataset
+datasety audio --input "https://www.youtube.com/watch?v=..." --output ./dataset --language uk
+```
+
+<details>
+<summary>Options</summary>
+
+| Option                | Description                                                    | Default     |
+| --------------------- | -------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input source: local file, YouTube URL, or direct media URL     | required    |
+| `--output`, `-o`      | Output directory for the dataset                               | required    |
+| `--sample-rate`       | Output audio sample rate in Hz                                 | `22050`     |
+| `--demucs`            | Enable Demucs vocal isolation                                  | `false`     |
+| `--demucs-model`      | Demucs model name                                              | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3      | `base`      |
+| `--language`          | Language code (e.g., en, es, fr, uk). Auto-detected if omitted | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                   | `auto`      |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech     | `false`     |
+| `--min-duration`      | Minimum segment duration in seconds                            | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                            | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                   | `0.0` (off) |
+| `--normalize-numbers` | Expand digits into words                                       | `false`     |
+| `--no-clean-text`     | Disable special character stripping                            | `false`     |
+| `--keep-temp`         | Keep temporary audio files at this path                        |             |
+| `--dry-run`           | Print pipeline steps without executing                         | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                               | `false`     |
+
+</details>
+
+```bash
+# YouTube video to TTS dataset (English)
+datasety audio --input "https://www.youtube.com/watch?v=..." --output ./tts_dataset
+
+# Ukrainian video — always specify language for accurate transcription
+datasety audio --input ./video.mp4 --output ./dataset --language uk
+
+# Enable VAD for noisy audio (merges speech into fewer, longer segments)
+datasety audio --input ./noisy_video.mp4 --output ./dataset --vad
+
+# Local video with vocal isolation and high-quality transcription
+datasety audio --input ./video.mp4 --output ./dataset --demucs --whisper-model large-v3
+
+# Resume a previous run (skip already-processed chunks)
+datasety audio --input ./video.mp4 --output ./dataset --resume
+
+# Overwrite existing output
+datasety audio --input ./video.mp4 --output ./dataset --overwrite
+
+# Preview pipeline without downloading
+datasety audio --input ./video.mp4 --output ./dataset --dry-run --verbose
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/audio)
 
 ---
 
