@@ -10,6 +10,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+import wave as _wave
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.resources import files
@@ -20,6 +21,7 @@ from PIL import Image
 from datasety.common import get_image_files, hamming_distance, image_phash
 
 IMAGE_FORMATS = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
+AUDIO_FORMATS = ["wav"]
 
 # Pattern to extract <script>…</script> block from page templates
 _SCRIPT_RE = re.compile(r"<script>(.*?)</script>", re.DOTALL)
@@ -50,6 +52,7 @@ def _render_page(page: str, has_pairs: bool = False) -> str:
         "compare": " active" if page == "compare" else "",
         "pairs": " active" if page == "pairs" else "",
         "run": " active" if page == "run" else "",
+        "audio": " active" if page == "audio" else "",
     }
 
     # Load page-specific content; extract any <script> block to inject via
@@ -75,6 +78,7 @@ def _render_page(page: str, has_pairs: bool = False) -> str:
     html = html.replace("{{ nav_active_compare }}", nav_active["compare"])
     html = html.replace("{{ nav_active_pairs }}", nav_active["pairs"])
     html = html.replace("{{ nav_active_run }}", nav_active["run"])
+    html = html.replace("{{ nav_active_audio }}", nav_active["audio"])
     html = html.replace("{{ header_extra }}", header_extra)
     html = html.replace("{{ content }}", page_content)
     html = html.replace("{{ extra_styles }}", "")
@@ -208,6 +212,99 @@ def _build_pairs(input_dir: Path, control_dir: Path, recursive: bool):
             "has_control_caption": cf.with_suffix(".txt").exists(),
         })
     return pairs
+
+
+def _scan_audio(input_dir: Path, recursive: bool):
+    """Scan dataset directory for audio files and build the in-memory audio list.
+
+    Supports LJSpeech format (input_dir/wavs/ + metadata.csv) and flat directories.
+    """
+    # Determine audio root: prefer input_dir/wavs/ for LJSpeech, else input_dir
+    wavs_dir = input_dir / "wavs"
+    audio_root = wavs_dir if wavs_dir.exists() else input_dir
+
+    audio_files: list[Path] = []
+    if recursive:
+        for fmt in AUDIO_FORMATS:
+            audio_files.extend(audio_root.rglob(f"*.{fmt}"))
+    else:
+        for fmt in AUDIO_FORMATS:
+            audio_files.extend(audio_root.glob(f"*.{fmt}"))
+
+    audio_files = sorted(audio_files)
+
+    # Load LJSpeech metadata.csv if present
+    metadata: dict[str, str] = {}
+    csv_path = input_dir / "metadata.csv"
+    if csv_path.exists():
+        for line in csv_path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # LJSpeech format: filename|text
+            if "|" in line:
+                parts = line.split("|", 1)
+                metadata[parts[0]] = parts[1]
+            else:
+                metadata[line] = ""
+
+    audio_list = []
+    total_bytes = 0
+    total_duration = 0.0
+    transcriptions_found = 0
+
+    for af in audio_files:
+        try:
+            size_bytes = af.stat().st_size
+            duration = 0.0
+            sample_rate = 22050
+            try:
+                with _wave.open(str(af), "rb") as wf:
+                    frames = wf.getnframes()
+                    rate = wf.getframerate()
+                    duration = frames / float(rate) if rate > 0 else 0.0
+                    sample_rate = rate
+            except Exception:
+                pass
+
+            txt_path = af.with_suffix(".txt")
+            has_txt = txt_path.exists()
+            txt_text = metadata.get(af.name, "")
+            if not txt_text and has_txt:
+                txt_text = txt_path.read_text(encoding="utf-8", errors="replace").strip()
+            if txt_text:
+                transcriptions_found += 1
+                has_txt = True
+
+            audio_list.append({
+                "path": str(af),
+                "name": af.name,
+                "stem": af.stem,
+                "duration": round(duration, 2),
+                "sample_rate": sample_rate,
+                "size_bytes": size_bytes,
+                "size_kb": round(size_bytes / 1024, 1),
+                "has_transcription": has_txt,
+                "transcription": txt_text,
+            })
+            total_bytes += size_bytes
+            total_duration += duration
+        except Exception as e:
+            audio_list.append({
+                "path": str(af),
+                "name": af.name,
+                "stem": af.stem,
+                "error": str(e),
+            })
+
+    audio_stats = {
+        "total": len(audio_list),
+        "total_size_mb": round(total_bytes / 1_048_576, 1) if total_bytes else 0,
+        "total_duration_s": round(total_duration, 1),
+        "transcriptions_found": transcriptions_found,
+        "transcriptions_missing": len(audio_list) - transcriptions_found,
+    }
+    return {"audio": audio_list, "stats": audio_stats}
 
 
 def _dup_groups(hashes: dict, threshold: int = 4):
@@ -443,10 +540,12 @@ def _make_handler(
         control_dir = control_dir.resolve()
     print("Scanning dataset…")
     dataset = _scan(input_dir, recursive, compute_hashes)
+    audio_data = _scan_audio(input_dir, recursive)
     pairs: list = _build_pairs(input_dir, control_dir, recursive) if control_dir else []
     thumb_cache: dict = {}
     print(f"Found {dataset['stats']['total']} images" +
-          (f", {len(pairs)} matched pairs." if control_dir else "."))
+          (f", {len(pairs)} matched pairs." if control_dir else ".") +
+          f", {audio_data['stats']['total']} audio files.")
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):
@@ -507,6 +606,8 @@ def _make_handler(
                 self._serve_page("pairs")
             elif path == "/run":
                 self._serve_page("run")
+            elif path == "/audio":
+                self._serve_page("audio")
             # API routes
             elif path == "/api/mode":
                 self._json({
@@ -541,6 +642,14 @@ def _make_handler(
                 self._get_job(params)
             elif path == "/api/jobs":
                 self._get_jobs()
+            elif path == "/api/audio":
+                self._audio_list(params)
+            elif path == "/api/audio/file":
+                self._audio_file(params)
+            elif path == "/api/audio/stats":
+                self._json(audio_data["stats"])
+            elif path == "/api/audio/transcription":
+                self._audio_transcription()
             else:
                 self._err(404, "Not found")
 
@@ -558,6 +667,10 @@ def _make_handler(
                 self._run_command()
             elif path == "/api/job/cancel":
                 self._cancel_job()
+            elif path == "/api/audio/transcription":
+                self._audio_transcription()
+            elif path == "/api/audio/delete":
+                self._audio_delete()
             else:
                 self._err(404, "Not found")
 
@@ -960,6 +1073,155 @@ def _make_handler(
                 j["ended_at"] = time.time()
             self._json({"ok": True})
 
+        def _audio_list(self, params):
+            """List audio files with optional filters."""
+            audio = list(audio_data["audio"])
+            if hc := params.get("has_transcription"):
+                audio = [a for a in audio if a.get("has_transcription") == (hc == "true")]
+            if q := params.get("search"):
+                ql = q.lower()
+                audio = [
+                    a for a in audio
+                    if ql in a.get("name", "").lower()
+                    or ql in a.get("transcription", "").lower()
+                ]
+            by = params.get("sort", "name")
+            rev = params.get("order", "asc") == "desc"
+            key_fns = {
+                "size": lambda a: a.get("size_bytes", 0),
+                "duration": lambda a: a.get("duration", 0),
+            }
+            audio = sorted(
+                audio,
+                key=key_fns.get(by, lambda a: a.get("name", "")),
+                reverse=rev,
+            )
+            self._json({"audio": audio, "total": len(audio)})
+
+        def _audio_file(self, params):
+            """Serve an audio file."""
+            fp = params.get("path")
+            if not fp:
+                self._err(400, "Missing path")
+                return
+            p = Path(fp)
+            if not p.exists():
+                self._err(404, "Not found")
+                return
+            if not self._in_allowed(p):
+                self._err(403, "Access denied")
+                return
+            data = p.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "max-age=3600")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def _audio_transcription(self):
+            """Read or save transcription for an audio file."""
+            if self.command == "GET":
+                parsed = urllib.parse.urlparse(self.path)
+                params = dict(urllib.parse.parse_qsl(parsed.query))
+                fp = params.get("path")
+                if not fp:
+                    self._err(400, "Missing path")
+                    return
+                # Look up cached audio entry to get transcription (from metadata.csv or .txt)
+                audio_p = Path(fp)
+                txt_p = audio_p.with_suffix(".txt")
+                cached = None
+                for au in audio_data["audio"]:
+                    if au.get("path") == str(audio_p):
+                        cached = au
+                        break
+                if cached:
+                    self._json({
+                        "text": cached.get("transcription", ""),
+                        "exists": cached.get("has_transcription", False),
+                    })
+                elif txt_p.exists():
+                    self._json({
+                        "text": txt_p.read_text(encoding="utf-8", errors="replace"),
+                        "exists": True,
+                    })
+                else:
+                    self._json({"text": "", "exists": False})
+                return
+
+            # POST — save transcription
+            try:
+                data = json.loads(self._body())
+            except json.JSONDecodeError:
+                self._err(400, "Invalid JSON")
+                return
+            fp = data.get("path", "")
+            text = data.get("text", "")
+            if not fp:
+                self._err(400, "Missing path")
+                return
+            audio_p = Path(fp)
+            txt_p = audio_p.with_suffix(".txt")
+            if not self._in_allowed(txt_p):
+                self._err(403, "Access denied")
+                return
+            if text.strip():
+                txt_p.write_text(text, encoding="utf-8")
+            elif txt_p.exists():
+                txt_p.unlink()
+            # Update cached audio entry
+            for au in audio_data["audio"]:
+                au_p = Path(au.get("path", ""))
+                if au_p.stem == txt_p.stem and au_p.parent == txt_p.parent:
+                    au["has_transcription"] = bool(text.strip())
+                    au["transcription"] = text.strip()
+                    break
+            audio_data["stats"] = {
+                "total": len(audio_data["audio"]),
+                "total_size_mb": audio_data["stats"].get("total_size_mb", 0),
+                "total_duration_s": audio_data["stats"].get("total_duration_s", 0),
+                "transcriptions_found": sum(1 for a in audio_data["audio"] if a.get("has_transcription")),
+                "transcriptions_missing": sum(1 for a in audio_data["audio"] if not a.get("has_transcription")),
+            }
+            self._json({"ok": True})
+
+        def _audio_delete(self):
+            """Delete audio files and their transcriptions."""
+            try:
+                data = json.loads(self._body())
+            except json.JSONDecodeError:
+                self._err(400, "Invalid JSON")
+                return
+            paths = data.get("paths", [])
+            if not paths:
+                self._err(400, "Missing paths")
+                return
+            deleted = []
+            for ps in paths:
+                p = Path(ps)
+                if not self._in_allowed(p):
+                    continue
+                if p.exists() and p.suffix.lower().lstrip(".") in AUDIO_FORMATS:
+                    p.unlink()
+                    deleted.append(str(p))
+                txt = p.with_suffix(".txt")
+                if txt.exists():
+                    txt.unlink()
+                    deleted.append(str(txt))
+            dead = set(deleted)
+            audio_data["audio"] = [
+                a for a in audio_data["audio"] if a.get("path") not in dead
+            ]
+            audio_data["stats"]["total"] = len(audio_data["audio"])
+            audio_data["stats"]["transcriptions_found"] = sum(
+                1 for a in audio_data["audio"] if a.get("has_transcription")
+            )
+            audio_data["stats"]["transcriptions_missing"] = (
+                audio_data["stats"]["total"] - audio_data["stats"]["transcriptions_found"]
+            )
+            self._json({"deleted": deleted, "count": len(deleted)})
+
     return Handler
 
 
@@ -984,11 +1246,23 @@ def cmd_server(args):
         print(f"Control:    {control_dir}")
     print(f"Recursive:  {args.recursive}")
     print(f"Duplicates: {args.duplicates}")
-    print(f"Server:     http://localhost:{args.port}")
-    print("Press Ctrl+C to stop.")
+    # Find an available port
+    port = args.port
+    max_port_attempts = 10
+    for attempt in range(max_port_attempts):
+        try:
+            handler = _make_handler(input_dir, control_dir, args.recursive, args.duplicates)
+            server = HTTPServer(("0.0.0.0", port), handler)
+            break
+        except OSError as e:
+            if attempt < max_port_attempts - 1 and e.errno == 48:  # Address in use
+                port += 1
+                print(f"Port {port - 1} in use, trying {port}...")
+                continue
+            raise
 
-    handler = _make_handler(input_dir, control_dir, args.recursive, args.duplicates)
-    server = HTTPServer(("0.0.0.0", args.port), handler)
+    print(f"Server:     http://localhost:{port}")
+    print("Press Ctrl+C to stop.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

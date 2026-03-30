@@ -3,6 +3,11 @@
 Extracts audio from video/URLs, isolates vocals, transcribes with VAD,
 normalizes text for TTS, and outputs Piper/LJSpeech-compatible datasets.
 
+Supports:
+  - Single file: --input ./video.mp4
+  - Directory of files: --input-dir ./clips/ (sorted by name: 1.mp3, 2.mp3, ...)
+  - YouTube/URL sources
+
 Requires: ffmpeg on PATH. Install with: pip install datasety[audio]
 """
 
@@ -13,6 +18,12 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+# Supported audio/video extensions
+AUDIO_EXTENSIONS = {
+    ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac",
+    ".opus", ".webm", ".mp4", ".mkv", ".avi", ".mov",
+}
 
 
 def _check_ffmpeg():
@@ -29,6 +40,23 @@ def _check_ffmpeg():
 def _is_youtube(source: str) -> bool:
     """Check if source is a YouTube URL."""
     return "youtube.com" in source or "youtu.be" in source
+
+
+def _get_media_files(input_dir: Path) -> list[Path]:
+    """Get all audio/video files from a directory, sorted by name (numeric-aware)."""
+    files = []
+    for p in input_dir.iterdir():
+        if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS:
+            files.append(p)
+    # Sort by name with numeric awareness: "2.mp3" comes before "10.mp3"
+    def _sort_key(p: Path) -> tuple[tuple[int | str, ...], str]:
+        parts = re.split(r"(\d+)", p.stem)
+        key = tuple(
+            int(part) if part.isdigit() else part.lower()
+            for part in parts
+        )
+        return (key, p.suffix.lower())
+    return sorted(files, key=_sort_key)
 
 
 def _download_media(source: str, temp_dir: Path, verbose: bool) -> Path:
@@ -100,13 +128,40 @@ def _isolate_vocals(
     verbose: bool = False,
 ) -> Path:
     """Lazy-load Demucs to isolate vocals. Returns path to isolated vocals stem."""
-    from demucs.api import Separator, save_audio
+    import julius
+    import soundfile as sf
+    import torch as th
+    from demucs.apply import apply_model
+    from demucs.audio import convert_audio, save_audio
+    from demucs.pretrained import get_model
 
-    separator = Separator(model=model, device=device)
-    origin, separated = separator.separate_audio_file(str(audio_path))
+    # Demucs 4.0: get_model returns a BagOfModels, apply_model handles separation
+    separator = get_model(model)
+    separator.eval()
 
-    # separated is a dict: {"vocals": tensor, "other": tensor, ...}
-    vocals_tensor = separated.get("vocals")
+    # Load audio using soundfile (handles mono correctly)
+    # then resample to 44100 and convert to stereo for Demucs
+    wav_np, sr = sf.read(str(audio_path))
+    wav_t = th.from_numpy(wav_np).float()
+    if wav_t.ndim == 1:
+        wav_t = wav_t.unsqueeze(0)  # [1, T] for mono
+
+    # Resample to 44100 and convert to stereo [2, T]
+    wav_t = julius.resample_frac(wav_t, sr, 44100)
+    wav_t = convert_audio(wav_t, 44100, 44100, 2)
+
+    with th.no_grad():
+        result = apply_model(separator, wav_t.unsqueeze(0), shifts=0, split=True, overlap=0.25)
+
+    # Determine vocals tensor: result is [batch, sources, channels, samples]
+    # For BagOfModels with htdemucs: sources = ['drums', 'bass', 'other', 'vocals']
+    vocals_tensor = None
+    if isinstance(result, th.Tensor) and result.ndim == 4:
+        vocals_idx = separator.sources.index("vocals")
+        if vocals_idx < result.shape[1]:
+            vocals_tensor = result[0, vocals_idx]  # [channels, samples]
+    elif isinstance(result, dict):
+        vocals_tensor = result.get("vocals")
     if vocals_tensor is None:
         print(
             "Warning: No vocals stem found by Demucs. Using original audio.",
@@ -115,7 +170,7 @@ def _isolate_vocals(
         return audio_path
 
     vocals_path = temp_dir / "vocals.wav"
-    save_audio(vocals_tensor, str(vocals_path), samplerate=separator.samplerate)
+    save_audio(vocals_tensor, str(vocals_path), samplerate=44100)
     return vocals_path
 
 
@@ -259,17 +314,17 @@ def _slice_audio(
     audio_path: Path,
     segments: list[dict],
     output_dir: Path,
+    start_idx: int,
     min_dur: float,
     max_dur: float,
     merge_gap: float,
     lang: str = "en",
     normalize_numbers: bool = False,
     clean_text: bool = True,
-    skip_existing: bool = False,
 ) -> list[dict]:
     """Merge adjacent segments closer than merge_gap. Slice audio using soundfile.
 
-    Yields chunks incrementally (files written one-by-one for real-time feedback).
+    Yields (idx, entry) tuples where idx is the global chunk index (starting from start_idx).
     """
     import soundfile as sf
 
@@ -285,18 +340,8 @@ def _slice_audio(
         else:
             merged.append(seg.copy())
 
-    # If skipping existing, load existing utt numbers
-    existing_nums: set[int] = set()
-    if skip_existing:
-        for f in output_dir.glob("utt_*.wav"):
-            try:
-                n = int(f.stem.split("_")[1])
-                existing_nums.add(n)
-            except (IndexError, ValueError):
-                pass
-
     metadata = []
-    idx = 0
+    idx = start_idx
     for seg in merged:
         duration = seg["end"] - seg["start"]
         if duration < min_dur or duration > max_dur:
@@ -305,12 +350,6 @@ def _slice_audio(
         idx += 1
         chunk_filename = f"utt_{idx:04d}.wav"
         chunk_path = output_dir / chunk_filename
-
-        # Skip if already exists (resume mode)
-        if chunk_filename in [f.name for f in output_dir.glob("utt_*.wav")]:
-            # Load text from existing CSV entry if available
-            metadata.append({"filename": chunk_filename, "text": ""})
-            continue
 
         start_sample = int(seg["start"] * samplerate)
         end_sample = int(seg["end"] * samplerate)
@@ -325,9 +364,79 @@ def _slice_audio(
             "filename": chunk_filename,
             "text": clean,
         })
-        yield metadata[-1]
+        yield (idx, metadata[-1])
 
     return metadata
+
+
+def _process_single_media(
+    media_path: Path,
+    wavs_dir: Path,
+    args,
+    temp_path: Path,
+    verbose: bool,
+    start_idx: int,
+) -> int:
+    """Process a single media file through the audio pipeline.
+
+    Yields (idx, entry) tuples for each chunk. Returns the final idx after processing.
+    """
+    # --- Step 2: Extract audio ---
+    working_audio = temp_path / f"working_{media_path.stem}.wav"
+    if verbose:
+        print(f"  Extracting audio from {media_path.name} ({args.sample_rate} Hz, mono)...")
+    _extract_audio(media_path, working_audio, args.sample_rate, verbose)
+
+    # --- Step 3: Vocal isolation ---
+    target_audio = working_audio
+    if args.demucs:
+        if verbose:
+            print(f"  Isolating vocals using Demucs ({args.demucs_model})...")
+        target_audio = _isolate_vocals(
+            working_audio, temp_path, args.demucs_model, args.device, verbose
+        )
+
+    # --- Step 4: Transcription ---
+    vad_str = " with VAD" if args.vad else ""
+    if verbose:
+        print(f"  Transcribing{vad_str}...")
+    segments = _transcribe(
+        target_audio,
+        args.whisper_model,
+        args.device,
+        args.language,
+        verbose,
+        vad=args.vad,
+    )
+    if verbose:
+        print(f"  Found {len(segments)} speech segments")
+
+    # --- Step 5: Slice audio (incremental, files written one-by-one) ---
+    if verbose:
+        print(
+            f"  Slicing audio (min={args.min_duration}s, max={args.max_duration}s)..."
+        )
+
+    for (idx, entry) in _slice_audio(
+        target_audio,
+        list(segments),
+        wavs_dir,
+        start_idx,
+        args.min_duration,
+        args.max_duration,
+        args.merge_gap,
+        lang=args.language or "en",
+        normalize_numbers=args.normalize_numbers,
+        clean_text=not args.no_clean_text,
+    ):
+        yield (idx, entry)
+
+    if args.keep_temp:
+        keep_path = Path(args.keep_temp)
+        keep_path.mkdir(parents=True, exist_ok=True)
+        shutil.copy(working_audio, keep_path / f"working_{media_path.stem}.wav")
+
+    return start_idx
 
 
 def cmd_audio(args):
@@ -339,10 +448,19 @@ def cmd_audio(args):
 
     verbose = args.verbose
     dry_run = args.dry_run
-    resume = args.resume
+
+    # --- Check for valid input ---
+    input_source = args.input
+    if not input_source:
+        print("Error: --input is required.", file=sys.stderr)
+        sys.exit(1)
+
+    input_path = Path(input_source)
+    is_dir = input_path.is_dir()
+    is_url = input_source.startswith(("http://", "https://", "ftp://"))
+    is_youtube = _is_youtube(input_source)
 
     if verbose:
-        print(f"Input:  {args.input}")
         print(f"Output: {args.output}")
         print(f"Sample rate: {args.sample_rate}")
 
@@ -350,7 +468,7 @@ def cmd_audio(args):
     existing_wavs = list(wavs_dir.glob("utt_*.wav")) if wavs_dir.exists() else []
     existing_count = len(existing_wavs)
 
-    if existing_count > 0 and not resume and not args.overwrite:
+    if existing_count > 0 and not args.resume and not args.overwrite:
         print(
             f"Error: Output already has {existing_count} audio chunks in {wavs_dir}/",
             file=sys.stderr,
@@ -372,9 +490,39 @@ def cmd_audio(args):
 
     wavs_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Step 1: Acquire media ---
+    # --- Determine media sources ---
+    media_files: list[Path] = []
+    # --- Determine media sources ---
+    media_files: list[Path] = []
+    if is_dir:
+        media_files = _get_media_files(input_path)
+        if not media_files:
+            print(
+                f"Error: No audio/video files found in {input_path}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if verbose:
+            print(f"Input dir: {input_path} ({len(media_files)} files)")
+    elif is_url:
+        media_files = [Path("__url__")]
+    elif is_youtube:
+        media_files = [Path("__youtube__")]
+    else:
+        if not input_path.exists():
+            print(f"Error: Input file not found: {input_path}", file=sys.stderr)
+            sys.exit(1)
+        media_files = [input_path]
+
+    if verbose:
+        for mf in media_files:
+            print(f"Input:  {mf}")
+
+    # --- Dry run ---
     if dry_run:
-        print("=== DRY RUN: would download / copy media ===")
+        print("=== DRY RUN: would process media ===")
+        for mf in media_files:
+            print(f"  - {mf}")
         print("=== DRY RUN: would extract audio ===")
         print("=== DRY RUN: would transcribe ===")
         print("=== DRY RUN: would slice and normalize ===")
@@ -383,97 +531,64 @@ def cmd_audio(args):
         print("\n(Run without --dry-run to process)")
         return
 
-    with TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
+    # --- Open CSV for appending (resume) or write (fresh) ---
+    metadata_csv = output_dir / "metadata.csv"
+    csv_mode = "a" if args.resume else "w"
+    csv_file = open(metadata_csv, csv_mode, encoding="utf-8", newline="")
+    writer = csv.writer(csv_file, delimiter="|")
 
-        # Determine if input is local or remote
-        input_str = args.input
-        if input_str.startswith(("http://", "https://", "ftp://")):
-            if _is_youtube(input_str):
-                print("Downloading from YouTube...")
-            else:
-                print("Downloading from URL...")
-            media_path = _download_media(input_str, temp_path, verbose)
-        else:
-            media_path = Path(input_str)
-            if not media_path.exists():
-                print(f"Error: Input file not found: {media_path}", file=sys.stderr)
-                sys.exit(1)
+    total_chunks = existing_count
+    try:
+        for idx, media_path in enumerate(media_files):
+            is_youtube = str(media_path) == "__youtube__"
+            is_url = str(media_path) == "__url__"
 
-        # --- Step 2: Extract audio ---
-        working_audio = temp_path / "working.wav"
-        print(f"Extracting audio ({args.sample_rate} Hz, mono)...")
-        _extract_audio(media_path, working_audio, args.sample_rate, verbose)
+            with TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
 
-        # --- Step 3: Vocal isolation ---
-        target_audio = working_audio
-        if args.demucs:
-            print(f"Isolating vocals using Demucs ({args.demucs_model})...")
-            target_audio = _isolate_vocals(
-                working_audio, temp_path, args.demucs_model, args.device, verbose
-            )
-
-        # --- Step 4: Transcription ---
-        vad_str = " with VAD" if args.vad else ""
-        print(f"Transcribing{vad_str}...")
-        segments = _transcribe(
-            target_audio,
-            args.whisper_model,
-            args.device,
-            args.language,
-            verbose,
-            vad=args.vad,
-        )
-        print(f"Found {len(segments)} speech segments")
-
-        # --- Step 5: Slice audio (incremental, files written one-by-one) ---
-        print(f"Slicing audio (min={args.min_duration}s, max={args.max_duration}s)...")
-
-        # Open CSV for appending (resume) or write (fresh)
-        metadata_csv = output_dir / "metadata.csv"
-        csv_mode = "a" if resume else "w"
-        csv_file = open(metadata_csv, csv_mode, encoding="utf-8", newline="")
-        writer = csv.writer(csv_file, delimiter="|")
-
-        chunk_count = existing_count
-        try:
-            for entry in _slice_audio(
-                target_audio,
-                list(segments),
-                wavs_dir,
-                args.min_duration,
-                args.max_duration,
-                args.merge_gap,
-                lang=args.language or "en",
-                normalize_numbers=args.normalize_numbers,
-                clean_text=not args.no_clean_text,
-                skip_existing=resume,
-            ):
-                writer.writerow([entry["filename"], entry["text"]])
-                chunk_count += 1
-                if verbose:
-                    print(f"  Created {entry['filename']} ({entry['text'][:50].strip()}...)")
+                # --- Acquire media ---
+                if is_youtube:
+                    print(f"[{idx + 1}/{len(media_files)}] Downloading from YouTube...")
+                    resolved = _download_media(input_source, temp_path, verbose)
+                elif is_url:
+                    print(f"[{idx + 1}/{len(media_files)}] Downloading from URL...")
+                    resolved = _download_media(input_source, temp_path, verbose)
                 else:
-                    # Brief non-verbose update every 50 chunks
-                    if chunk_count % 50 == 0:
-                        print(f"  ... {chunk_count} chunks written")
-        finally:
-            csv_file.close()
+                    print(
+                        f"[{idx + 1}/{len(media_files)}] Processing {media_path.name}..."
+                    )
+                    resolved = media_path
 
-        new_count = chunk_count - existing_count
-        print(f"Created {new_count} new audio chunks ({chunk_count} total)")
+                # Process the media file
+                for (idx, entry) in _process_single_media(
+                    resolved,
+                    wavs_dir,
+                    args,
+                    temp_path,
+                    verbose,
+                    total_chunks,
+                ):
+                    writer.writerow([entry["filename"], entry["text"]])
+                    total_chunks = idx
+                    if verbose:
+                        print(
+                            f"  Created {entry['filename']} "
+                            f"({entry['text'][:50].strip()}...)"
+                        )
+                    else:
+                        if total_chunks % 50 == 0:
+                            print(f"  ... {total_chunks} chunks written")
 
-        if args.keep_temp:
-            keep_path = Path(args.keep_temp)
-            keep_path.mkdir(parents=True, exist_ok=True)
-            shutil.copy(working_audio, keep_path / "working.wav")
-            print(f"Temporary files kept at: {keep_path}")
+    finally:
+        csv_file.close()
+
+    new_count = total_chunks - existing_count
+    print(f"Created {new_count} new audio chunks ({total_chunks} total)")
 
     print("=" * 50)
     print(f"Done! Dataset ready at: {output_dir}")
-    print(f"  - {wavs_dir}/  ({chunk_count} audio files)")
+    print(f"  - {wavs_dir}/  ({total_chunks} audio files)")
     print(f"  - {output_dir / 'metadata.csv'}")
-
 
 
 def register_parser(subparsers):
@@ -487,7 +602,7 @@ def register_parser(subparsers):
     # Input / Output
     audio_parser.add_argument(
         "--input", "-i", required=True,
-        help="Input source: local file path, YouTube URL, or direct media URL",
+        help="Input: local file, directory of audio/video files, YouTube URL, or direct media URL",
     )
     audio_parser.add_argument(
         "--output", "-o", required=True,

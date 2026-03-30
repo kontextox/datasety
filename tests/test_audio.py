@@ -2,13 +2,104 @@
 
 import csv
 import os
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+class TestGetMediaFiles:
+    """Test directory scanning for audio/video files."""
+
+    def test_finds_audio_extensions(self):
+        """Should find files with supported audio/video extensions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_dir = Path(tmpdir)
+            (audio_dir / "1.mp3").touch()
+            (audio_dir / "2.wav").touch()
+            (audio_dir / "3.flac").touch()
+            (audio_dir / "video.mp4").touch()
+            (audio_dir / "video.mkv").touch()
+
+            from datasety.audio import _get_media_files
+            files = _get_media_files(audio_dir)
+
+            names = [p.name for p in files]
+            assert "1.mp3" in names
+            assert "2.wav" in names
+            assert "3.flac" in names
+            assert "video.mp4" in names
+            assert "video.mkv" in names
+
+    def test_ignores_non_media_files(self):
+        """Should ignore non-media files like .txt, .py, etc."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_dir = Path(tmpdir)
+            (audio_dir / "1.mp3").touch()
+            (audio_dir / "readme.txt").touch()
+            (audio_dir / "script.py").touch()
+
+            from datasety.audio import _get_media_files
+            files = _get_media_files(audio_dir)
+
+            assert len(files) == 1
+            assert files[0].name == "1.mp3"
+
+    def test_sorts_numerically(self):
+        """Should sort by name with numeric awareness: 2 before 10."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_dir = Path(tmpdir)
+            (audio_dir / "10.mp3").touch()
+            (audio_dir / "2.mp3").touch()
+            (audio_dir / "1.mp3").touch()
+            (audio_dir / "3.mp3").touch()
+
+            from datasety.audio import _get_media_files
+            files = _get_media_files(audio_dir)
+
+            names = [p.name for p in files]
+            assert names == ["1.mp3", "2.mp3", "3.mp3", "10.mp3"]
+
+    def test_case_insensitive_sort(self):
+        """Should sort case-insensitively."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_dir = Path(tmpdir)
+            (audio_dir / "B.mp3").touch()
+            (audio_dir / "a.mp3").touch()
+
+            from datasety.audio import _get_media_files
+            files = _get_media_files(audio_dir)
+
+            names = [p.name for p in files]
+            # a before B in case-insensitive sort
+            assert names == ["a.mp3", "B.mp3"]
+
+    def test_empty_directory(self):
+        """Should return empty list when no media files found."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_dir = Path(tmpdir)
+            (audio_dir / "readme.txt").touch()
+
+            from datasety.audio import _get_media_files
+            files = _get_media_files(audio_dir)
+
+            assert files == []
+
+    def test_no_subdirectory_scan(self):
+        """Should not recurse into subdirectories."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_dir = Path(tmpdir)
+            sub_dir = audio_dir / "subdir"
+            sub_dir.mkdir()
+            (audio_dir / "1.mp3").touch()
+            (sub_dir / "2.mp3").touch()
+
+            from datasety.audio import _get_media_files
+            files = _get_media_files(audio_dir)
+
+            assert len(files) == 1
+            assert files[0].name == "1.mp3"
 
 
 class TestNormalizeText:
@@ -185,12 +276,89 @@ class TestIsolateVocals:
     """Test Demucs vocal isolation (requires demucs package)."""
 
     def test_demucs_called_with_correct_args(self):
-        """Demucs Separator should be initialized with correct model and device."""
-        pytest.skip("Demucs requires GPU to test meaningfully")
+        """Demucs should be called with correct model and apply_model args."""
+        import importlib.util
+
+        if importlib.util.find_spec("demucs") is None:
+            pytest.skip("demucs not installed")
+
+        import demucs.apply
+        import demucs.audio
+        import demucs.pretrained
+
+        from datasety.audio import _isolate_vocals
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            import numpy as np
+            import soundfile as sf
+
+            wav_path = Path(tmpdir) / "input.wav"
+            sf.write(wav_path, np.zeros(44100 * 2), 22050)
+
+            mock_separator = MagicMock()
+            mock_separator.sources = ["drums", "bass", "other", "vocals"]
+
+            with patch.object(demucs.pretrained, "get_model", return_value=mock_separator), \
+                 patch.object(demucs.apply, "apply_model") as mock_apply, \
+                 patch.object(demucs.audio, "save_audio"):
+
+                import torch as th
+                mock_apply.return_value = th.zeros(1, 4, 2, 44100)
+
+                result = _isolate_vocals(
+                    wav_path,
+                    Path(tmpdir),
+                    model="htdemucs",
+                    device="cpu",
+                    verbose=False,
+                )
+
+                demucs.pretrained.get_model.assert_called_once_with("htdemucs")
+                demucs.apply.apply_model.assert_called_once()
+                # save_audio should have been called with vocals.wav
+                assert "vocals.wav" in str(result)
 
     def test_no_vocals_stem_returns_original(self):
         """If Demucs finds no vocals, should return original audio path."""
-        pytest.skip("Demucs requires GPU to test meaningfully")
+        import importlib.util
+
+        if importlib.util.find_spec("demucs") is None:
+            pytest.skip("demucs not installed")
+
+        import demucs.apply
+        import demucs.audio
+        import demucs.pretrained
+
+        from datasety.audio import _isolate_vocals
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            import numpy as np
+            import soundfile as sf
+
+            wav_path = Path(tmpdir) / "input.wav"
+            sf.write(wav_path, np.zeros(44100 * 2), 22050)
+
+            mock_separator = MagicMock()
+            mock_separator.sources = ["drums", "bass", "other", "vocals"]
+
+            with patch.object(demucs.pretrained, "get_model", return_value=mock_separator), \
+                 patch.object(demucs.apply, "apply_model") as mock_apply, \
+                 patch.object(demucs.audio, "save_audio"):
+
+                import torch as th
+                # Return a tensor with 3 sources (no vocals) - index 3 would be out of bounds
+                mock_apply.return_value = th.zeros(1, 3, 2, 44100)
+
+                result = _isolate_vocals(
+                    wav_path,
+                    Path(tmpdir),
+                    model="htdemucs",
+                    device="cpu",
+                    verbose=False,
+                )
+
+                # Should return original path when vocals index is out of bounds
+                assert result == wav_path
 
 
 class TestTranscribe:
@@ -320,6 +488,7 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
+                    start_idx=0,
                     min_dur=1.0,
                     max_dur=10.0,
                     merge_gap=0.3,
@@ -327,9 +496,10 @@ class TestSliceAudio:
                 metadata = list(result)
 
                 assert len(metadata) == 2
-                assert metadata[0]["filename"] == "utt_0001.wav"
+                assert metadata[0][0] == 1  # idx
+                assert metadata[0][1]["filename"] == "utt_0001.wav"
                 # Text may be lowercased and ordinals expanded (First -> 1st)
-                assert "segment" in metadata[0]["text"].lower()
+                assert "segment" in metadata[0][1]["text"].lower()
                 assert (output_dir / "utt_0001.wav").exists()
                 assert (output_dir / "utt_0002.wav").exists()
         finally:
@@ -367,6 +537,7 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
+                    start_idx=0,
                     min_dur=1.5,
                     max_dur=10.0,
                     merge_gap=0.3,
@@ -375,7 +546,7 @@ class TestSliceAudio:
 
                 assert len(metadata) == 1
                 # Text may be lowercased by normalizer
-                assert "ok" in metadata[0]["text"].lower()
+                assert "ok" in metadata[0][1]["text"].lower()
         finally:
             os.unlink(temp_path)
 
@@ -411,6 +582,7 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
+                    start_idx=0,
                     min_dur=1.0,
                     max_dur=10.0,
                     merge_gap=0.5,
@@ -419,7 +591,7 @@ class TestSliceAudio:
 
                 assert len(metadata) == 1
                 # Text may be lowercased by normalizer
-                assert "hello" in metadata[0]["text"].lower()
+                assert "hello" in metadata[0][1]["text"].lower()
         finally:
             os.unlink(temp_path)
 
@@ -457,6 +629,7 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
+                    start_idx=0,
                     min_dur=1.0,
                     max_dur=10.0,
                     merge_gap=0.0,  # OFF - no merging

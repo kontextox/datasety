@@ -691,41 +691,47 @@ datasety train \
 
 ### `audio` — Build TTS Audio Datasets
 
-Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, and local files. Extracts audio, transcribes with faster-whisper, normalizes text, and outputs Piper/LJSpeech-compatible datasets.
+Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, local files, and directories of files (sorted by name). Extracts audio, transcribes with faster-whisper, normalizes text, and outputs Piper/LJSpeech-compatible datasets.
 
 ```bash
 datasety audio --input ./video.mp4 --output ./dataset
+datasety audio --input ./clips/ --output ./dataset
 datasety audio --input "https://www.youtube.com/watch?v=..." --output ./dataset --language uk
 ```
 
 <details>
 <summary>Options</summary>
 
-| Option                | Description                                                    | Default     |
-| --------------------- | -------------------------------------------------------------- | ----------- |
-| `--input`, `-i`       | Input source: local file, YouTube URL, or direct media URL     | required    |
-| `--output`, `-o`      | Output directory for the dataset                               | required    |
-| `--sample-rate`       | Output audio sample rate in Hz                                 | `22050`     |
-| `--demucs`            | Enable Demucs vocal isolation                                  | `false`     |
-| `--demucs-model`      | Demucs model name                                              | `htdemucs`  |
-| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3      | `base`      |
-| `--language`          | Language code (e.g., en, es, fr, uk). Auto-detected if omitted | (auto)      |
-| `--device`            | Device: auto, cpu, cuda, mps                                   | `auto`      |
-| `--vad`               | Enable voice activity detection (VAD) to filter non-speech     | `false`     |
-| `--min-duration`      | Minimum segment duration in seconds                            | `1.5`       |
-| `--max-duration`      | Maximum segment duration in seconds                            | `30.0`      |
-| `--merge-gap`         | Merge segments closer than this many seconds                   | `0.0` (off) |
-| `--normalize-numbers` | Expand digits into words                                       | `false`     |
-| `--no-clean-text`     | Disable special character stripping                            | `false`     |
-| `--keep-temp`         | Keep temporary audio files at this path                        |             |
-| `--dry-run`           | Print pipeline steps without executing                         | `false`     |
-| `--verbose`, `-V`     | Print detailed progress messages                               | `false`     |
+| Option                | Description                                                             | Default     |
+| --------------------- | ----------------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input: local file, directory of files, YouTube URL, or direct media URL | required    |
+| `--output`, `-o`      | Output directory for the dataset                                        | required    |
+| `--sample-rate`       | Output audio sample rate in Hz                                          | `22050`     |
+| `--demucs`            | Enable Demucs vocal isolation                                           | `false`     |
+| `--demucs-model`      | Demucs model name                                                       | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3               | `base`      |
+| `--language`          | Language code (e.g., en, es, fr, uk). Auto-detected if omitted          | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                            | `auto`      |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech              | `false`     |
+| `--min-duration`      | Minimum segment duration in seconds                                     | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                                     | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                            | `0.0` (off) |
+| `--normalize-numbers` | Expand digits into words                                                | `false`     |
+| `--no-clean-text`     | Disable special character stripping                                     | `false`     |
+| `--keep-temp`         | Keep temporary audio files at this path                                 |             |
+| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)             | `false`     |
+| `--overwrite`         | Overwrite existing output directory                                     | `false`     |
+| `--dry-run`           | Print pipeline steps without executing                                  | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                                        | `false`     |
 
 </details>
 
 ```bash
 # YouTube video to TTS dataset (English)
 datasety audio --input "https://www.youtube.com/watch?v=..." --output ./tts_dataset
+
+# Directory of audio files sorted by name (1.mp3, 2.mp3, ...)
+datasety audio --input ./recordings/ --output ./dataset
 
 # Ukrainian video — always specify language for accurate transcription
 datasety audio --input ./video.mp4 --output ./dataset --language uk
