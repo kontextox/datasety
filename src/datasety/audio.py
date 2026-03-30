@@ -177,22 +177,18 @@ def _isolate_vocals(
 def _build_segment_with_word_alignment(seg) -> dict:
     """Snap segment end to word boundary and trim text to whole words only.
 
-    Whisper's segment timestamps often split words mid-character. E.g. a word
-    starts at 3.1s and ends at 3.7s, but the segment ends at 3.5s — cutting the
-    word in half. The next segment's text then starts with the trailing
-    characters ("нькою...").
+    Whisper's segment timestamps sometimes contain trailing text fragments.
 
     This function:
       1. Snaps each segment's end to the last word's actual end inside it.
       2. Trims the segment's text to only include words fully contained in it.
-      3. Preserves the full word in the next segment (no duplication).
 
     Args:
         seg: a faster-whisper Segment object with `.start`, `.end`, `.text`,
              and `.words` (list of Word objects).
 
     Returns:
-        A dict with `start`, `end`, `text` (word-aligned and trimmed).
+        A dict with `start`, `end`, and `text` (word-aligned and trimmed).
     """
     if not seg.words:
         # No word-level data — fall back to raw segment
@@ -211,19 +207,10 @@ def _build_segment_with_word_alignment(seg) -> dict:
     snapped_end = word_list[-1][1]
 
     # Trim text to only words fully contained in this segment.
-    # Each word text comes from seg.text which contains them sequentially.
-    # We reconstruct by walking word_list and checking they appear in seg.text.
-    # Simpler approach: trim trailing words that would spill into the next seg.
     trimmed_text_parts = []
     for start_t, end_t, wtext in word_list:
-        # A word is fully inside this segment iff its end <= snapped_end
-        # (and it's not a trailing fragment that seg.text already truncated)
         if end_t <= snapped_end + 0.01:  # small tolerance
             trimmed_text_parts.append(wtext)
-        else:
-            # This word extends past snapped_end — it's a trailing fragment;
-            # skip it so it appears fully in the next segment.
-            pass
 
     # Join with spaces (consistent with how Whisper spaces words)
     trimmed = " ".join(trimmed_text_parts).strip()
@@ -451,10 +438,23 @@ def _slice_audio(
             else:
                 consecutive_loud = 0
 
-        # Also don't extend past the next segment's start
+        # --- BOUNDARY RESOLUTION FIX ---
+        # Instead of clamping the current segment's end backward (which splits the trailing
+        # phoneme in half and forces the orphaned audio into the next segment),
+        # we let the current segment finish the word, and push the NEXT segment's
+        # start forward so it doesn't pick up the trailing audio.
         if i + 1 < len(merged):
             next_start = int(merged[i + 1]["start"] * samplerate)
-            new_end_sample = min(new_end_sample, next_start)
+
+            # If our phoneme extension bled into the next segment's timeline
+            if new_end_sample > next_start:
+                next_end_sample = int(merged[i + 1]["end"] * samplerate)
+
+                # Ensure we don't push past the next segment's actual end
+                new_end_sample = min(new_end_sample, next_end_sample - 1)
+
+                # Push the next segment's start time forward to properly hand off the audio
+                merged[i + 1]["start"] = new_end_sample / samplerate
 
         end_sample = new_end_sample
         chunk_data = audio_data[start_sample:end_sample]
@@ -462,7 +462,7 @@ def _slice_audio(
         sf.write(str(chunk_path), chunk_data, samplerate)
 
         # Normalize text: clean special chars and optionally expand numbers
-        clean = _normalize_text(seg["text"], lang, normalize_numbers, clean_text)
+        clean = _normalize_text(merged[i]["text"], lang, normalize_numbers, clean_text)
 
         metadata.append({
             "filename": chunk_filename,
