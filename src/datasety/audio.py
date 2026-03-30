@@ -242,6 +242,7 @@ def _transcribe(
     language: str | None,
     verbose: bool = False,
     vad: bool = False,
+    show_progress: bool = True,
 ) -> list[dict]:
     """Lazy-load faster-whisper. Run transcription. Returns list of segment dicts."""
     from faster_whisper import WhisperModel
@@ -264,11 +265,14 @@ def _transcribe(
     segments, info = model.transcribe(str(audio_path), **kwargs)
 
     # Show progress bar during transcription (faster-whisper yields segments incrementally)
-    try:
-        from tqdm import tqdm
-        pbar = tqdm(desc="Transcribing", unit="s", total=int(info.duration))
-    except ImportError:
-        pbar = None
+    # Only show in the main thread — tqdm is not thread-safe in worker threads.
+    pbar = None
+    if show_progress:
+        try:
+            from tqdm import tqdm
+            pbar = tqdm(desc="Transcribing", unit="s", total=int(info.duration))
+        except ImportError:
+            pbar = None
 
     result = []
     last_end = 0.0
@@ -477,6 +481,7 @@ def _process_single_media(
     verbose: bool,
     start_idx: int,
     base_offset: int = 0,
+    show_progress: bool = True,
 ) -> int:
     """Process a single media file through the audio pipeline.
 
@@ -508,6 +513,7 @@ def _process_single_media(
         args.language,
         verbose,
         vad=args.vad,
+        show_progress=True,
     )
     if verbose:
         print(f"  Found {len(segments)} speech segments")
@@ -613,6 +619,7 @@ def _process_file_in_worker(
         verbose,
         start_idx,
         0,  # base_offset: worker uses local indices; main thread re-indexes
+        show_progress=True,  # workers show tqdm bars so user sees per-file progress
     ):
         entries.append((idx, entry))
     return (media_path.name, entries, temp_wavs_dir)
@@ -771,6 +778,7 @@ def cmd_audio(args):
                         temp_path,
                         verbose,
                         total_chunks,
+                        show_progress=verbose,
                     ):
                         writer.writerow([entry["filename"], entry["text"]])
                         total_chunks = idx

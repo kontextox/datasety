@@ -11,13 +11,13 @@ datasety server --input ./target --control ./control
 
 ## Options
 
-| Option              | Description                                              | Default    |
-| ------------------- | -------------------------------------------------------- | ---------- |
-| `--input`, `-i`     | Dataset directory to manage                              | (required) |
-| `--control`, `-c`   | Control images directory (enables Pairs mode)            |            |
-| `--port`            | Port for the web server                                  | `8080`     |
-| `--recursive`, `-R` | Search directories recursively for images                | `false`    |
-| `--duplicates`      | Pre-compute perceptual hashes for duplicate detection    | `false`    |
+| Option              | Description                                           | Default    |
+| ------------------- | ----------------------------------------------------- | ---------- |
+| `--input`, `-i`     | Dataset directory to manage                           | (required) |
+| `--control`, `-c`   | Control images directory (enables Pairs mode)         |            |
+| `--port`            | Port for the web server                               | `8080`     |
+| `--recursive`, `-R` | Search directories recursively for images             | `false`    |
+| `--duplicates`      | Pre-compute perceptual hashes for duplicate detection | `false`    |
 
 ## Dashboard Tabs
 
@@ -37,7 +37,7 @@ Side-by-side image comparison with a drag slider.
 - Drag the divider to reveal left/right images
 - Select any two images from the gallery to compare
 
-### Pairs *(visible when `--control` is set)*
+### Pairs _(visible when `--control` is set)_
 
 Visual comparison of control/target image pairs — the equivalent of the former `datasety align --server`.
 
@@ -75,10 +75,10 @@ datasety server -i ./dataset --port 9000 -R
 
 ## Keyboard Shortcuts
 
-| Key          | Action                              |
-| ------------ | ----------------------------------- |
-| `←` / `→`   | Previous / next image or pair       |
-| `Escape`     | Close modal / panel                 |
-| `Ctrl+S`     | Save caption                        |
-| `T`          | Toggle dark / light theme           |
-| `?`          | Show keyboard help                  |
+| Key       | Action                        |
+| --------- | ----------------------------- |
+| `←` / `→` | Previous / next image or pair |
+| `Escape`  | Close modal / panel           |
+| `Ctrl+S`  | Save caption                  |
+| `T`       | Toggle dark / light theme     |
+| `?`       | Show keyboard help            |

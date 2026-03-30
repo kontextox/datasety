@@ -4,7 +4,7 @@ layout: home
 hero:
   name: ~# datasety
   text: Dataset - it's easy!
-  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, filter, degrade, train LoRA adapters, and automate with workflows.
+  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, filter, degrade, train LoRA adapters, upload to HuggingFace, and automate with workflows.
   image:
     src: mascot.png
     alt: Full dataset pipeline
@@ -62,6 +62,11 @@ features:
     details: Define multi-step pipelines in YAML/JSON. Dry-run validates everything before execution.
     link: /commands/workflow
     linkText: Learn more
+  - icon: "&#x1F3A5;"
+    title: Audio Dataset
+    details: Build TTS datasets from video/audio/YouTube. Whisper transcription, word-boundary alignment, parallel workers.
+    link: /commands/audio
+    linkText: Learn more
   - icon: "&#x1F517;"
     title: Align Pairs
     details: Match control/target dimensions, enforce multiples of 32, unify formats for training pairs.
@@ -81,6 +86,11 @@ features:
     title: LoRA Fine-Tuning
     details: Train LoRA adapters for FLUX.2-klein and SDXL from image + caption datasets. Flow-matching and DDPM. Saves .safetensors.
     link: /commands/train
+    linkText: Learn more
+  - icon: "&#x1F4E4;"
+    title: Upload to Hub
+    details: Upload datasets and models to HuggingFace Hub. Auto-generates HF-compliant README cards with YAML frontmatter.
+    link: /commands/upload
     linkText: Learn more
 ---
 

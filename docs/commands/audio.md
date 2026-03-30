@@ -23,27 +23,28 @@ datasety audio --input ./video.mp4 --output ./dataset --whisper-model large-v3 -
 
 ## Options
 
-| Option                | Description                                                      | Default     |
-| --------------------- | ---------------------------------------------------------------- | ----------- |
-| `--input`, `-i`       | Input: local file, directory of audio/video files, YouTube URL, or direct media URL | (required) |
-| `--output`, `-o`      | Output directory for the dataset                                 | (required)  |
-| `--sample-rate`       | Output audio sample rate in Hz                                   | `22050`     |
-| `--demucs`            | Enable Demucs vocal isolation (removes background noise/music)    | `false`     |
-| `--demucs-model`      | Demucs model name                                                | `htdemucs`  |
-| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3       | `base`      |
-| `--language`          | Language code (e.g., en, es, fr). Auto-detected if omitted      | (auto)      |
-| `--device`            | Device: auto, cpu, cuda, mps                                    | `auto`      |
-| `--min-duration`      | Minimum segment duration in seconds                              | `1.5`       |
-| `--max-duration`      | Maximum segment duration in seconds                              | `30.0`      |
-| `--merge-gap`         | Merge segments closer than this many seconds                     | `0.0` (off) |
-| `--vad`               | Enable voice activity detection (VAD) to filter non-speech      | `false`     |
-| `--normalize-numbers` | Expand digits into words (e.g., 123 -> one hundred twenty-three) | `false`   |
-| `--no-clean-text`     | Disable special character stripping                             | `false`     |
-| `--keep-temp`         | Keep temporary audio files at this path                         |             |
-| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)      | `false`     |
-| `--overwrite`         | Overwrite existing output directory                             | `false`     |
-| `--dry-run`           | Print pipeline steps without executing                          | `false`     |
-| `--verbose`, `-V`     | Print detailed progress messages                                 | `false`     |
+| Option                | Description                                                                         | Default     |
+| --------------------- | ----------------------------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input: local file, directory of audio/video files, YouTube URL, or direct media URL | (required)  |
+| `--output`, `-o`      | Output directory for the dataset                                                    | (required)  |
+| `--sample-rate`       | Output audio sample rate in Hz                                                      | `22050`     |
+| `--demucs`            | Enable Demucs vocal isolation (removes background noise/music)                      | `false`     |
+| `--demucs-model`      | Demucs model name                                                                   | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                           | `base`      |
+| `--language`          | Language code (e.g., en, es, fr). Auto-detected if omitted                          | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                                        | `auto`      |
+| `--min-duration`      | Minimum segment duration in seconds                                                 | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                                                 | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                                        | `0.0` (off) |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                          | `false`     |
+| `--normalize-numbers` | Expand digits into words (e.g., 123 -> one hundred twenty-three)                    | `false`     |
+| `--no-clean-text`     | Disable special character stripping                                                 | `false`     |
+| `--workers`           | Number of parallel file workers (default: 1)                                        | `1`         |
+| `--keep-temp`         | Keep temporary audio files at this path                                             |             |
+| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                         | `false`     |
+| `--overwrite`         | Overwrite existing output directory                                                 | `false`     |
+| `--dry-run`           | Print pipeline steps without executing                                              | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                                                    | `false`     |
 
 ## Output
 
@@ -103,6 +104,19 @@ datasety audio \
 ```
 
 The files are sorted numerically so `2.mp3` comes before `10.mp3`. Supported formats include MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WEBM, MP4, MKV, AVI, and MOV.
+
+### Parallel Processing
+
+When processing many files, use `--workers` to parallelize transcription across multiple files simultaneously:
+
+```bash
+datasety audio \
+  --input ./videos/ \
+  --output ./dataset \
+  --workers 4
+```
+
+The transcription step is I/O-bound (waiting on model inference), so `ThreadPoolExecutor` achieves parallelism without loading multiple models into memory. Chunk indices are assigned globally after all files finish, so the `metadata.csv` is always in sorted order regardless of completion order.
 
 ### High-Quality Transcription
 

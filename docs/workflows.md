@@ -412,7 +412,7 @@ steps:
     args:
       output: ./dataset/raw
       num-images: 30
-      prompts-file: ./prompts.txt       # 30 curated cyanotype subject prompts
+      prompts-file: ./prompts.txt # 30 curated cyanotype subject prompts
       image-api: true
       model: black-forest-labs/flux.2-klein-4b
       api-aspect-ratio: "1:1"
@@ -557,4 +557,110 @@ steps:
         - "looking at the camera|facing forward|in a relaxed pose|smiling"
         - "natural lighting|soft studio light|bright daylight|warm indoor lighting"
       seed: 42
+```
+
+### TTS Audio Dataset from YouTube
+
+Build a TTS training dataset from a YouTube video or a directory of audio files. The `audio` command transcribes speech, slices audio at word boundaries, and outputs LJSpeech-compatible `wavs/` + `metadata.csv`.
+
+```yaml
+# tts-from-youtube.yaml
+# Input: YouTube URL or local directory
+# Output: ./tts_dataset/ with wavs/ and metadata.csv ready for Piper training
+steps:
+  - command: audio
+    args:
+      input: "https://www.youtube.com/watch?v=..."
+      output: ./tts_dataset
+      whisper-model: large-v3
+      language: en
+      normalize-numbers: true
+      workers: 4
+
+  - command: audio
+    args:
+      input: ./recordings/
+      output: ./tts_dataset
+      whisper-model: base
+      language: uk
+      normalize-numbers: true
+      workers: 4
+      resume: true
+```
+
+```bash
+datasety workflow -f tts-from-youtube.yaml --dry-run
+datasety workflow -f tts-from-youtube.yaml
+
+# Resume later (skips already-processed files)
+datasety workflow -f tts-from-youtube.yaml
+```
+
+> **Tip:** Use `--workers 4` (or more) to transcribe multiple files in parallel. Use `--normalize-numbers` to expand digits like `123` into words so the TTS model pronounces them correctly.
+
+### Upload TTS Dataset to HuggingFace
+
+After building a TTS dataset, upload it to HuggingFace Hub with auto-generated dataset card:
+
+```yaml
+# upload-tts.yaml
+steps:
+  - command: audio
+    args:
+      input: "https://www.youtube.com/watch?v=..."
+      output: ./tts_dataset
+      whisper-model: base
+      language: en
+      workers: 4
+
+  - command: upload
+    args:
+      path: ./tts_dataset
+      repo-id: your-username/my-voice-dataset
+      type: audio
+      private: true
+```
+
+```bash
+datasety workflow -f upload-tts.yaml --dry-run
+datasety workflow -f upload-tts.yaml
+```
+
+### Prepare and Upload LoRA Training Dataset
+
+Resize, caption, and train a LoRA, then upload the adapter:
+
+```yaml
+# train-and-upload.yaml
+steps:
+  - command: resize
+    args:
+      input: ./raw
+      output: ./dataset
+      resolution: 1024x1024
+
+  - command: caption
+    args:
+      input: ./dataset
+      output: ./dataset
+      trigger-word: "ohwx person,"
+
+  - command: train
+    args:
+      input: ./dataset
+      output: ./lora/portrait_lora.safetensors
+      model: black-forest-labs/FLUX.2-klein-base-4B
+      steps: 500
+      lora-rank: 16
+
+  - command: upload
+    args:
+      path: ./lora/portrait_lora.safetensors
+      repo-id: your-username/portrait-lora
+      type: model
+```
+
+```bash
+datasety workflow -f train-and-upload.yaml --dry-run
+datasety workflow -f train-and-upload.yaml
 ```

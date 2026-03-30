@@ -41,4 +41,3 @@ datasety align -t ./target -c ./control --output-format jpg
 3. Resizes control images to match target dimensions (LANCZOS)
 4. Optionally converts all images to a single format
 5. Reports missing pairs, orphan controls, and dimension issues
-

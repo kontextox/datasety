@@ -16,7 +16,9 @@ pip install datasety[synthetic]      # Image editing (FLUX, Qwen, SDXL, etc.)
 pip install datasety[mask]           # Mask generation (SAM 3, SAM 2, CLIPSeg)
 pip install datasety[filter]         # Content filtering (CLIP, NudeNet)
 pip install datasety[character]      # Character dataset generation
+pip install datasety[audio]          # TTS audio datasets (Whisper transcription)
 pip install datasety[train]          # LoRA training (FLUX, SDXL)
+pip install datasety[upload]         # Upload to HuggingFace Hub
 pip install datasety[workflow]       # YAML/JSON workflow support
 pip install datasety[all]            # Everything
 ```
@@ -47,6 +49,20 @@ export OPENAI_API_KEY=your-key
 
 datasety caption -i ./dataset -o ./dataset --llm-api --model gpt-5-nano
 ```
+
+### Build a TTS Audio Dataset
+
+```bash
+# From a YouTube video
+datasety audio --input "https://www.youtube.com/watch?v=..." \
+    --output ./tts_dataset --language en --workers 4
+
+# From a directory of audio files
+datasety audio --input ./recordings/ --output ./dataset \
+    --normalize-numbers --workers 4
+```
+
+Supports local video/audio files, YouTube URLs, and directories. See the [`audio`](/commands/audio) docs for full options.
 
 Supports custom providers via environment variables:
 
@@ -89,19 +105,38 @@ datasety workflow --dry-run    # validate all steps
 datasety workflow              # execute
 ```
 
+### Upload to HuggingFace
+
+Upload datasets or model adapters to HuggingFace Hub. The command auto-detects the type (audio, image, video, document, model, generic) and generates a HF-compliant README dataset card.
+
+```bash
+# Upload a TTS audio dataset
+datasety upload --path ./tts_dataset --repo-id user/my-voice --type audio
+
+# Upload a LoRA adapter
+datasety upload --path ./lora_output --repo-id user/sdxl-lora --type model
+
+# Dry-run first
+datasety upload --path ./dataset --repo-id user/my-dataset --dry-run
+```
+
+Requires `HF_TOKEN` env var or `--token` argument. See the [`upload`](/commands/upload) docs for full options.
+
 ## Commands Overview
 
 ### Image Processing
 
-| Command                        | Description                            | Extra Deps  |
-| ------------------------------ | -------------------------------------- | ----------- |
-| [`resize`](/commands/resize)   | Resize and crop to target resolution   | --          |
-| [`caption`](/commands/caption) | Generate captions (Florence-2 or API)  | `[caption]` |
-| [`align`](/commands/align)     | Align control/target image pairs       | --          |
-| [`mask`](/commands/mask)       | Text-prompted segmentation masks       | `[mask]`    |
-| [`filter`](/commands/filter)   | Filter by content (CLIP or NudeNet)    | `[filter]`  |
-| [`inspect`](/commands/inspect) | Dataset statistics and duplicate detection | --       |
-| [`degrade`](/commands/degrade) | Degraded versions for upscale training | --          |
+| Command                        | Description                                | Extra Deps  |
+| ------------------------------ | ------------------------------------------ | ----------- |
+| [`resize`](/commands/resize)   | Resize and crop to target resolution       | --          |
+| [`caption`](/commands/caption) | Generate captions (Florence-2 or API)      | `[caption]` |
+| [`audio`](/commands/audio)     | Build TTS audio datasets from video/audio  | `[audio]`   |
+| [`align`](/commands/align)     | Align control/target image pairs           | --          |
+| [`mask`](/commands/mask)       | Text-prompted segmentation masks           | `[mask]`    |
+| [`filter`](/commands/filter)   | Filter by content (CLIP or NudeNet)        | `[filter]`  |
+| [`inspect`](/commands/inspect) | Dataset statistics and duplicate detection | --          |
+| [`degrade`](/commands/degrade) | Degraded versions for upscale training     | --          |
+| [`upload`](/commands/upload)   | Upload datasets/models to HuggingFace Hub  | --          |
 
 ### Generation
 
@@ -120,9 +155,9 @@ datasety workflow              # execute
 
 ### Training
 
-| Command                    | Description                                | Extra Deps    |
-| -------------------------- | ------------------------------------------ | ------------- |
-| [`train`](/commands/train) | LoRA fine-tuning for FLUX.2-klein and SDXL | `[train]`     |
+| Command                    | Description                                | Extra Deps |
+| -------------------------- | ------------------------------------------ | ---------- |
+| [`train`](/commands/train) | LoRA fine-tuning for FLUX.2-klein and SDXL | `[train]`  |
 
 ## Common Patterns
 

@@ -59,6 +59,11 @@ try:
 except ImportError:
     audio = None
 
+try:
+    from datasety import upload
+except ImportError:
+    upload = None
+
 
 def build_parser():
     """Build and return the main argument parser with all subcommands."""
@@ -96,6 +101,9 @@ def build_parser():
 
     if audio is not None:
         audio.register_parser(subparsers)
+
+    if upload is not None:
+        upload.register_parser(subparsers)
 
     return parser
 

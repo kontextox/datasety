@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, LoRA training, audio TTS datasets, and multi-step workflows.
+CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, LoRA training, audio TTS datasets, upload to HuggingFace, and multi-step workflows.
 
 [Full documentation →](https://kontextox.github.io/datasety/)
 
@@ -21,8 +21,9 @@ pip install datasety[filter]         # + content filtering (CLIP, NudeNet)
 pip install datasety[character]      # + character dataset generation
 pip install datasety[workflow]       # + YAML workflow support
 pip install datasety[train]          # + LoRA training (FLUX, SDXL)
-pip install datasety[all]            # everything
 pip install datasety[audio]          # + TTS audio datasets (YouTube, VAD, Piper)
+pip install datasety[upload]         # + upload to HuggingFace Hub
+pip install datasety[all]            # everything
 ```
 
 ---
@@ -718,6 +719,7 @@ datasety audio --input "https://www.youtube.com/watch?v=..." --output ./dataset 
 | `--merge-gap`         | Merge segments closer than this many seconds                            | `0.0` (off) |
 | `--normalize-numbers` | Expand digits into words                                                | `false`     |
 | `--no-clean-text`     | Disable special character stripping                                     | `false`     |
+| `--workers`           | Number of parallel file workers (default: 1)                            | `1`         |
 | `--keep-temp`         | Keep temporary audio files at this path                                 |             |
 | `--resume`            | Resume a previous run (skip existing chunks, append to CSV)             | `false`     |
 | `--overwrite`         | Overwrite existing output directory                                     | `false`     |
@@ -748,11 +750,61 @@ datasety audio --input ./video.mp4 --output ./dataset --resume
 # Overwrite existing output
 datasety audio --input ./video.mp4 --output ./dataset --overwrite
 
+# Parallel processing of multiple files
+datasety audio --input ./videos/ --output ./dataset --workers 4
+
 # Preview pipeline without downloading
 datasety audio --input ./video.mp4 --output ./dataset --dry-run --verbose
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/audio)
+
+---
+
+### `upload` — Upload to HuggingFace Hub
+
+Upload datasets and model adapters to HuggingFace Hub. Auto-detects type (audio, image, video, document, model, generic) from directory structure and generates HF-compliant README dataset cards with YAML frontmatter.
+
+```bash
+datasety upload --path ./tts_dataset --repo-id user/my-voice --type audio
+datasety upload --path ./lora_output --repo-id user/klein-lora --type model
+datasety upload --path ./dataset --repo-id user/my-dataset --dry-run
+```
+
+<details>
+<summary>Options</summary>
+
+| Option            | Description                                                                        | Default    |
+| ----------------- | ---------------------------------------------------------------------------------- | ---------- |
+| `--path`, `-p`    | Path to the dataset or model directory to upload                                   | required   |
+| `--repo-id`, `-r` | HuggingFace repo ID (e.g. `username/my-dataset`). Derived from dir name if omitted | (derived)  |
+| `--type`, `-t`    | Dataset or model type                                                              | `auto`     |
+| `--private`       | Make the repository private                                                        | `false`    |
+| `--token`         | HuggingFace API token (or set `HF_TOKEN` env var)                                  | `HF_TOKEN` |
+| `--force`         | Force regenerate README.md if it already exists                                    | `false`    |
+| `--dry-run`       | Show what would be uploaded without uploading                                      | `false`    |
+| `--metadata`      | Extra YAML `key: value` pairs for dataset card frontmatter                         |            |
+| `--yes`, `-y`     | Skip all confirmation prompts                                                      | `false`    |
+| `--verbose`, `-V` | Print detailed progress messages                                                   | `false`    |
+
+</details>
+
+```bash
+# Upload a TTS dataset (auto-generates README with TTS task card)
+datasety upload --path ./tts_dataset --repo-id your-username/my-voice --private
+
+# Upload a LoRA adapter
+datasety upload --path ./lora.safetensors --repo-id your-username/klein-lora --type model
+
+# Dry-run to verify what will be uploaded
+datasety upload --path ./dataset --repo-id user/dataset --dry-run --verbose
+
+# With extra metadata
+datasety upload --path ./dataset --repo-id user/dataset \
+    --metadata 'license:cc-by-4.0 language: [en,fr]'
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/upload)
 
 ---
 
