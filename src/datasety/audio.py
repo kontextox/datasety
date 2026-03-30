@@ -363,7 +363,8 @@ def _slice_audio(
     audio_path: Path,
     segments: list[dict],
     output_dir: Path,
-    start_idx: int,
+    global_idx: int,
+    local_skip: int,
     min_dur: float,
     max_dur: float,
     merge_gap: float,
@@ -373,7 +374,8 @@ def _slice_audio(
 ) -> list[dict]:
     """Merge adjacent segments closer than merge_gap. Slice audio using soundfile.
 
-    Yields (idx, entry) tuples where idx is the global chunk index (starting from start_idx).
+    Yields (idx, seg_i, entry) tuples where idx is the global chunk index and
+    seg_i is the local segment index (for progress tracking).
     """
     import soundfile as sf
 
@@ -389,10 +391,6 @@ def _slice_audio(
         else:
             merged.append(seg.copy())
 
-    # Skip already-processed segments on resume (advances both audio slicing AND text)
-    if start_idx > 0:
-        merged = merged[start_idx:]
-
     # Silence threshold for trailing audio detection
     # Whisper sometimes marks a word as ending mid-phoneme due to a brief
     # silence gap, then the same word continues. We detect this by scanning
@@ -404,8 +402,10 @@ def _slice_audio(
     _MAX_LOOKAHEAD_S = 0.25  # max ms to look ahead
 
     metadata = []
-    idx = start_idx
+    idx = global_idx
     for i, seg in enumerate(merged):
+        if i < local_skip:
+            continue
         duration = seg["end"] - seg["start"]
         if duration < min_dur or duration > max_dur:
             continue
@@ -468,7 +468,7 @@ def _slice_audio(
             "filename": chunk_filename,
             "text": clean,
         })
-        yield (idx, metadata[-1])
+        yield (idx, i, metadata[-1])
 
     return metadata
 
@@ -479,13 +479,13 @@ def _process_single_media(
     args,
     temp_path: Path,
     verbose: bool,
-    start_idx: int,
-    base_offset: int = 0,
+    global_idx: int,
+    local_skip: int = 0,
     show_progress: bool = True,
 ) -> int:
     """Process a single media file through the audio pipeline.
 
-    Yields (idx, entry) tuples for each chunk. Returns the final idx after processing.
+    Yields (idx, seg_i, entry) tuples. Returns the final idx after processing.
     """
     # --- Step 2: Extract audio ---
     working_audio = temp_path / f"working_{media_path.stem}.wav"
@@ -524,11 +524,12 @@ def _process_single_media(
             f"  Slicing audio (min={args.min_duration}s, max={args.max_duration}s)..."
         )
 
-    for (idx, entry) in _slice_audio(
+    for (idx, seg_i, entry) in _slice_audio(
         target_audio,
         list(segments),
         wavs_dir,
-        start_idx,
+        global_idx,
+        local_skip,
         args.min_duration,
         args.max_duration,
         args.merge_gap,
@@ -536,14 +537,14 @@ def _process_single_media(
         normalize_numbers=args.normalize_numbers,
         clean_text=not args.no_clean_text,
     ):
-        yield (idx, entry)
+        yield (idx, seg_i, entry)
 
     if args.keep_temp:
         keep_path = Path(args.keep_temp)
         keep_path.mkdir(parents=True, exist_ok=True)
         shutil.copy(working_audio, keep_path / f"working_{media_path.stem}.wav")
 
-    return start_idx
+    return global_idx
 
 
 # ---------------------------------------------------------------------------
@@ -597,7 +598,7 @@ def _process_file_in_worker(
     media_path: Path,
     pipeline_kwargs: dict,
     temp_dir: Path,
-    start_idx: int,
+    local_skip: int,
 ) -> tuple[str, list, Path]:
     """Process one media file inside a worker thread.
 
@@ -611,14 +612,14 @@ def _process_file_in_worker(
     temp_wavs_dir.mkdir(parents=True, exist_ok=True)
 
     entries = []
-    for (idx, entry) in _process_single_media(
+    for (idx, seg_i, entry) in _process_single_media(
         media_path,
         temp_wavs_dir,  # private dir — no filename collisions across workers
         args,
         temp_dir,
         verbose,
-        start_idx,
-        0,  # base_offset: worker uses local indices; main thread re-indexes
+        global_idx=0,
+        local_skip=local_skip,
         show_progress=True,  # workers show tqdm bars so user sees per-file progress
     ):
         entries.append((idx, entry))
@@ -736,7 +737,7 @@ def cmd_audio(args):
     # --- Sequential mode (workers == 1) ---
     if workers == 1:
         try:
-            for idx, media_path in enumerate(media_files):
+            for file_idx, media_path in enumerate(media_files):
                 is_youtube = str(media_path) == "__youtube__"
                 is_url = str(media_path) == "__url__"
 
@@ -745,57 +746,62 @@ def cmd_audio(args):
 
                     # --- Acquire media ---
                     if is_youtube:
-                        print(f"[{idx + 1}/{len(media_files)}] Downloading from YouTube...")
+                        print(f"[{file_idx + 1}/{len(media_files)}] Downloading from YouTube...")
                         resolved = _download_media(input_source, temp_path, verbose)
                     elif is_url:
-                        print(f"[{idx + 1}/{len(media_files)}] Downloading from URL...")
+                        print(f"[{file_idx + 1}/{len(media_files)}] Downloading from URL...")
                         resolved = _download_media(input_source, temp_path, verbose)
                     else:
                         print(
-                            f"[{idx + 1}/{len(media_files)}] Processing {media_path.name}..."
+                            f"[{file_idx + 1}/{len(media_files)}] Processing {media_path.name}..."
                         )
                         resolved = media_path
 
                     # --- Check progress (skip complete, resume in_progress) ---
                     filename = media_path.name
-                    entry = progress.get(filename, {})
-                    status = entry.get("status", "pending")
+                    file_entry = progress.get(filename, {})
+                    status = file_entry.get("status", "pending")
                     if status == "complete":
                         print(f"  Skipping {media_path.name} (already complete)")
                         continue
 
                     start_idx = _get_start_idx(progress, filename)
                     if start_idx > 0:
-                        print(f"  Resuming {media_path.name} from chunk {start_idx}")
+                        print(f"  Resuming {media_path.name} from segment {start_idx}")
                         _mark_in_progress(progress, filename, start_idx)
                         _save_progress(output_dir, progress)
 
                     # Process the media file
-                    for (idx, entry) in _process_single_media(
+                    last_seg_i = start_idx - 1
+                    for (idx, seg_i, entry) in _process_single_media(
                         resolved,
                         wavs_dir,
                         args,
                         temp_path,
                         verbose,
-                        total_chunks,
+                        global_idx=total_chunks,
+                        local_skip=start_idx,
                         show_progress=verbose,
                     ):
                         writer.writerow([entry["filename"], entry["text"]])
+                        csv_file.flush()
+
                         total_chunks = idx
-                        # Update progress after each chunk
-                        _mark_in_progress(progress, media_path.name, idx)
+                        last_seg_i = seg_i
+
+                        # Update progress with the LOCAL segment index
+                        _mark_in_progress(progress, media_path.name, seg_i + 1)
                         _save_progress(output_dir, progress)
+
                         if verbose:
-                            print(
-                                f"  Created {entry['filename']} "
-                                f"({entry['text'][:50].strip()}...)"
-                            )
+                            text_preview = entry["text"][:50].strip()
+                            print(f"  Created {entry['filename']} ({text_preview}...)")
                         else:
                             if total_chunks % 50 == 0:
                                 print(f"  ... {total_chunks} chunks written")
                     else:
                         # File finished normally (for-else: no break)
-                        _mark_complete(progress, media_path.name, total_chunks)
+                        _mark_complete(progress, media_path.name, last_seg_i + 1)
                         _save_progress(output_dir, progress)
 
         finally:
@@ -913,6 +919,8 @@ def cmd_audio(args):
             for (_, entry) in all_entries:
                 writer.writerow([entry["filename"], entry["text"]])
                 total_chunks += 1
+
+            csv_file.flush()
 
             # Mark all as complete
             for media_path, _ in pending:
