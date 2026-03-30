@@ -622,7 +622,7 @@ def _process_file_in_worker(
         local_skip=local_skip,
         show_progress=True,  # workers show tqdm bars so user sees per-file progress
     ):
-        entries.append((idx, entry))
+        entries.append((seg_i, entry))
     return (media_path.name, entries, temp_wavs_dir)
 
 
@@ -813,7 +813,6 @@ def cmd_audio(args):
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
             # Build list of files to process (skip complete).
-            # Each file gets a private temp/wavs/ subdir, so no filename collisions.
             pending = []
             for media_path in media_files:
                 filename = media_path.name
@@ -833,8 +832,6 @@ def cmd_audio(args):
             print(f"Processing {len(pending)} files with {workers} workers...")
 
             # Pre-load Whisper model in main thread so it's cached in workers.
-            # Downloading from HuggingFace inside a ThreadPool worker causes
-            # tqdm thread-safety issues (AttributeError on disabled_tqdm._lock).
             if not is_youtube and not is_url:
                 if verbose:
                     print("  Pre-loading Whisper model...")
@@ -849,91 +846,98 @@ def cmd_audio(args):
                 "verbose": verbose,
             }
 
-            def acquire_and_process(item):
+            def acquire_and_process(item, order_idx):
                 """Download (if needed) and process one media file in a worker."""
                 media_path, start_idx = item
                 is_youtube = str(media_path) == "__youtube__"
                 is_url = str(media_path) == "__url__"
 
-                # Create temp dir manually (not with statement) so it lives until
-                # the main thread has moved the wav files out of it.
                 import tempfile
                 temp_dir = tempfile.mkdtemp()
                 temp_path = Path(temp_dir)
 
                 try:
-                    if is_youtube:
-                        resolved = _download_media(str(args.input), temp_path, verbose)
-                    elif is_url:
+                    if is_youtube or is_url:
                         resolved = _download_media(str(args.input), temp_path, verbose)
                     else:
                         resolved = media_path
 
-                    return _process_file_in_worker(
+                    # Process file, returns tuple containing results
+                    return order_idx, _process_file_in_worker(
                         resolved,
                         pipeline_kwargs,
                         temp_path,
                         start_idx,
                     )
                 finally:
-                    # Keep temp_dir alive until main thread is done with it.
-                    # Cleanup happens in the outer finally block via temp_dirs_to_cleanup.
+                    # Cleanup of temporary directories happens in main thread
                     pass
 
-            # Submit all tasks and collect results
-            all_entries = []
+            # Submit all tasks and track their original order
+            results = []
             temp_dirs_to_cleanup = []
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {
-                    executor.submit(acquire_and_process, item): item[0].name
-                    for item in pending
+                futures_map = {
+                    executor.submit(acquire_and_process, item, order_idx): item[0].name
+                    for order_idx, item in enumerate(pending)
                 }
-                for future in as_completed(futures):
-                    filename = futures[future]
+                for future in as_completed(futures_map):
+                    filename = futures_map[future]
                     try:
-                        _, entries, temp_wavs_dir = future.result()
+                        order_idx, worker_result = future.result()
+                        _, entries, temp_wavs_dir = worker_result
                         temp_dirs_to_cleanup.append(temp_wavs_dir.parent)
-                        all_entries.extend(entries)
+                        results.append((order_idx, filename, entries, temp_wavs_dir))
                     except Exception as e:
                         print(f"Error processing {filename}: {e}", file=sys.stderr)
                         raise
 
-            # Sort all chunks globally by their local chunk index.
-            all_entries.sort(key=lambda x: x[0])
+            # Sort files back into their original processing order
+            results.sort(key=lambda x: x[0])
 
-            # Re-index and move wavs from temp dirs to shared wavs/
-            for global_idx, (_, entry) in enumerate(all_entries, start=existing_count + 1):
-                old_path = None
-                for td in temp_dirs_to_cleanup:
-                    candidate = td / "wavs" / entry["filename"]
-                    if candidate.exists():
-                        old_path = candidate
-                        break
-                if old_path:
-                    new_name = f"utt_{global_idx:04d}.wav"
-                    old_path.rename(wavs_dir / new_name)
-                    entry["filename"] = new_name
-
-            # Write all entries to CSV in sorted order
+            # Re-index, safely move files, and write CSV grouped by file
             total_chunks = existing_count
-            for (_, entry) in all_entries:
-                writer.writerow([entry["filename"], entry["text"]])
-                total_chunks += 1
+            for order_idx, filename, entries, temp_wavs_dir in results:
+                if not entries:
+                    _mark_complete(progress, filename, 0)
+                    _save_progress(output_dir, progress)
+                    continue
 
-            csv_file.flush()
+                # Sort entries inside the file by their local segment index
+                entries.sort(key=lambda x: x[0])
 
-            # Mark all as complete
-            for media_path, _ in pending:
-                _mark_complete(progress, media_path.name, total_chunks)
-            _save_progress(output_dir, progress)
+                last_seg_i = 0
+                for (seg_i, entry) in entries:
+                    old_path = temp_wavs_dir / entry["filename"]
+                    if old_path.exists():
+                        total_chunks += 1
+                        new_name = f"utt_{total_chunks:04d}.wav"
+
+                        # shutil.move prevents the cross-device link crash when
+                        # moving from Colab's /tmp local disk to Google Drive!
+                        shutil.move(str(old_path), str(wavs_dir / new_name))
+                        entry["filename"] = new_name
+
+                        writer.writerow([entry["filename"], entry["text"]])
+                        last_seg_i = seg_i
+
+                # Flush safely after every file to prevent data loss!
+                csv_file.flush()
+                # Update progress tracking
+                _mark_complete(progress, filename, last_seg_i + 1)
+                _save_progress(output_dir, progress)
 
             if verbose:
-                print(f"  ... {len(all_entries)} chunks written")
+                print(f"  ... {total_chunks} total chunks written")
             elif total_chunks % 50 == 0:
                 print(f"  ... {total_chunks} chunks written")
 
         finally:
             csv_file.close()
+            # Clean up private temp directories left behind by workers
+            for td in temp_dirs_to_cleanup:
+                if td.exists():
+                    shutil.rmtree(td, ignore_errors=True)
 
     new_count = total_chunks - existing_count
     print(f"Created {new_count} new audio chunks ({total_chunks} total)")
