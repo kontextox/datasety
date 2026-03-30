@@ -174,6 +174,67 @@ def _isolate_vocals(
     return vocals_path
 
 
+def _build_segment_with_word_alignment(seg) -> dict:
+    """Snap segment end to word boundary and trim text to whole words only.
+
+    Whisper's segment timestamps often split words mid-character. E.g. a word
+    starts at 3.1s and ends at 3.7s, but the segment ends at 3.5s — cutting the
+    word in half. The next segment's text then starts with the trailing
+    characters ("нькою...").
+
+    This function:
+      1. Snaps each segment's end to the last word's actual end inside it.
+      2. Trims the segment's text to only include words fully contained in it.
+      3. Preserves the full word in the next segment (no duplication).
+
+    Args:
+        seg: a faster-whisper Segment object with `.start`, `.end`, `.text`,
+             and `.words` (list of Word objects).
+
+    Returns:
+        A dict with `start`, `end`, `text` (word-aligned and trimmed).
+    """
+    if not seg.words:
+        # No word-level data — fall back to raw segment
+        return {"start": seg.start, "end": seg.end, "text": seg.text}
+
+    words = seg.words
+    # Build a clean list: (start_time, end_time, word_text)
+    word_list = []
+    for w in words:
+        word_list.append((w.start, w.end, w.word.strip()))
+
+    if not word_list:
+        return {"start": seg.start, "end": seg.end, "text": seg.text}
+
+    # Snap end to the last word's actual end time
+    snapped_end = word_list[-1][1]
+
+    # Trim text to only words fully contained in this segment.
+    # Each word text comes from seg.text which contains them sequentially.
+    # We reconstruct by walking word_list and checking they appear in seg.text.
+    # Simpler approach: trim trailing words that would spill into the next seg.
+    trimmed_text_parts = []
+    for start_t, end_t, wtext in word_list:
+        # A word is fully inside this segment iff its end <= snapped_end
+        # (and it's not a trailing fragment that seg.text already truncated)
+        if end_t <= snapped_end + 0.01:  # small tolerance
+            trimmed_text_parts.append(wtext)
+        else:
+            # This word extends past snapped_end — it's a trailing fragment;
+            # skip it so it appears fully in the next segment.
+            pass
+
+    # Join with spaces (consistent with how Whisper spaces words)
+    trimmed = " ".join(trimmed_text_parts).strip()
+
+    # Guard: if trimming broke the text badly (e.g. empty), fall back to raw
+    if not trimmed:
+        trimmed = seg.text.strip()
+
+    return {"start": seg.start, "end": snapped_end, "text": trimmed}
+
+
 def _transcribe(
     audio_path: Path,
     model_size: str,
@@ -188,7 +249,7 @@ def _transcribe(
     compute_type = "float16" if device == "cuda" else "int8"
     model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
-    kwargs = {"vad_filter": vad}
+    kwargs = {"vad_filter": vad, "word_timestamps": True}
     if vad:
         kwargs["vad_parameters"] = {"min_silence_duration_ms": 500, "threshold": 0.01}
     if language:
@@ -212,14 +273,11 @@ def _transcribe(
     result = []
     last_end = 0.0
     for seg in segments:
-        result.append({
-            "start": seg.start,
-            "end": seg.end,
-            "text": seg.text,
-        })
+        seg_dict = _build_segment_with_word_alignment(seg)
+        result.append(seg_dict)
         if pbar is not None:
-            pbar.update(int(seg.end - last_end))
-            last_end = seg.end
+            pbar.update(int(seg_dict["end"] - last_end))
+            last_end = seg_dict["end"]
 
     if pbar is not None:
         pbar.close()
@@ -340,9 +398,23 @@ def _slice_audio(
         else:
             merged.append(seg.copy())
 
+    # Skip already-processed segments on resume (advances both audio slicing AND text)
+    if start_idx > 0:
+        merged = merged[start_idx:]
+
+    # Silence threshold for trailing audio detection
+    # Whisper sometimes marks a word as ending mid-phoneme due to a brief
+    # silence gap, then the same word continues. We detect this by scanning
+    # forward from each segment's end: if sustained speech (>2 consecutive
+    # loud windows) is found within 250ms, extend the slice.
+    _RMS_WINDOW_S = 0.030  # 30ms window for RMS measurement
+    _RMS_THRESHOLD = 0.008  # RMS above this = speech
+    _REQUIRED_CONSECUTIVE = 3  # 3 consecutive loud windows = real speech
+    _MAX_LOOKAHEAD_S = 0.25  # max ms to look ahead
+
     metadata = []
     idx = start_idx
-    for seg in merged:
+    for i, seg in enumerate(merged):
         duration = seg["end"] - seg["start"]
         if duration < min_dur or duration > max_dur:
             continue
@@ -353,6 +425,34 @@ def _slice_audio(
 
         start_sample = int(seg["start"] * samplerate)
         end_sample = int(seg["end"] * samplerate)
+
+        # Scan forward from end_sample: if sustained speech is found within
+        # _MAX_LOOKAHEAD_S, extend the slice to capture the trailing phoneme.
+        rms_win = int(_RMS_WINDOW_S * samplerate)
+        max_lookahead = min(int(_MAX_LOOKAHEAD_S * samplerate), len(audio_data) - end_sample)
+        consecutive_loud = 0
+        new_end_sample = end_sample
+
+        for offset in range(0, max_lookahead, rms_win):
+            s = end_sample + offset
+            e = min(s + rms_win, len(audio_data))
+            window = audio_data[s:e]
+            rms = (window**2).mean() ** 0.5
+            if rms > _RMS_THRESHOLD:
+                consecutive_loud += 1
+                if consecutive_loud >= _REQUIRED_CONSECUTIVE:
+                    # Found sustained speech: extend to capture trailing audio
+                    new_end_sample = e
+                    break
+            else:
+                consecutive_loud = 0
+
+        # Also don't extend past the next segment's start
+        if i + 1 < len(merged):
+            next_start = int(merged[i + 1]["start"] * samplerate)
+            new_end_sample = min(new_end_sample, next_start)
+
+        end_sample = new_end_sample
         chunk_data = audio_data[start_sample:end_sample]
 
         sf.write(str(chunk_path), chunk_data, samplerate)
@@ -376,6 +476,7 @@ def _process_single_media(
     temp_path: Path,
     verbose: bool,
     start_idx: int,
+    base_offset: int = 0,
 ) -> int:
     """Process a single media file through the audio pipeline.
 
@@ -439,6 +540,88 @@ def _process_single_media(
     return start_idx
 
 
+# ---------------------------------------------------------------------------
+# Per-file progress tracking
+# ---------------------------------------------------------------------------
+
+_PROGRESS_FILE = "progress.json"
+
+
+def _load_progress(output_dir: Path) -> dict:
+    """Load progress file. Returns empty dict if none exists."""
+    path = output_dir / _PROGRESS_FILE
+    if not path.exists():
+        return {}
+    import json
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_progress(output_dir: Path, progress: dict) -> None:
+    """Atomically write progress file."""
+    import json
+    path = output_dir / _PROGRESS_FILE
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(progress, f, indent=2)
+    tmp.rename(path)
+
+
+def _mark_in_progress(progress: dict, filename: str, start_idx: int) -> None:
+    """Mark a file as in-progress."""
+    progress[filename] = {"status": "in_progress", "start_idx": start_idx}
+
+
+def _mark_complete(progress: dict, filename: str, chunks_written: int) -> None:
+    """Mark a file as complete."""
+    progress[filename] = {"status": "complete", "chunks_written": chunks_written}
+
+
+def _get_start_idx(progress: dict, filename: str) -> int:
+    """Get the start_idx for a file from progress."""
+    entry = progress.get(filename, {})
+    return entry.get("start_idx", 0)
+
+
+# ---------------------------------------------------------------------------
+# Thread-pool friendly file processor
+# ---------------------------------------------------------------------------
+
+def _process_file_in_worker(
+    media_path: Path,
+    pipeline_kwargs: dict,
+    temp_dir: Path,
+    start_idx: int,
+) -> tuple[str, list, Path]:
+    """Process one media file inside a worker thread.
+
+    Writes audio chunks to a private temp subdirectory to avoid collisions.
+    Returns (filename, [(idx, entry), ...], temp_wavs_dir) where temp_wavs_dir
+    is the directory containing the written wav files.
+    """
+    args = pipeline_kwargs["args"]
+    verbose = pipeline_kwargs["verbose"]
+    temp_wavs_dir = temp_dir / "wavs"
+    temp_wavs_dir.mkdir(parents=True, exist_ok=True)
+
+    entries = []
+    for (idx, entry) in _process_single_media(
+        media_path,
+        temp_wavs_dir,  # private dir — no filename collisions across workers
+        args,
+        temp_dir,
+        verbose,
+        start_idx,
+        0,  # base_offset: worker uses local indices; main thread re-indexes
+    ):
+        entries.append((idx, entry))
+    return (media_path.name, entries, temp_wavs_dir)
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
 def cmd_audio(args):
     """Main context manager: creates temp_dir, runs pipeline steps, handles errors gracefully."""
     _check_ffmpeg()
@@ -492,8 +675,6 @@ def cmd_audio(args):
 
     # --- Determine media sources ---
     media_files: list[Path] = []
-    # --- Determine media sources ---
-    media_files: list[Path] = []
     if is_dir:
         media_files = _get_media_files(input_path)
         if not media_files:
@@ -538,49 +719,205 @@ def cmd_audio(args):
     writer = csv.writer(csv_file, delimiter="|")
 
     total_chunks = existing_count
-    try:
-        for idx, media_path in enumerate(media_files):
-            is_youtube = str(media_path) == "__youtube__"
-            is_url = str(media_path) == "__url__"
+    workers = getattr(args, "workers", 1)
 
-            with TemporaryDirectory() as temp_dir:
+    # --- Load progress for resume ---
+    progress = _load_progress(output_dir) if args.resume else {}
+    if args.overwrite and output_dir.exists():
+        progress = {}
+
+    # --- Sequential mode (workers == 1) ---
+    if workers == 1:
+        try:
+            for idx, media_path in enumerate(media_files):
+                is_youtube = str(media_path) == "__youtube__"
+                is_url = str(media_path) == "__url__"
+
+                with TemporaryDirectory() as temp_dir:
+                    temp_path = Path(temp_dir)
+
+                    # --- Acquire media ---
+                    if is_youtube:
+                        print(f"[{idx + 1}/{len(media_files)}] Downloading from YouTube...")
+                        resolved = _download_media(input_source, temp_path, verbose)
+                    elif is_url:
+                        print(f"[{idx + 1}/{len(media_files)}] Downloading from URL...")
+                        resolved = _download_media(input_source, temp_path, verbose)
+                    else:
+                        print(
+                            f"[{idx + 1}/{len(media_files)}] Processing {media_path.name}..."
+                        )
+                        resolved = media_path
+
+                    # --- Check progress (skip complete, resume in_progress) ---
+                    filename = media_path.name
+                    entry = progress.get(filename, {})
+                    status = entry.get("status", "pending")
+                    if status == "complete":
+                        print(f"  Skipping {media_path.name} (already complete)")
+                        continue
+
+                    start_idx = _get_start_idx(progress, filename)
+                    if start_idx > 0:
+                        print(f"  Resuming {media_path.name} from chunk {start_idx}")
+                        _mark_in_progress(progress, filename, start_idx)
+                        _save_progress(output_dir, progress)
+
+                    # Process the media file
+                    for (idx, entry) in _process_single_media(
+                        resolved,
+                        wavs_dir,
+                        args,
+                        temp_path,
+                        verbose,
+                        total_chunks,
+                    ):
+                        writer.writerow([entry["filename"], entry["text"]])
+                        total_chunks = idx
+                        # Update progress after each chunk
+                        _mark_in_progress(progress, media_path.name, idx)
+                        _save_progress(output_dir, progress)
+                        if verbose:
+                            print(
+                                f"  Created {entry['filename']} "
+                                f"({entry['text'][:50].strip()}...)"
+                            )
+                        else:
+                            if total_chunks % 50 == 0:
+                                print(f"  ... {total_chunks} chunks written")
+                    else:
+                        # File finished normally (for-else: no break)
+                        _mark_complete(progress, media_path.name, total_chunks)
+                        _save_progress(output_dir, progress)
+
+        finally:
+            csv_file.close()
+
+    # --- Parallel mode (workers > 1) ---
+    else:
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            # Build list of files to process (skip complete).
+            # Each file gets a private temp/wavs/ subdir, so no filename collisions.
+            pending = []
+            for media_path in media_files:
+                filename = media_path.name
+                entry = progress.get(filename, {})
+                status = entry.get("status", "pending")
+                if status == "complete":
+                    print(f"  Skipping {filename} (already complete)")
+                    continue
+                start_idx = _get_start_idx(progress, filename)
+                pending.append((media_path, start_idx))
+
+            if not pending:
+                print("All files already processed.")
+                csv_file.close()
+                return
+
+            print(f"Processing {len(pending)} files with {workers} workers...")
+
+            # Pre-load Whisper model in main thread so it's cached in workers.
+            # Downloading from HuggingFace inside a ThreadPool worker causes
+            # tqdm thread-safety issues (AttributeError on disabled_tqdm._lock).
+            if not is_youtube and not is_url:
+                if verbose:
+                    print("  Pre-loading Whisper model...")
+                from faster_whisper import WhisperModel
+                compute_type = "float16" if args.device == "cuda" else "int8"
+                WhisperModel(args.whisper_model, device=args.device, compute_type=compute_type)
+                if verbose:
+                    print("  Model cached.")
+
+            pipeline_kwargs = {
+                "args": args,
+                "verbose": verbose,
+            }
+
+            def acquire_and_process(item):
+                """Download (if needed) and process one media file in a worker."""
+                media_path, start_idx = item
+                is_youtube = str(media_path) == "__youtube__"
+                is_url = str(media_path) == "__url__"
+
+                # Create temp dir manually (not with statement) so it lives until
+                # the main thread has moved the wav files out of it.
+                import tempfile
+                temp_dir = tempfile.mkdtemp()
                 temp_path = Path(temp_dir)
 
-                # --- Acquire media ---
-                if is_youtube:
-                    print(f"[{idx + 1}/{len(media_files)}] Downloading from YouTube...")
-                    resolved = _download_media(input_source, temp_path, verbose)
-                elif is_url:
-                    print(f"[{idx + 1}/{len(media_files)}] Downloading from URL...")
-                    resolved = _download_media(input_source, temp_path, verbose)
-                else:
-                    print(
-                        f"[{idx + 1}/{len(media_files)}] Processing {media_path.name}..."
-                    )
-                    resolved = media_path
-
-                # Process the media file
-                for (idx, entry) in _process_single_media(
-                    resolved,
-                    wavs_dir,
-                    args,
-                    temp_path,
-                    verbose,
-                    total_chunks,
-                ):
-                    writer.writerow([entry["filename"], entry["text"]])
-                    total_chunks = idx
-                    if verbose:
-                        print(
-                            f"  Created {entry['filename']} "
-                            f"({entry['text'][:50].strip()}...)"
-                        )
+                try:
+                    if is_youtube:
+                        resolved = _download_media(str(args.input), temp_path, verbose)
+                    elif is_url:
+                        resolved = _download_media(str(args.input), temp_path, verbose)
                     else:
-                        if total_chunks % 50 == 0:
-                            print(f"  ... {total_chunks} chunks written")
+                        resolved = media_path
 
-    finally:
-        csv_file.close()
+                    return _process_file_in_worker(
+                        resolved,
+                        pipeline_kwargs,
+                        temp_path,
+                        start_idx,
+                    )
+                finally:
+                    # Keep temp_dir alive until main thread is done with it.
+                    # Cleanup happens in the outer finally block via temp_dirs_to_cleanup.
+                    pass
+
+            # Submit all tasks and collect results
+            all_entries = []
+            temp_dirs_to_cleanup = []
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(acquire_and_process, item): item[0].name
+                    for item in pending
+                }
+                for future in as_completed(futures):
+                    filename = futures[future]
+                    try:
+                        _, entries, temp_wavs_dir = future.result()
+                        temp_dirs_to_cleanup.append(temp_wavs_dir.parent)
+                        all_entries.extend(entries)
+                    except Exception as e:
+                        print(f"Error processing {filename}: {e}", file=sys.stderr)
+                        raise
+
+            # Sort all chunks globally by their local chunk index.
+            all_entries.sort(key=lambda x: x[0])
+
+            # Re-index and move wavs from temp dirs to shared wavs/
+            for global_idx, (_, entry) in enumerate(all_entries, start=existing_count + 1):
+                old_path = None
+                for td in temp_dirs_to_cleanup:
+                    candidate = td / "wavs" / entry["filename"]
+                    if candidate.exists():
+                        old_path = candidate
+                        break
+                if old_path:
+                    new_name = f"utt_{global_idx:04d}.wav"
+                    old_path.rename(wavs_dir / new_name)
+                    entry["filename"] = new_name
+
+            # Write all entries to CSV in sorted order
+            total_chunks = existing_count
+            for (_, entry) in all_entries:
+                writer.writerow([entry["filename"], entry["text"]])
+                total_chunks += 1
+
+            # Mark all as complete
+            for media_path, _ in pending:
+                _mark_complete(progress, media_path.name, total_chunks)
+            _save_progress(output_dir, progress)
+
+            if verbose:
+                print(f"  ... {len(all_entries)} chunks written")
+            elif total_chunks % 50 == 0:
+                print(f"  ... {total_chunks} chunks written")
+
+        finally:
+            csv_file.close()
 
     new_count = total_chunks - existing_count
     print(f"Created {new_count} new audio chunks ({total_chunks} total)")
@@ -708,6 +1045,13 @@ def register_parser(subparsers):
         "--verbose", "-V",
         action="store_true",
         help="Print detailed progress messages",
+    )
+    audio_parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel file workers (default: 1). "
+             "Use >1 to process multiple files simultaneously.",
     )
 
     audio_parser.set_defaults(func=cmd_audio)
