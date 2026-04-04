@@ -45,28 +45,28 @@ classifiers = [
 dependencies = [
     "Pillow>=9.0.0",
     "numpy>=1.20.0",
-    "huggingface_hub>=0.20.0",
+    "huggingface_hub>=1.9.0",
 ]
 
 [project.optional-dependencies]
 caption = [
     "torch>=2.0.0",
-    "transformers>=4.38.0",
+    "transformers>=5.5.0",
     "einops",
     "timm",
     "numpy>=1.20.0",
 ]
 synthetic = [
     "torch>=2.0.0",
-    "diffusers>=0.32.0",
-    "transformers>=4.38.0",
+    "diffusers>=0.37.1",
+    "transformers>=5.5.0",
     "accelerate",
     "sentencepiece",
     "safetensors",
 ]
 mask = [
     "torch>=2.0.0",
-    "transformers>=4.45.0",
+    "transformers>=5.5.0",
     "sam2>=1.0",
     "numpy>=1.20.0",
 ]
@@ -75,12 +75,12 @@ workflow = [
 ]
 filter = [
     "torch>=2.0.0",
-    "transformers>=4.38.0",
+    "transformers>=5.5.0",
 ]
 train = [
     "torch>=2.0.0",
-    "diffusers>=0.32.0",
-    "transformers>=4.38.0",
+    "diffusers>=0.37.1",
+    "transformers>=5.5.0",
     "accelerate",
     "safetensors",
     "peft>=0.6.0",
@@ -88,8 +88,8 @@ train = [
 degrade = []
 character = [
     "torch>=2.0.0",
-    "diffusers>=0.32.0",
-    "transformers>=4.38.0",
+    "diffusers>=0.37.1",
+    "transformers>=5.5.0",
     "accelerate",
     "safetensors",
 ]
@@ -99,10 +99,20 @@ audio = [
     "faster-whisper>=1.2.1",
     "soundfile>=0.13.1",
     "num2words>=0.5.14",
+]
+nemo = [
     "nemo-text-processing>=1.1.0",
 ]
+audio-full = [
+    "datasety[audio,nemo]",
+]
+upload =[
+    "huggingface_hub>=1.9.0",
+    "langdetect",
+    "pyyaml>=6.0",
+]
 all = [
-    "datasety[caption,synthetic,mask,filter,degrade,character,train,workflow,audio]",
+    "datasety[caption,synthetic,mask,filter,degrade,character,train,workflow,audio-full,upload]",
 ]
 dev = [
     "pytest>=7.0.0",

@@ -4,7 +4,7 @@ layout: home
 hero:
   name: ~# datasety
   text: Dataset - it's easy!
-  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, filter, degrade, train LoRA adapters, upload to HuggingFace, and automate with workflows.
+  tagline: One tool for the full dataset pipeline — resize, caption, align, generate, mask, filter, degrade, train LoRA adapters, train TTS voices, upload to HuggingFace, and automate with workflows.
   image:
     src: mascot.png
     alt: Full dataset pipeline
@@ -84,7 +84,12 @@ features:
     linkText: Learn more
   - icon: "&#x1F9E0;"
     title: LoRA Fine-Tuning
-    details: Train LoRA adapters for FLUX.2-klein and SDXL from image + caption datasets. Flow-matching and DDPM. Saves .safetensors.
+    details: Train LoRA adapters for FLUX.2-klein, SDXL, and Qwen from image + caption datasets. Flow-matching and DDPM. Saves .safetensors.
+    link: /commands/train
+    linkText: Learn more
+  - icon: "&#x1F3A4;"
+    title: TTS Training
+    details: Train Piper TTS voices from audio datasets (metadata.csv + wavs/). Multi-GPU via PyTorch Lightning, background voice watcher for real-time testing.
     link: /commands/train
     linkText: Learn more
   - icon: "&#x1F4E4;"

@@ -11,7 +11,6 @@ Usage:
 Requires: huggingface_hub>=0.20.0 (already in datasety dependencies)
 """
 
-import csv
 import os
 import sys
 from pathlib import Path
@@ -105,20 +104,24 @@ def _slugify(name: str) -> str:
 def _detect_language_from_metadata(path: Path, dataset_type: str) -> list[str]:
     """Try to detect language from metadata files."""
     path = Path(path)
-
     if dataset_type == "audio":
         metadata_file = path / "metadata.csv"
         if metadata_file.exists():
             try:
+                import langdetect
+                texts =[]
                 with open(metadata_file, encoding="utf-8") as f:
-                    reader = csv.DictReader(f, delimiter="|")
-                    for row in reader:
-                        text = row.get("text", "")
-                        if text:
-                            return ["en"]  # default
+                    # Piper metadata doesn't always have headers, so read raw lines
+                    for line in f:
+                        parts = line.strip().split("|")
+                        if len(parts) >= 2 and len(parts[1]) > 5:
+                            texts.append(parts[1][:200])
+                            if len(texts) >= 10:
+                                break
+                if texts:
+                    return [langdetect.detect(" ".join(texts))]
             except Exception:
                 pass
-
     return ["en"]  # default
 
 
@@ -484,9 +487,8 @@ def cmd_upload(args):
     # --- Confirmation ---
     if not args.yes:
         file_count = len(list(path.rglob("*"))) if path.is_dir() else 1
-        resp = input(
-            f"\nUpload {file_count} file(s) from '{path}' to '{repo_id}' on HuggingFace Hub? [Y/n] "
-        ).strip().lower()
+        prompt = f"\nUpload {file_count} file(s) from '{path}' to '{repo_id}'? [Y/n] "
+        resp = input(prompt).strip().lower()
         if resp in ("n", "no"):
             print("Aborted.")
             return

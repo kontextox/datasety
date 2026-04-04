@@ -1,4 +1,97 @@
-# train — LoRA Fine-Tuning
+# train — LoRA Fine-Tuning & TTS Training
+
+Train a **LoRA adapter** for image generation models (FLUX.2-klein, SDXL, Qwen) **or** a **TTS voice model** (Piper) from audio datasets.
+
+## Two Training Modes
+
+The `train` command has **two completely separate modes** with different parameters, backends, and outputs:
+
+| Mode             | Backend          | Dataset Format            | Output            | See Section                           |
+| ---------------- | ---------------- | ------------------------- | ----------------- | ------------------------------------- |
+| **Image (LoRA)** | Diffusers + PEFT | `image.jpg` + `image.txt` | `.safetensors`    | [LoRA Fine-Tuning](#lora-fine-tuning) |
+| **Audio (TTS)**  | Piper (VITS)     | `metadata.csv` + `wavs/`  | `.ckpt` → `.onnx` | [TTS Training](#tts-training-piper)   |
+
+The mode is auto-detected from `--family` / `--backend` flags or the dataset structure:
+
+- `--family flux` | `--family sdxl` | `--family qwen` → **Image (LoRA)**
+- `--backend piper` | `--backend coqui` | `--backend f5-tts` → **Audio (TTS)**
+
+## Quick Reference
+
+```bash
+# Auto-detect from dataset: images → LoRA, audio csv → TTS
+datasety train --input ./dataset --output result
+
+# Force TTS mode (audio parameters)
+datasety train --input ./tts_dataset --output voice.ckpt --backend piper --model kontextox/piper-base-us --steps 500
+
+# Force LoRA mode (image parameters)
+datasety train --input ./images --output lora.safetensors --family flux --steps 500 --lr 1e-4 --lora-rank 16
+```
+
+---
+
+## Image vs Audio Parameters
+
+> **Important:** Parameters are **mode-specific**. Image parameters (like `--lora-rank`) do not apply to TTS training, and audio parameters (like `--sample-rate`) do not apply to LoRA training.
+
+### Image (LoRA) Parameters Only
+
+These parameters are used when `--family flux`, `--family sdxl`, or `--family qwen` is set, or when the dataset contains image files:
+
+| Option                          | Description                                                         | Default                                  |
+| ------------------------------- | ------------------------------------------------------------------- | ---------------------------------------- |
+| `--family`                      | Model family: `flux`, `sdxl`, `qwen`                                | auto-detected                            |
+| `--model`                       | HuggingFace repo ID (base model)                                    | `black-forest-labs/FLUX.2-klein-base-4B` |
+| `--output`                      | Output `.safetensors` path                                          | `lora.safetensors`                       |
+| `--steps`                       | Number of training steps                                            | `100`                                    |
+| `--lr`                          | Learning rate                                                       | `1e-4`                                   |
+| `--lora-rank`                   | LoRA rank (higher = more capacity, larger file)                     | `16`                                     |
+| `--lora-alpha`                  | LoRA alpha (controls effective learning rate scale)                 | `16.0`                                   |
+| `--lora-dropout`                | LoRA dropout rate                                                   | `0.0`                                    |
+| `--image-size`                  | Training resolution (square crop, must be divisible by 32 for Qwen) | `512`                                    |
+| `--device`                      | Device: `auto`, `cpu`, `cuda`, `mps`                                | `auto`                                   |
+| `--seed`                        | Random seed                                                         | `42`                                     |
+| `--save-every`                  | Save checkpoint every N steps                                       | end only                                 |
+| `--resume`                      | Resume from a `.safetensors` checkpoint                             |                                          |
+| `--validation-split`            | Fraction of dataset for validation (0.0–0.5)                        |                                          |
+| `--timestep-type`               | Timestep sampling: `sigmoid`, `lognorm`, `linear`                   | `sigmoid`                                |
+| `--caption-dropout`             | Probability of dropping caption (unconditional training)            | `0.05`                                   |
+| `--gradient-checkpointing`      | Enable gradient checkpointing (saves VRAM)                          | off                                      |
+| `--optimizer`                   | Optimizer: `adamw` or `adamw8bit` (requires bitsandbytes)           | `adamw`                                  |
+| `--lr-scheduler`                | LR schedule: `constant`, `cosine`, `linear`                         | `constant`                               |
+| `--lr-warmup-steps`             | Linear warmup steps before target LR                                | `0`                                      |
+| `--gradient-accumulation-steps` | Accumulate gradients over N steps                                   | `1`                                      |
+| `--min-snr-gamma`               | Min-SNR-γ loss weighting for SDXL (recommended: 5.0)                | disabled                                 |
+| `--noise-offset`                | Per-channel noise offset for SDXL (recommended: 0.05–0.1)           | `0.0`                                    |
+
+### Audio (TTS) Parameters Only
+
+These parameters are used when `--backend piper` (or `coqui`, `f5-tts`) is set, or when the dataset contains `metadata.csv`:
+
+| Option          | Description                                                | Default    |
+| --------------- | ---------------------------------------------------------- | ---------- |
+| `--backend`     | TTS backend: `piper` (coqui, f5-tts planned)               | `piper`    |
+| `--model`       | Piper base model (HF repo ID or local path)                | (required) |
+| `--output`      | Output directory for `.ckpt` checkpoints                   | (required) |
+| `--steps`       | Number of training epochs                                  | `100`      |
+| `--sample-rate` | Audio sample rate in Hz                                    | `22050`    |
+| `--batch-size`  | Training batch size                                        | `32`       |
+| `--accelerator` | PyTorch Lightning accelerator: `auto`, `gpu`, `cpu`        | `auto`     |
+| `--devices`     | Number of GPUs: `auto`, `1`, `2`, `-1` (all GPUs)          | `auto`     |
+| `--test-text`   | Background inference text to test checkpoints as they drop |            |
+| `--seed`        | Random seed                                                | `42`       |
+
+### Shared Parameters (Both Modes)
+
+| Option          | Description                              | Default  |
+| --------------- | ---------------------------------------- | -------- |
+| `--input`, `-i` | Dataset directory                        | required |
+| `--steps`       | Training steps (image) or epochs (audio) | `100`    |
+
+---
+
+## LoRA Fine-Tuning
 
 Train a LoRA adapter for image generation models from a local dataset of image + caption pairs.
 
@@ -255,3 +348,122 @@ The LoRA weight (`:0.8`) controls blend strength — typically `0.6`–`1.0`.
 | Qwen/Qwen-Image-Edit-2511 | `to_q`, `to_k`, `to_v`, `to_out.0`, `add_q_proj`, `add_k_proj`, `add_v_proj`, `to_add_out` | ~45 MB              |
 
 The 9B FLUX model uses fused `to_qkv_mlp_proj` projections (single-transformer blocks). Qwen targets both image-stream and text-stream attention projections across 60 transformer blocks.
+
+---
+
+## TTS Training (Piper)
+
+Train a Piper TTS model from a dataset produced by `datasety audio`. Outputs a `.ckpt` checkpoint that can be exported to `.onnx` for inference.
+
+### Dataset Format
+
+The input directory must contain a Piper/LJSpeech-compatible dataset:
+
+```
+tts_dataset/
+├── wavs/
+│   ├── utt_0001.wav
+│   ├── utt_0002.wav
+│   └── ...
+└── metadata.csv
+```
+
+```
+utt_0001.wav|Hello world, this is a test.
+utt_0002.wav|How are you doing today?
+```
+
+### TTS-Specific Options
+
+| Option          | Description                                                | Default    |
+| --------------- | ---------------------------------------------------------- | ---------- |
+| `--backend`     | TTS backend: `piper` (coqui, f5-tts planned)               | `piper`    |
+| `--model`       | Piper base model (HF repo ID or local path)                | (required) |
+| `--sample-rate` | Audio sample rate in Hz                                    | `22050`    |
+| `--batch-size`  | Training batch size                                        | `32`       |
+| `--accelerator` | PyTorch Lightning accelerator: `auto`, `gpu`, `cpu`        | `auto`     |
+| `--devices`     | Number of GPUs: `auto`, `1`, `2`, `-1` (all GPUs)          | `auto`     |
+| `--test-text`   | Background inference text to test checkpoints as they drop |            |
+
+### Piper Auto-Installer
+
+On first run, `datasety train` automatically:
+
+1. Clones the [kontextox/piper1-gpl](https://github.com/kontextox/piper1-gpl) repository to `~/.cache/datasety/`
+2. Compiles the `monotonic_align` Cython extension
+3. Installs the Piper Python package and dependencies
+
+No manual compilation required.
+
+### Multi-GPU Training
+
+For dual-GPU setups (e.g., 2× L40S), PyTorch Lightning automatically enables Distributed Data Parallel (DDP):
+
+```bash
+datasety train \
+    --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model "rhasspy/piper-checkpoints:en/en_US/kristin/medium" \
+    --steps 1000 \
+    --batch-size 32 \
+    --accelerator gpu \
+    --devices 2
+```
+
+PyTorch Lightning auto-detects and utilizes all available GPUs without extra configuration.
+
+### Background Voice Watcher
+
+Pass `--test-text` to spin up a background daemon that watches for new `.ckpt` files, exports them to `.onnx`, and renders a `.wav` file using your test text. Listen to the model learning in real-time while the GPU keeps training:
+
+```bash
+datasety train \
+    --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model "rhasspy/piper-checkpoints:en/en_US/kristin/medium" \
+    --steps 1000 \
+    --test-text "Hello, this is a test of my new voice."
+```
+
+### Examples
+
+#### Basic TTS Training
+
+```bash
+datasety train \
+    --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model "rhasspy/piper-checkpoints:en/en_US/kristin/medium" \
+    --steps 500
+```
+
+#### Multi-GPU Training with Voice Watcher
+
+```bash
+datasety train \
+    --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model "rhasspy/piper-checkpoints:en/en_US/kristin/medium" \
+    --steps 1000 \
+    --batch-size 32 \
+    --accelerator gpu \
+    --devices 2 \
+    --test-text "The quick brown fox jumps over the lazy dog."
+```
+
+#### Resume Training
+
+```bash
+datasety train \
+    --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model "rhasspy/piper-checkpoints:en/en_US/kristin/medium" \
+    --steps 2000
+```
+
+The trainer automatically resumes from the last checkpoint if one exists in the output directory.

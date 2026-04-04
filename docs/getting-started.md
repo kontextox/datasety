@@ -60,9 +60,60 @@ datasety audio --input "https://www.youtube.com/watch?v=..." \
 # From a directory of audio files
 datasety audio --input ./recordings/ --output ./dataset \
     --normalize-numbers --workers 4
+
+# With phoneme map filtering (drops invalid segments automatically)
+datasety audio --input ./video.mp4 --output ./dataset \
+    --phoneme-map /path/to/piper/config.json
+
+# Time-slicing from a URL
+datasety audio --input "https://youtube.com/watch?v=...&start=50&end=90" \
+    --output ./dataset
 ```
 
-Supports local video/audio files, YouTube URLs, and directories. See the [`audio`](/commands/audio) docs for full options.
+### Train a LoRA Adapter (Image Fine-Tuning)
+
+```bash
+# 1. Prepare dataset
+datasety resize -i ./raw -o ./dataset -r 512x512
+datasety caption -i ./dataset -o ./dataset --trigger-word "[trigger]"
+
+# 2. Train LoRA on FLUX.2-klein-base-4B (~8 GB VRAM)
+datasety train --input ./dataset \
+    --output ./lora/flux_lora.safetensors \
+    --model black-forest-labs/FLUX.2-klein-base-4B \
+    --steps 500 --lr 1e-4 --lora-rank 16
+```
+
+### Train a TTS Voice Model (Audio)
+
+```bash
+# Train a Piper TTS model (auto-installs dependencies on first run)
+datasety train --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model kontextox/piper-base-us \
+    --steps 500
+
+# Multi-GPU training (2x L40S, etc.)
+datasety train --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model kontextox/piper-base-us \
+    --steps 1000 \
+    --accelerator gpu \
+    --devices 2
+
+# With real-time voice testing
+datasety train --input ./tts_dataset \
+    --output ./voice_model \
+    --backend piper \
+    --model kontextox/piper-base-us \
+    --test-text "Hello, this is a test of my new voice."
+```
+
+> **Note:** The `train` command has two completely separate modes — **Image (LoRA)** and **Audio (TTS)** — with different parameters. Use `--family flux/sdxl/qwen` for LoRA training, or `--backend piper` for TTS training. See the [`train`](/commands/train) docs for full parameter reference.
+
+Supports local video/audio files, YouTube URLs, directories, and `.txt` lists. See the [`audio`](/commands/audio) docs for full options.
 
 Supports custom providers via environment variables:
 
@@ -155,9 +206,10 @@ Requires `HF_TOKEN` env var or `--token` argument. See the [`upload`](/commands/
 
 ### Training
 
-| Command                    | Description                                | Extra Deps |
-| -------------------------- | ------------------------------------------ | ---------- |
-| [`train`](/commands/train) | LoRA fine-tuning for FLUX.2-klein and SDXL | `[train]`  |
+| Command                                    | Description                                                                   | Extra Deps |
+| ------------------------------------------ | ----------------------------------------------------------------------------- | ---------- |
+| [`train --family flux`](/commands/train)   | LoRA fine-tuning: FLUX.2-klein, SDXL, Qwen (images + captions → .safetensors) | `[train]`  |
+| [`train --backend piper`](/commands/train) | TTS training: Piper voice models (audio dataset → .ckpt/.onnx)                | `[train]`  |
 
 ## Common Patterns
 

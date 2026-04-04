@@ -23,28 +23,29 @@ datasety audio --input ./video.mp4 --output ./dataset --whisper-model large-v3 -
 
 ## Options
 
-| Option                | Description                                                                         | Default     |
-| --------------------- | ----------------------------------------------------------------------------------- | ----------- |
-| `--input`, `-i`       | Input: local file, directory of audio/video files, YouTube URL, or direct media URL | (required)  |
-| `--output`, `-o`      | Output directory for the dataset                                                    | (required)  |
-| `--sample-rate`       | Output audio sample rate in Hz                                                      | `22050`     |
-| `--demucs`            | Enable Demucs vocal isolation (removes background noise/music)                      | `false`     |
-| `--demucs-model`      | Demucs model name                                                                   | `htdemucs`  |
-| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                           | `base`      |
-| `--language`          | Language code (e.g., en, es, fr). Auto-detected if omitted                          | (auto)      |
-| `--device`            | Device: auto, cpu, cuda, mps                                                        | `auto`      |
-| `--min-duration`      | Minimum segment duration in seconds                                                 | `1.5`       |
-| `--max-duration`      | Maximum segment duration in seconds                                                 | `30.0`      |
-| `--merge-gap`         | Merge segments closer than this many seconds                                        | `0.0` (off) |
-| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                          | `false`     |
-| `--normalize-numbers` | Expand digits into words (e.g., 123 -> one hundred twenty-three)                    | `false`     |
-| `--no-clean-text`     | Disable special character stripping                                                 | `false`     |
-| `--workers`           | Number of parallel file workers (default: 1)                                        | `1`         |
-| `--keep-temp`         | Keep temporary audio files at this path                                             |             |
-| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                         | `false`     |
-| `--overwrite`         | Overwrite existing output directory                                                 | `false`     |
-| `--dry-run`           | Print pipeline steps without executing                                              | `false`     |
-| `--verbose`, `-V`     | Print detailed progress messages                                                    | `false`     |
+| Option                | Description                                                                                       | Default     |
+| --------------------- | ------------------------------------------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input: local file, directory, `.txt` list, YouTube/URL (append `?start=X&end=Y` for time-slicing) | (required)  |
+| `--output`, `-o`      | Output directory for the dataset                                                                  | (required)  |
+| `--sample-rate`       | Output audio sample rate in Hz                                                                    | `22050`     |
+| `--demucs`            | Enable Demucs vocal isolation (removes background noise/music)                                    | `false`     |
+| `--demucs-model`      | Demucs model name                                                                                 | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                                         | `base`      |
+| `--language`          | Language code (e.g., en, es, fr). Auto-detected if omitted                                        | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                                                      | `auto`      |
+| `--min-duration`      | Minimum segment duration in seconds                                                               | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                                                               | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                                                      | `0.0` (off) |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                                        | `false`     |
+| `--normalize-numbers` | Expand digits into words (e.g., 123 -> one hundred twenty-three)                                  | `false`     |
+| `--no-clean-text`     | Disable special character stripping                                                               | `false`     |
+| `--phoneme-map`       | Path to `config.json` or `phonemes.json`. Silently drops segments with unknown chars              |             |
+| `--workers`           | Number of parallel file workers (default: 1)                                                      | `1`         |
+| `--keep-temp`         | Keep temporary audio files at this path                                                           |             |
+| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                                       | `false`     |
+| `--overwrite`         | Overwrite existing output directory                                                               | `false`     |
+| `--dry-run`           | Print pipeline steps without executing                                                            | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                                                                  | `false`     |
 
 ## Output
 
@@ -172,6 +173,66 @@ datasety audio \
 
 VAD merges continuous speech into fewer, longer segments. Disable it (default) for clean monologue where you want fine-grained segment boundaries.
 
+### Time-Slicing from URLs
+
+Extract only a specific segment from a video using `?start=X&end=Y` parameters:
+
+```bash
+datasety audio \
+  --input "https://www.youtube.com/watch?v=...&start=50&end=90" \
+  --output ./dataset
+```
+
+Works with both YouTube URLs and local files:
+
+```bash
+datasety audio \
+  --input "./video.mp4?start=10.5&end=30" \
+  --output ./dataset
+```
+
+### Text List Input
+
+Pass a `.txt` file containing one URL/path per line to process multiple sources:
+
+```bash
+# sources.txt
+https://youtube.com/watch?v=...&start=0&end=60
+https://youtube.com/watch?v=...&start=60&end=120
+./local_clip.mp4
+```
+
+```bash
+datasety audio \
+  --input sources.txt \
+  --output ./dataset \
+  --workers 4
+```
+
+### Phoneme Map Filtering
+
+Pass a Piper `config.json` or `phonemes.json` to silently drop any audio segments whose transcribed text contains characters (unexpanded numbers, emojis, foreign letters) not in the phoneme map. This prevents training crashes:
+
+```bash
+datasety audio \
+  --input ./video.mp4 \
+  --output ./dataset \
+  --phoneme-map /path/to/piper/config.json
+```
+
+The script automatically detects whether you passed a full Piper config (extracts `phoneme_id_map`) or a direct phoneme map.
+
+### Text Cleaning
+
+The pipeline automatically cleans Whisper transcription artifacts:
+
+- **Hallucination loops**: Removes repeated chaotic text from silent patches
+- **Punctuation**: Fixes stray spaces before commas/periods, crushes double spaces
+- **Hyphens**: Snaps word-connecting hyphens (`где - то` → `где-то`)
+- **Apostrophes**: Connects separated apostrophes (`ім 'я` → `ім'я`)
+
+Disable with `--no-clean-text` if you need to preserve special characters.
+
 ### Dry Run
 
 Preview what would be processed without downloading or transcribing:
@@ -193,6 +254,7 @@ datasety audio \
 5. **Slice**: Audio is cut into segments matching speech timestamps, filtered by min/max duration
 6. **Normalize**: Text is cleaned (special chars stripped, numbers expanded if enabled)
 7. **Export**: Audio chunks saved to `wavs/`, metadata to `metadata.csv`
+8. **Deduplicate**: Consecutive duplicate text entries are removed (prevents Whisper hallucinations from creating duplicate chunks)
 
 ## Requirements
 

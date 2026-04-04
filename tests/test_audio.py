@@ -23,6 +23,7 @@ class TestGetMediaFiles:
             (audio_dir / "video.mkv").touch()
 
             from datasety.audio import _get_media_files
+
             files = _get_media_files(audio_dir)
 
             names = [p.name for p in files]
@@ -41,6 +42,7 @@ class TestGetMediaFiles:
             (audio_dir / "script.py").touch()
 
             from datasety.audio import _get_media_files
+
             files = _get_media_files(audio_dir)
 
             assert len(files) == 1
@@ -56,6 +58,7 @@ class TestGetMediaFiles:
             (audio_dir / "3.mp3").touch()
 
             from datasety.audio import _get_media_files
+
             files = _get_media_files(audio_dir)
 
             names = [p.name for p in files]
@@ -69,6 +72,7 @@ class TestGetMediaFiles:
             (audio_dir / "a.mp3").touch()
 
             from datasety.audio import _get_media_files
+
             files = _get_media_files(audio_dir)
 
             names = [p.name for p in files]
@@ -82,6 +86,7 @@ class TestGetMediaFiles:
             (audio_dir / "readme.txt").touch()
 
             from datasety.audio import _get_media_files
+
             files = _get_media_files(audio_dir)
 
             assert files == []
@@ -96,6 +101,7 @@ class TestGetMediaFiles:
             (sub_dir / "2.mp3").touch()
 
             from datasety.audio import _get_media_files
+
             files = _get_media_files(audio_dir)
 
             assert len(files) == 1
@@ -108,6 +114,7 @@ class TestNormalizeText:
     def test_strip_control_characters(self):
         """Control characters should be stripped."""
         from datasety.audio import _normalize_text
+
         text = "Hello\x00world\x07!"
         result = _normalize_text(text, "en", normalize_numbers=False, clean_text=True)
         assert "\x00" not in result
@@ -118,6 +125,7 @@ class TestNormalizeText:
     def test_strip_emoji(self):
         """Emojis should be stripped when clean_text=True."""
         from datasety.audio import _normalize_text
+
         text = "Hello world! 😀🎉"
         result = _normalize_text(text, "en", normalize_numbers=False, clean_text=True)
         assert "😀" not in result
@@ -128,6 +136,7 @@ class TestNormalizeText:
     def test_keep_basic_punctuation(self):
         """Basic punctuation should be preserved."""
         from datasety.audio import _normalize_text
+
         text = 'Hello, world! How are you? "I\'m fine."'
         # With EnglishTextNormalizer, punctuation is normalized
         result = _normalize_text(text, "en", normalize_numbers=False, clean_text=True)
@@ -138,10 +147,12 @@ class TestNormalizeText:
     def test_expand_numbers_english(self):
         """Numbers should be expanded to words in English when num2words is available."""
         import importlib.util
+
         if importlib.util.find_spec("num2words") is None:
             pytest.skip("num2words not installed")
 
         from datasety.audio import _normalize_text
+
         text = "I have 123 apples"
         result = _normalize_text(text, "en", normalize_numbers=True, clean_text=False)
         # num2words returns "one hundred and twenty-three" by default
@@ -151,10 +162,12 @@ class TestNormalizeText:
     def test_expand_numbers_spanish(self):
         """Numbers should be expanded to words in Spanish when num2words is available."""
         import importlib.util
+
         if importlib.util.find_spec("num2words") is None:
             pytest.skip("num2words not installed")
 
         from datasety.audio import _normalize_text
+
         text = "Tengo 5 gatos"
         result = _normalize_text(text, "es", normalize_numbers=True, clean_text=False)
         # num2words returns "cinco" for Spanish
@@ -164,6 +177,7 @@ class TestNormalizeText:
     def test_no_normalize_when_disabled(self):
         """Numbers should be kept as-is when normalize_numbers=False."""
         from datasety.audio import _normalize_text
+
         text = "I have 123 apples"
         # With clean_text=False, only control chars stripped
         result = _normalize_text(text, "en", normalize_numbers=False, clean_text=False)
@@ -172,6 +186,7 @@ class TestNormalizeText:
     def test_strip_leading_trailing_whitespace(self):
         """Leading and trailing whitespace should be stripped."""
         from datasety.audio import _normalize_text
+
         text = "   Hello world!   "
         result = _normalize_text(text, "en", normalize_numbers=False, clean_text=False)
         assert result == "Hello world!"
@@ -179,6 +194,7 @@ class TestNormalizeText:
     def test_strips_special_characters(self):
         """Special characters like #, @ should be stripped. % may be preserved."""
         from datasety.audio import _normalize_text
+
         text = "Hello #world @user 100%"
         result = _normalize_text(text, "en", normalize_numbers=False, clean_text=True)
         # NeMo/whisper normalizers may preserve % as it's a semiotic class
@@ -190,6 +206,7 @@ class TestNormalizeText:
     def test_non_english_basic_clean(self):
         """Non-English text should be cleaned while preserving Unicode characters."""
         from datasety.audio import _normalize_text
+
         # Spanish text
         text = "Hola Mundo! Cómo estás?"
         result = _normalize_text(text, "es", normalize_numbers=False, clean_text=True)
@@ -205,6 +222,7 @@ class TestCheckFfmpeg:
         with patch("shutil.which", return_value=None):
             with pytest.raises(SystemExit):
                 from datasety.audio import _check_ffmpeg
+
                 _check_ffmpeg()
 
 
@@ -298,11 +316,13 @@ class TestIsolateVocals:
             mock_separator = MagicMock()
             mock_separator.sources = ["drums", "bass", "other", "vocals"]
 
-            with patch.object(demucs.pretrained, "get_model", return_value=mock_separator), \
-                 patch.object(demucs.apply, "apply_model") as mock_apply, \
-                 patch.object(demucs.audio, "save_audio"):
-
+            with (
+                patch.object(demucs.pretrained, "get_model", return_value=mock_separator),
+                patch.object(demucs.apply, "apply_model") as mock_apply,
+                patch.object(demucs.audio, "save_audio"),
+            ):
                 import torch as th
+
                 mock_apply.return_value = th.zeros(1, 4, 2, 44100)
 
                 result = _isolate_vocals(
@@ -341,11 +361,13 @@ class TestIsolateVocals:
             mock_separator = MagicMock()
             mock_separator.sources = ["drums", "bass", "other", "vocals"]
 
-            with patch.object(demucs.pretrained, "get_model", return_value=mock_separator), \
-                 patch.object(demucs.apply, "apply_model") as mock_apply, \
-                 patch.object(demucs.audio, "save_audio"):
-
+            with (
+                patch.object(demucs.pretrained, "get_model", return_value=mock_separator),
+                patch.object(demucs.apply, "apply_model") as mock_apply,
+                patch.object(demucs.audio, "save_audio"),
+            ):
                 import torch as th
+
                 # Return a tensor with 3 sources (no vocals) - index 3 would be out of bounds
                 mock_apply.return_value = th.zeros(1, 3, 2, 44100)
 
@@ -367,6 +389,7 @@ class TestTranscribe:
     def test_whisper_model_loaded_with_correct_args(self):
         """WhisperModel should be called with correct model size and device."""
         import importlib.util
+
         if importlib.util.find_spec("faster_whisper") is None:
             pytest.skip("faster-whisper not installed")
 
@@ -402,6 +425,7 @@ class TestTranscribe:
     def test_whisper_model_with_vad_enabled(self):
         """VAD should be enabled when vad=True."""
         import importlib.util
+
         if importlib.util.find_spec("faster_whisper") is None:
             pytest.skip("faster-whisper not installed")
 
@@ -428,6 +452,7 @@ class TestTranscribe:
     def test_transcribe_without_language(self):
         """Transcription should work without specifying language (auto-detect)."""
         import importlib.util
+
         if importlib.util.find_spec("faster_whisper") is None:
             pytest.skip("faster-whisper not installed")
 
@@ -458,6 +483,7 @@ class TestSliceAudio:
     def test_slices_audio_correctly(self):
         """Audio should be sliced at correct sample boundaries."""
         import importlib.util
+
         if importlib.util.find_spec("soundfile") is None:
             pytest.skip("soundfile not installed")
 
@@ -488,7 +514,8 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
-                    start_idx=0,
+                    global_idx=0,
+                    local_skip=0,
                     min_dur=1.0,
                     max_dur=10.0,
                     merge_gap=0.3,
@@ -497,9 +524,9 @@ class TestSliceAudio:
 
                 assert len(metadata) == 2
                 assert metadata[0][0] == 1  # idx
-                assert metadata[0][1]["filename"] == "utt_0001.wav"
+                assert metadata[0][2]["filename"] == "utt_0001.wav"
                 # Text may be lowercased and ordinals expanded (First -> 1st)
-                assert "segment" in metadata[0][1]["text"].lower()
+                assert "segment" in metadata[0][2]["text"].lower()
                 assert (output_dir / "utt_0001.wav").exists()
                 assert (output_dir / "utt_0002.wav").exists()
         finally:
@@ -508,6 +535,7 @@ class TestSliceAudio:
     def test_skips_short_segments(self):
         """Segments shorter than min_dur should be skipped."""
         import importlib.util
+
         if importlib.util.find_spec("soundfile") is None:
             pytest.skip("soundfile not installed")
 
@@ -537,7 +565,8 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
-                    start_idx=0,
+                    global_idx=0,
+                    local_skip=0,
                     min_dur=1.5,
                     max_dur=10.0,
                     merge_gap=0.3,
@@ -546,13 +575,14 @@ class TestSliceAudio:
 
                 assert len(metadata) == 1
                 # Text may be lowercased by normalizer
-                assert "ok" in metadata[0][1]["text"].lower()
+                assert "ok" in metadata[0][2]["text"].lower()
         finally:
             os.unlink(temp_path)
 
     def test_merges_close_segments(self):
         """Segments closer than merge_gap should be merged."""
         import importlib.util
+
         if importlib.util.find_spec("soundfile") is None:
             pytest.skip("soundfile not installed")
 
@@ -582,7 +612,8 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
-                    start_idx=0,
+                    global_idx=0,
+                    local_skip=0,
                     min_dur=1.0,
                     max_dur=10.0,
                     merge_gap=0.5,
@@ -591,13 +622,14 @@ class TestSliceAudio:
 
                 assert len(metadata) == 1
                 # Text may be lowercased by normalizer
-                assert "hello" in metadata[0][1]["text"].lower()
+                assert "hello" in metadata[0][2]["text"].lower()
         finally:
             os.unlink(temp_path)
 
     def test_no_merging_when_merge_gap_zero(self):
         """Segments should NOT merge when merge_gap is 0.0."""
         import importlib.util
+
         if importlib.util.find_spec("soundfile") is None:
             pytest.skip("soundfile not installed")
 
@@ -629,7 +661,8 @@ class TestSliceAudio:
                     temp_path,
                     segments,
                     output_dir,
-                    start_idx=0,
+                    global_idx=0,
+                    local_skip=0,
                     min_dur=1.0,
                     max_dur=10.0,
                     merge_gap=0.0,  # OFF - no merging
@@ -674,12 +707,199 @@ class TestIsYouTube:
 
     def test_youtube_url(self):
         from datasety.audio import _is_youtube
+
         assert _is_youtube("https://www.youtube.com/watch?v=abc123")
         assert _is_youtube("https://youtu.be/abc123")
         assert _is_youtube("https://youtube.com/shorts/abc123")
 
     def test_non_youtube_url(self):
         from datasety.audio import _is_youtube
+
         assert not _is_youtube("https://vimeo.com/123456")
         assert not _is_youtube("https://example.com/video.mp4")
 
+
+class TestDeduplicateMetadata:
+    """Test consecutive duplicate removal from metadata.csv."""
+
+    def test_removes_consecutive_duplicates(self):
+        """Consecutive duplicate text entries should be removed."""
+        from datasety.audio import _deduplicate_metadata
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            wavs_dir = output_dir / "wavs"
+            wavs_dir.mkdir()
+
+            csv_path = output_dir / "metadata.csv"
+            with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f, delimiter="|")
+                writer.writerow(["utt_0001.wav", "про що ти хочеш мене попросити?"])
+                writer.writerow(["utt_0002.wav", "запитала вона підозріло."])
+                writer.writerow(["utt_0003.wav", "запитала вона підозріло."])
+                writer.writerow(["utt_0004.wav", "про те що"])
+
+            (wavs_dir / "utt_0001.wav").touch()
+            (wavs_dir / "utt_0002.wav").touch()
+            (wavs_dir / "utt_0003.wav").touch()
+            (wavs_dir / "utt_0004.wav").touch()
+
+            _deduplicate_metadata(output_dir, wavs_dir)
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            lines = content.strip().split("\n")
+            assert len(lines) == 3
+            assert lines[0] == "utt_0001.wav|про що ти хочеш мене попросити?"
+            assert lines[1] == "utt_0002.wav|запитала вона підозріло."
+            assert lines[2] == "utt_0004.wav|про те що"
+
+            assert (wavs_dir / "utt_0001.wav").exists()
+            assert (wavs_dir / "utt_0002.wav").exists()
+            assert not (wavs_dir / "utt_0003.wav").exists()
+            assert (wavs_dir / "utt_0004.wav").exists()
+
+    def test_keeps_non_consecutive_duplicates(self):
+        """Non-consecutive duplicates should be kept."""
+        from datasety.audio import _deduplicate_metadata
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            wavs_dir = output_dir / "wavs"
+            wavs_dir.mkdir()
+
+            csv_path = output_dir / "metadata.csv"
+            with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f, delimiter="|")
+                writer.writerow(["utt_0001.wav", "Hello world"])
+                writer.writerow(["utt_0002.wav", "Hello world"])
+                writer.writerow(["utt_0003.wav", "Hello world"])
+
+            (wavs_dir / "utt_0001.wav").touch()
+            (wavs_dir / "utt_0002.wav").touch()
+            (wavs_dir / "utt_0003.wav").touch()
+
+            _deduplicate_metadata(output_dir, wavs_dir)
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            lines = content.strip().split("\n")
+            assert len(lines) == 1
+            assert lines[0] == "utt_0001.wav|Hello world"
+
+            assert (wavs_dir / "utt_0001.wav").exists()
+            assert not (wavs_dir / "utt_0002.wav").exists()
+            assert not (wavs_dir / "utt_0003.wav").exists()
+
+    def test_no_duplicates_unchanged(self):
+        """Metadata without duplicates should remain unchanged."""
+        from datasety.audio import _deduplicate_metadata
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            wavs_dir = output_dir / "wavs"
+            wavs_dir.mkdir()
+
+            csv_path = output_dir / "metadata.csv"
+            original = [
+                ["utt_0001.wav", "First unique text"],
+                ["utt_0002.wav", "Second unique text"],
+            ]
+            with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f, delimiter="|")
+                writer.writerows(original)
+
+            (wavs_dir / "utt_0001.wav").touch()
+            (wavs_dir / "utt_0002.wav").touch()
+
+            _deduplicate_metadata(output_dir, wavs_dir)
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            lines = content.strip().split("\n")
+            assert len(lines) == 2
+            assert lines[0] == "utt_0001.wav|First unique text"
+            assert lines[1] == "utt_0002.wav|Second unique text"
+
+    def test_empty_metadata_unchanged(self):
+        """Empty metadata should remain unchanged."""
+        from datasety.audio import _deduplicate_metadata
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            wavs_dir = output_dir / "wavs"
+            wavs_dir.mkdir()
+
+            csv_path = output_dir / "metadata.csv"
+            with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                pass
+
+            _deduplicate_metadata(output_dir, wavs_dir)
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            assert content == ""
+
+    def test_single_entry_unchanged(self):
+        """Single entry metadata should remain unchanged."""
+        from datasety.audio import _deduplicate_metadata
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            wavs_dir = output_dir / "wavs"
+            wavs_dir.mkdir()
+
+            csv_path = output_dir / "metadata.csv"
+            with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f, delimiter="|")
+                writer.writerow(["utt_0001.wav", "Only one"])
+
+            (wavs_dir / "utt_0001.wav").touch()
+
+            _deduplicate_metadata(output_dir, wavs_dir)
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            lines = content.strip().split("\n")
+            assert len(lines) == 1
+            assert lines[0] == "utt_0001.wav|Only one"
+
+    def test_deletion_log_written(self):
+        """Deletion log should be created when duplicates are removed."""
+        from datasety.audio import _deduplicate_metadata
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            wavs_dir = output_dir / "wavs"
+            wavs_dir.mkdir()
+
+            csv_path = output_dir / "metadata.csv"
+            with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f, delimiter="|")
+                writer.writerow(["utt_0001.wav", "Hello"])
+                writer.writerow(["utt_0002.wav", "duplicate"])
+                writer.writerow(["utt_0003.wav", "duplicate"])
+                writer.writerow(["utt_0004.wav", "world"])
+
+            (wavs_dir / "utt_0001.wav").touch()
+            (wavs_dir / "utt_0002.wav").touch()
+            (wavs_dir / "utt_0003.wav").touch()
+            (wavs_dir / "utt_0004.wav").touch()
+
+            _deduplicate_metadata(output_dir, wavs_dir)
+
+            log_path = output_dir / "deletions.csv"
+            assert log_path.exists()
+
+            with open(log_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            lines = content.strip().split("\n")
+            assert len(lines) == 2  # header + 1 deletion
+            assert "utt_0003.wav" in lines[1]
+            assert "duplicate_text" in lines[1]

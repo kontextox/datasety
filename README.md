@@ -20,7 +20,7 @@ pip install datasety[mask]           # + segmentation masks (SAM 3, CLIPSeg)
 pip install datasety[filter]         # + content filtering (CLIP, NudeNet)
 pip install datasety[character]      # + character dataset generation
 pip install datasety[workflow]       # + YAML workflow support
-pip install datasety[train]          # + LoRA training (FLUX, SDXL)
+pip install datasety[train]          # + LoRA training (FLUX, Qwen) & TTS (Piper)
 pip install datasety[audio]          # + TTS audio datasets (YouTube, VAD, Piper)
 pip install datasety[upload]         # + upload to HuggingFace Hub
 pip install datasety[all]            # everything
@@ -617,28 +617,35 @@ datasety sweep -i ./images -o ./sweep -p "add a hat" --steps 4,8 --cfg-scale 2.0
 
 ---
 
-### `train` — LoRA Fine-Tuning
+### `train` — LoRA Fine-Tuning & TTS Training
 
-Train a LoRA adapter for image generation models from a local dataset of image + caption pairs.
+Train a **LoRA adapter** for image generation models (FLUX, SDXL, Qwen) **or** a **TTS voice model** (Piper). The mode is auto-detected from `--family` (flux/sdxl/qwen) or `--backend` (piper/coqui/f5-tts).
 
-Supported model families: **FLUX.2-klein** (flow-matching), **SDXL** (DDPM), and **Qwen** (flow-matching, image-editing).
+> **Image parameters** (`--family flux/sdxl/qwen`): `--lr`, `--lora-rank`, `--lora-alpha`, `--image-size`, `--optimizer`, `--lr-scheduler`, etc.
+>
+> **Audio parameters** (`--backend piper`): `--sample-rate`, `--batch-size`, `--accelerator`, `--devices`, `--test-text`.
 
 <!-- screenshot: train -->
 
 ```bash
-datasety train --input ./dataset --output lora.safetensors --steps 500
+# Image: FLUX.2-klein LoRA (~8 GB VRAM)
+datasety train --input ./dataset --output lora.safetensors --family flux --steps 500 --lr 1e-4 --lora-rank 16
+
+# Audio: Piper TTS (auto-downloads base model, auto-installs Piper, multi-GPU, voice watcher)
+datasety train -i ./tts_dataset -o ./tts_output --backend piper \
+    --model "rhasspy/piper-checkpoints:en/en_US/kristin/medium" \
+    --devices auto --test-text "Hello world"
 ```
 
 <details>
-<summary>Options</summary>
+<summary>Image (LoRA) Options</summary>
 
 | Option                          | Description                                               | Default                                  |
 | ------------------------------- | --------------------------------------------------------- | ---------------------------------------- |
-| `--input`, `-i`                 | Dataset directory (images + `.txt` captions)              | required                                 |
-| `--output`, `-o`                | Output LoRA `.safetensors` path                           | `lora.safetensors`                       |
-| `--model`, `-m`                 | HuggingFace repo ID (base model)                          | `black-forest-labs/FLUX.2-klein-base-4B` |
 | `--family`                      | Model family: `flux`, `sdxl`, `qwen`                      | auto-detected                            |
-| `--steps`                       | Number of training steps                                  | `100`                                    |
+| `--model`, `-m`                 | HuggingFace repo ID (base model)                          | `black-forest-labs/FLUX.2-klein-base-4B` |
+| `--output`, `-o`                | Output `.safetensors` path                                | `lora.safetensors`                       |
+| `--steps`                       | Training steps                                            | `100`                                    |
 | `--lr`                          | Learning rate                                             | `1e-4`                                   |
 | `--lora-rank`                   | LoRA rank                                                 | `16`                                     |
 | `--lora-alpha`                  | LoRA alpha                                                | `16.0`                                   |
@@ -647,44 +654,37 @@ datasety train --input ./dataset --output lora.safetensors --steps 500
 | `--device`                      | `auto`, `cpu`, `cuda`, `mps`                              | `auto`                                   |
 | `--seed`                        | Random seed                                               | `42`                                     |
 | `--save-every`                  | Save checkpoint every N steps                             | end only                                 |
-| `--resume`                      | Resume from a LoRA checkpoint (.safetensors)              |                                          |
-| `--validation-split`            | Fraction of dataset for validation (0.0-0.5)              |                                          |
+| `--resume`                      | Resume from a `.safetensors` checkpoint                   |                                          |
+| `--validation-split`            | Fraction for validation (0.0–0.5)                         |                                          |
 | `--timestep-type`               | Timestep sampling: `sigmoid`, `lognorm`, `linear`         | `sigmoid`                                |
-| `--caption-dropout`             | Probability of dropping caption (unconditional)           | `0.05`                                   |
+| `--caption-dropout`             | Probability of dropping caption                           | `0.05`                                   |
 | `--gradient-checkpointing`      | Enable gradient checkpointing (saves VRAM)                | off                                      |
 | `--optimizer`                   | `adamw` or `adamw8bit` (requires bitsandbytes)            | `adamw`                                  |
 | `--lr-scheduler`                | LR schedule: `constant`, `cosine`, `linear`               | `constant`                               |
-| `--lr-warmup-steps`             | Linear warmup steps before target LR                      | `0`                                      |
+| `--lr-warmup-steps`             | Linear warmup steps                                       | `0`                                      |
 | `--gradient-accumulation-steps` | Accumulate gradients over N steps                         | `1`                                      |
-| `--min-snr-gamma`               | Min-SNR-γ loss weighting for SDXL (recommended: 5.0)      | disabled                                 |
+| `--min-snr-gamma`               | Min-SNR-γ for SDXL (recommended: 5.0)                     | disabled                                 |
 | `--noise-offset`                | Per-channel noise offset for SDXL (recommended: 0.05–0.1) | `0.0`                                    |
 
 </details>
 
-```bash
-# Prepare dataset
-datasety resize -i ./raw -o ./dataset -r 512x512
-datasety caption -i ./dataset -o ./dataset --trigger-word "ohwx person,"
+<details>
+<summary>Audio (TTS) Options</summary>
 
-# Train FLUX.2-klein LoRA (~8 GB VRAM)
-datasety train \
-    --input ./dataset \
-    --output lora/flux_lora.safetensors \
-    --model black-forest-labs/FLUX.2-klein-base-4B \
-    --steps 500 --lr 1e-4 --lora-rank 16
+| Option           | Description                                          | Default    |
+| ---------------- | ---------------------------------------------------- | ---------- |
+| `--backend`      | TTS backend: `piper` (coqui, f5-tts planned)         | `piper`    |
+| `--model`        | Piper base model (`repo_id:subfolder` or local path) | (required) |
+| `--output`, `-o` | Output directory for `.ckpt` checkpoints             | (required) |
+| `--steps`        | Training epochs                                      | `100`      |
+| `--sample-rate`  | Audio sample rate in Hz                              | `22050`    |
+| `--batch-size`   | Training batch size                                  | `32`       |
+| `--accelerator`  | PyTorch Lightning accelerator: `auto`, `gpu`, `cpu`  | `auto`     |
+| `--devices`      | Number of GPUs: `auto`, `1`, `2`, `-1` (all)         | `auto`     |
+| `--test-text`    | Background inference text to test checkpoints        |            |
+| `--seed`         | Random seed                                          | `42`       |
 
-# Use the trained LoRA
-datasety synthetic --input-image photo.jpg --output-image out.png \
-    --prompt "ohwx person wearing sunglasses" \
-    --lora lora/flux_lora.safetensors:0.8
-
-# SDXL LoRA
-datasety train \
-    --input ./dataset \
-    --output sdxl_lora.safetensors \
-    --model stabilityai/stable-diffusion-xl-base-1.0 \
-    --family sdxl --steps 500 --image-size 1024
-```
+</details>
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/train)
 
@@ -692,7 +692,7 @@ datasety train \
 
 ### `audio` — Build TTS Audio Datasets
 
-Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, local files, and directories of files (sorted by name). Extracts audio, transcribes with faster-whisper, normalizes text, and outputs Piper/LJSpeech-compatible datasets.
+Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, local files, and text files containing lists of paths. Extracts audio, transcribes with faster-whisper, performs deep text cleaning, and outputs Piper/LJSpeech-compatible datasets.
 
 ```bash
 datasety audio --input ./video.mp4 --output ./dataset
@@ -703,58 +703,44 @@ datasety audio --input "https://www.youtube.com/watch?v=..." --output ./dataset 
 <details>
 <summary>Options</summary>
 
-| Option                | Description                                                             | Default     |
-| --------------------- | ----------------------------------------------------------------------- | ----------- |
-| `--input`, `-i`       | Input: local file, directory of files, YouTube URL, or direct media URL | required    |
-| `--output`, `-o`      | Output directory for the dataset                                        | required    |
-| `--sample-rate`       | Output audio sample rate in Hz                                          | `22050`     |
-| `--demucs`            | Enable Demucs vocal isolation                                           | `false`     |
-| `--demucs-model`      | Demucs model name                                                       | `htdemucs`  |
-| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3               | `base`      |
-| `--language`          | Language code (e.g., en, es, fr, uk). Auto-detected if omitted          | (auto)      |
-| `--device`            | Device: auto, cpu, cuda, mps                                            | `auto`      |
-| `--vad`               | Enable voice activity detection (VAD) to filter non-speech              | `false`     |
-| `--min-duration`      | Minimum segment duration in seconds                                     | `1.5`       |
-| `--max-duration`      | Maximum segment duration in seconds                                     | `30.0`      |
-| `--merge-gap`         | Merge segments closer than this many seconds                            | `0.0` (off) |
-| `--normalize-numbers` | Expand digits into words                                                | `false`     |
-| `--no-clean-text`     | Disable special character stripping                                     | `false`     |
-| `--workers`           | Number of parallel file workers (default: 1)                            | `1`         |
-| `--keep-temp`         | Keep temporary audio files at this path                                 |             |
-| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)             | `false`     |
-| `--overwrite`         | Overwrite existing output directory                                     | `false`     |
-| `--dry-run`           | Print pipeline steps without executing                                  | `false`     |
-| `--verbose`, `-V`     | Print detailed progress messages                                        | `false`     |
+| Option                | Description                                                                   | Default     |
+| --------------------- | ----------------------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input: local file, URL, dir, or `.txt` list. Append `?start=X&end=Y` to slice | required    |
+| `--output`, `-o`      | Output directory for the dataset                                              | required    |
+| `--sample-rate`       | Output audio sample rate in Hz                                                | `22050`     |
+| `--demucs`            | Enable Demucs vocal isolation                                                 | `false`     |
+| `--demucs-model`      | Demucs model name                                                             | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                     | `base`      |
+| `--language`          | Language code (e.g., en, es, fr, uk). Auto-detected if omitted                | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                                  | `auto`      |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                    | `false`     |
+| `--min-duration`      | Minimum segment duration in seconds                                           | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                                           | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                                  | `0.0` (off) |
+| `--normalize-numbers` | Expand digits into words                                                      | `false`     |
+| `--no-clean-text`     | Disable special character stripping                                           | `false`     |
+| `--phoneme-map`       | Path to `config.json`/`phonemes.json` to filter bad text                      |             |
+| `--workers`           | Number of parallel file workers (default: 1)                                  | `1`         |
+| `--keep-temp`         | Keep temporary audio files at this path                                       |             |
+| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                   | `false`     |
+| `--overwrite`         | Overwrite existing output directory                                           | `false`     |
+| `--dry-run`           | Print pipeline steps without executing                                        | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                                              | `false`     |
 
 </details>
 
 ```bash
-# YouTube video to TTS dataset (English)
-datasety audio --input "https://www.youtube.com/watch?v=..." --output ./tts_dataset
+# Process a list of URLs from a text file, dropping unsupported characters
+datasety audio --input urls.txt --output ./dataset --phoneme-map phonemes.json
 
-# Directory of audio files sorted by name (1.mp3, 2.mp3, ...)
-datasety audio --input ./recordings/ --output ./dataset
-
-# Ukrainian video — always specify language for accurate transcription
-datasety audio --input ./video.mp4 --output ./dataset --language uk
-
-# Enable VAD for noisy audio (merges speech into fewer, longer segments)
-datasety audio --input ./noisy_video.mp4 --output ./dataset --vad
+# Extract a specific 40-second slice from a YouTube video
+datasety audio --input "https://youtube.com/watch?v=...?start=50&end=90" -o ./dataset
 
 # Local video with vocal isolation and high-quality transcription
 datasety audio --input ./video.mp4 --output ./dataset --demucs --whisper-model large-v3
 
-# Resume a previous run (skip already-processed chunks)
-datasety audio --input ./video.mp4 --output ./dataset --resume
-
-# Overwrite existing output
-datasety audio --input ./video.mp4 --output ./dataset --overwrite
-
 # Parallel processing of multiple files
 datasety audio --input ./videos/ --output ./dataset --workers 4
-
-# Preview pipeline without downloading
-datasety audio --input ./video.mp4 --output ./dataset --dry-run --verbose
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/audio)
