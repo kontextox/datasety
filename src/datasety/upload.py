@@ -109,7 +109,8 @@ def _detect_language_from_metadata(path: Path, dataset_type: str) -> list[str]:
         if metadata_file.exists():
             try:
                 import langdetect
-                texts =[]
+
+                texts = []
                 with open(metadata_file, encoding="utf-8") as f:
                     # Piper metadata doesn't always have headers, so read raw lines
                     for line in f:
@@ -234,7 +235,9 @@ def generate_dataset_card(
     lines.append("")
     lines.append(f"# {name}")
     lines.append("")
-    lines.append("This dataset was prepared using [datasety](https://github.com/kontextox/datasety).")
+    lines.append(
+        "This dataset was prepared using [datasety](https://github.com/kontextox/datasety)."
+    )
     lines.append("")
     lines.append("## Dataset Summary")
     lines.append("")
@@ -332,6 +335,7 @@ def generate_dataset_card(
 # Structure validation
 # ---------------------------------------------------------------------------
 
+
 def validate_dataset_structure(path: Path, dataset_type: str) -> list[str]:
     """Validate dataset structure and return a list of warnings.
 
@@ -348,8 +352,7 @@ def validate_dataset_structure(path: Path, dataset_type: str) -> list[str]:
         metadata = path / "metadata.csv"
         if not metadata.exists():
             warnings.append(
-                "No 'metadata.csv' found - without it, audio files won't have "
-                "text labels."
+                "No 'metadata.csv' found - without it, audio files won't have text labels."
             )
 
     elif dataset_type == "image":
@@ -377,9 +380,7 @@ def validate_dataset_structure(path: Path, dataset_type: str) -> list[str]:
     elif dataset_type == "generic":
         has_data = any(p.suffix.lower() in GENERIC_EXTENSIONS for p in path.rglob("*"))
         if not has_data:
-            warnings.append(
-                "No common data files (.csv, .json, .parquet, .txt) found."
-            )
+            warnings.append("No common data files (.csv, .json, .parquet, .txt) found.")
 
     return warnings
 
@@ -387,6 +388,7 @@ def validate_dataset_structure(path: Path, dataset_type: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # HuggingFace API helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_token(token_arg: str | None) -> str | None:
     """Resolve HF token from argument or environment."""
@@ -403,6 +405,7 @@ def _derive_repo_id(path: Path, dataset_type: str) -> str:
 # ---------------------------------------------------------------------------
 # Main command
 # ---------------------------------------------------------------------------
+
 
 def cmd_upload(args):
     """Upload a dataset or model to HuggingFace Hub."""
@@ -542,18 +545,21 @@ def register_parser(subparsers):
     )
 
     upload_parser.add_argument(
-        "--path", "-p",
+        "--path",
+        "-p",
         required=True,
         help="Path to the dataset or model directory to upload",
     )
     upload_parser.add_argument(
-        "--repo-id", "-r",
+        "--repo-id",
+        "-r",
         default=None,
         help="HuggingFace repo ID (e.g., 'username/my-dataset'). "
-             "If omitted, derived from the directory name.",
+        "If omitted, derived from the directory name.",
     )
     upload_parser.add_argument(
-        "--type", "-t",
+        "--type",
+        "-t",
         default="auto",
         choices=["audio", "image", "video", "document", "generic", "model", "auto"],
         help="Dataset or model type (default: auto-detect from structure)",
@@ -587,15 +593,17 @@ def register_parser(subparsers):
         "--metadata",
         default=None,
         help="Extra YAML key:value pairs for dataset card frontmatter. "
-             "Example: --metadata 'license:cc-by-4.0 language: [en,fr]'",
+        "Example: --metadata 'license:cc-by-4.0 language: [en,fr]'",
     )
     upload_parser.add_argument(
-        "--yes", "-y",
+        "--yes",
+        "-y",
         action="store_true",
         help="Skip confirmation prompts",
     )
     upload_parser.add_argument(
-        "--verbose", "-V",
+        "--verbose",
+        "-V",
         action="store_true",
         help="Print detailed progress messages",
     )

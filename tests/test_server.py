@@ -79,6 +79,7 @@ def pairs_server(pairs_dirs):
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 
+
 def _get(base, path):
     with urllib.request.urlopen(base + path) as resp:
         return resp.status, json.loads(resp.read())
@@ -99,6 +100,7 @@ def _post(base, path, data):
 
 # ── Unit tests ────────────────────────────────────────────────────────────────
 
+
 class TestScan:
     def test_scan_basic(self, dataset_dir):
         result = _scan(dataset_dir, recursive=False, compute_hashes=False)
@@ -112,7 +114,7 @@ class TestScan:
     def test_scan_orientations(self, dataset_dir):
         result = _scan(dataset_dir, recursive=False, compute_hashes=False)
         o = result["stats"]["orientations"]
-        assert o.get("square", 0) == 3   # 512x512(×2), 1024x768 (ratio 1.33)
+        assert o.get("square", 0) == 3  # 512x512(×2), 1024x768 (ratio 1.33)
         assert o.get("landscape", 0) == 1
         assert o.get("portrait", 0) == 1
 
@@ -154,6 +156,7 @@ class TestBuildPairs:
 
 
 # ── Server API tests ──────────────────────────────────────────────────────────
+
 
 class TestGalleryAPI:
     def test_html_root(self, server):
@@ -289,8 +292,17 @@ class TestGalleryAPI:
 class TestCommandSchemas:
     def test_all_commands_present(self):
         expected = {
-            "resize", "caption", "align", "inspect", "filter", "degrade",
-            "shuffle", "mask", "synthetic", "train", "audio",
+            "resize",
+            "caption",
+            "align",
+            "inspect",
+            "filter",
+            "degrade",
+            "shuffle",
+            "mask",
+            "synthetic",
+            "train",
+            "audio",
         }
         assert expected == set(COMMAND_SCHEMAS.keys())
 
@@ -332,15 +344,20 @@ class TestRunAPI:
 
     def test_run_inspect(self, server):
         base, d = server
-        status, data = _post(base, "/api/run", {
-            "command": "inspect",
-            "args": {"input": str(d)},
-        })
+        status, data = _post(
+            base,
+            "/api/run",
+            {
+                "command": "inspect",
+                "args": {"input": str(d)},
+            },
+        )
         assert status == 200
         assert "job_id" in data
 
     def test_run_job_polling(self, server):
         import time as _time
+
         base, d = server
         _, r = _post(base, "/api/run", {"command": "inspect", "args": {"input": str(d)}})
         jid = r["job_id"]

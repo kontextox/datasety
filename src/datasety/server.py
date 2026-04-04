@@ -82,9 +82,14 @@ def _render_page(page: str, has_pairs: bool = False) -> str:
     html = html.replace("{{ header_extra }}", header_extra)
     html = html.replace("{{ content }}", page_content)
     html = html.replace("{{ extra_styles }}", "")
-    html = html.replace("{{ extra_scripts }}",
-        '<script>\ndocument.addEventListener("DOMContentLoaded",function(){\n' +
-        page_scripts + '\n});\n</script>' if page_scripts else "")
+    html = html.replace(
+        "{{ extra_scripts }}",
+        '<script>\ndocument.addEventListener("DOMContentLoaded",function(){\n'
+        + page_scripts
+        + "\n});\n</script>"
+        if page_scripts
+        else "",
+    )
     return html
 
 
@@ -153,32 +158,36 @@ def _scan(input_dir: Path, recursive: bool, compute_hashes: bool):
                 if compute_hashes:
                     phash = image_phash(img)
                     hashes.setdefault(phash, []).append(str(img_path))
-                images.append({
-                    "path": str(img_path),
-                    "name": img_path.name,
-                    "stem": img_path.stem,
-                    "width": w,
-                    "height": h,
-                    "resolution": f"{w}x{h}",
-                    "format": fmt,
-                    "size_bytes": size_bytes,
-                    "size_kb": round(size_bytes / 1024, 1),
-                    "orientation": o,
-                    "has_caption": has_cap,
-                    "caption": cap_text,
-                    "phash": phash,
-                })
+                images.append(
+                    {
+                        "path": str(img_path),
+                        "name": img_path.name,
+                        "stem": img_path.stem,
+                        "width": w,
+                        "height": h,
+                        "resolution": f"{w}x{h}",
+                        "format": fmt,
+                        "size_bytes": size_bytes,
+                        "size_kb": round(size_bytes / 1024, 1),
+                        "orientation": o,
+                        "has_caption": has_cap,
+                        "caption": cap_text,
+                        "phash": phash,
+                    }
+                )
                 res_ctr[f"{w}x{h}"] += 1
                 fmt_ctr[fmt] += 1
                 orient_ctr[o] += 1
                 total_bytes += size_bytes
         except Exception as e:
-            images.append({
-                "path": str(img_path),
-                "name": img_path.name,
-                "stem": img_path.stem,
-                "error": str(e),
-            })
+            images.append(
+                {
+                    "path": str(img_path),
+                    "name": img_path.name,
+                    "stem": img_path.stem,
+                    "error": str(e),
+                }
+            )
 
     stats = {
         "total": len(images),
@@ -202,15 +211,17 @@ def _build_pairs(input_dir: Path, control_dir: Path, recursive: bool):
         cf = control_by_stem.get(tf.stem)
         if cf is None:
             continue
-        pairs.append({
-            "stem": tf.stem,
-            "target": str(tf),
-            "control": str(cf),
-            "target_caption": str(tf.with_suffix(".txt")),
-            "control_caption": str(cf.with_suffix(".txt")),
-            "has_target_caption": tf.with_suffix(".txt").exists(),
-            "has_control_caption": cf.with_suffix(".txt").exists(),
-        })
+        pairs.append(
+            {
+                "stem": tf.stem,
+                "target": str(tf),
+                "control": str(cf),
+                "target_caption": str(tf.with_suffix(".txt")),
+                "control_caption": str(cf.with_suffix(".txt")),
+                "has_target_caption": tf.with_suffix(".txt").exists(),
+                "has_control_caption": cf.with_suffix(".txt").exists(),
+            }
+        )
     return pairs
 
 
@@ -276,26 +287,30 @@ def _scan_audio(input_dir: Path, recursive: bool):
                 transcriptions_found += 1
                 has_txt = True
 
-            audio_list.append({
-                "path": str(af),
-                "name": af.name,
-                "stem": af.stem,
-                "duration": round(duration, 2),
-                "sample_rate": sample_rate,
-                "size_bytes": size_bytes,
-                "size_kb": round(size_bytes / 1024, 1),
-                "has_transcription": has_txt,
-                "transcription": txt_text,
-            })
+            audio_list.append(
+                {
+                    "path": str(af),
+                    "name": af.name,
+                    "stem": af.stem,
+                    "duration": round(duration, 2),
+                    "sample_rate": sample_rate,
+                    "size_bytes": size_bytes,
+                    "size_kb": round(size_bytes / 1024, 1),
+                    "has_transcription": has_txt,
+                    "transcription": txt_text,
+                }
+            )
             total_bytes += size_bytes
             total_duration += duration
         except Exception as e:
-            audio_list.append({
-                "path": str(af),
-                "name": af.name,
-                "stem": af.stem,
-                "error": str(e),
-            })
+            audio_list.append(
+                {
+                    "path": str(af),
+                    "name": af.name,
+                    "stem": af.stem,
+                    "error": str(e),
+                }
+            )
 
     audio_stats = {
         "total": len(audio_list),
@@ -338,12 +353,50 @@ COMMAND_SCHEMAS: dict = {
     "resize": {
         "description": "Resize and crop images to a target resolution",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
-            {"id": "output", "flag": "--output", "label": "Output dir", "type": "str", "required": True},
-            {"id": "resolution", "flag": "--resolution", "label": "Resolution", "type": "str", "placeholder": "512x512"},
-            {"id": "crop_position", "flag": "--crop-position", "label": "Crop position", "type": "select", "options": ["center", "top", "bottom", "left", "right", "random"], "default": "center"},
-            {"id": "output_format", "flag": "--output-format", "label": "Output format", "type": "select", "options": ["", "jpg", "png", "webp"], "default": ""},
-            {"id": "quality", "flag": "--quality", "label": "Quality (jpg/webp)", "type": "str", "placeholder": "95"},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "output",
+                "flag": "--output",
+                "label": "Output dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "resolution",
+                "flag": "--resolution",
+                "label": "Resolution",
+                "type": "str",
+                "placeholder": "512x512",
+            },
+            {
+                "id": "crop_position",
+                "flag": "--crop-position",
+                "label": "Crop position",
+                "type": "select",
+                "options": ["center", "top", "bottom", "left", "right", "random"],
+                "default": "center",
+            },
+            {
+                "id": "output_format",
+                "flag": "--output-format",
+                "label": "Output format",
+                "type": "select",
+                "options": ["", "jpg", "png", "webp"],
+                "default": "",
+            },
+            {
+                "id": "quality",
+                "flag": "--quality",
+                "label": "Quality (jpg/webp)",
+                "type": "str",
+                "placeholder": "95",
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
             {"id": "dry_run", "flag": "--dry-run", "label": "Dry run (preview)", "type": "bool"},
         ],
@@ -351,20 +404,63 @@ COMMAND_SCHEMAS: dict = {
     "caption": {
         "description": "Generate captions using Florence-2 (requires caption extras + GPU)",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
             {"id": "output", "flag": "--output", "label": "Output dir", "type": "str"},
-            {"id": "trigger_word", "flag": "--trigger-word", "label": "Trigger word", "type": "str", "placeholder": "ohwx person"},
+            {
+                "id": "trigger_word",
+                "flag": "--trigger-word",
+                "label": "Trigger word",
+                "type": "str",
+                "placeholder": "ohwx person",
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
-            {"id": "overwrite", "flag": "--overwrite", "label": "Overwrite existing", "type": "bool"},
+            {
+                "id": "overwrite",
+                "flag": "--overwrite",
+                "label": "Overwrite existing",
+                "type": "bool",
+            },
         ],
     },
     "align": {
         "description": "Align control/target pairs to matching dimensions (multiples of 32)",
         "args": [
-            {"id": "target", "flag": "--target", "label": "Target dir", "type": "str", "required": True},
-            {"id": "control", "flag": "--control", "label": "Control dir", "type": "str", "required": True},
-            {"id": "multiple_of", "flag": "--multiple-of", "label": "Multiple of", "type": "str", "placeholder": "32", "default": "32"},
-            {"id": "output_format", "flag": "--output-format", "label": "Output format", "type": "select", "options": ["", "jpg", "png", "webp"], "default": ""},
+            {
+                "id": "target",
+                "flag": "--target",
+                "label": "Target dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "control",
+                "flag": "--control",
+                "label": "Control dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "multiple_of",
+                "flag": "--multiple-of",
+                "label": "Multiple of",
+                "type": "str",
+                "placeholder": "32",
+                "default": "32",
+            },
+            {
+                "id": "output_format",
+                "flag": "--output-format",
+                "label": "Output format",
+                "type": "select",
+                "options": ["", "jpg", "png", "webp"],
+                "default": "",
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
             {"id": "dry_run", "flag": "--dry-run", "label": "Dry run (preview)", "type": "bool"},
         ],
@@ -372,31 +468,111 @@ COMMAND_SCHEMAS: dict = {
     "inspect": {
         "description": "Show dataset statistics, caption coverage, and detect duplicates",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
-            {"id": "duplicates", "flag": "--duplicates", "label": "Detect duplicates", "type": "bool"},
-            {"id": "json", "flag": "--json", "label": "Export JSON path", "type": "str", "placeholder": "report.json"},
-            {"id": "csv", "flag": "--csv", "label": "Export CSV path", "type": "str", "placeholder": "images.csv"},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "duplicates",
+                "flag": "--duplicates",
+                "label": "Detect duplicates",
+                "type": "bool",
+            },
+            {
+                "id": "json",
+                "flag": "--json",
+                "label": "Export JSON path",
+                "type": "str",
+                "placeholder": "report.json",
+            },
+            {
+                "id": "csv",
+                "flag": "--csv",
+                "label": "Export CSV path",
+                "type": "str",
+                "placeholder": "images.csv",
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
         ],
     },
     "filter": {
         "description": "Move/delete images matching a content query using CLIP",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
-            {"id": "output", "flag": "--output", "label": "Output dir", "type": "str", "required": True},
-            {"id": "query", "flag": "--query", "label": "Query", "type": "str", "required": True, "placeholder": "male face, legs"},
-            {"id": "action", "flag": "--action", "label": "Action", "type": "select", "options": ["move", "copy", "delete"], "default": "move"},
-            {"id": "threshold", "flag": "--threshold", "label": "Threshold (0–1)", "type": "str", "placeholder": "0.5"},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "output",
+                "flag": "--output",
+                "label": "Output dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "query",
+                "flag": "--query",
+                "label": "Query",
+                "type": "str",
+                "required": True,
+                "placeholder": "male face, legs",
+            },
+            {
+                "id": "action",
+                "flag": "--action",
+                "label": "Action",
+                "type": "select",
+                "options": ["move", "copy", "delete"],
+                "default": "move",
+            },
+            {
+                "id": "threshold",
+                "flag": "--threshold",
+                "label": "Threshold (0–1)",
+                "type": "str",
+                "placeholder": "0.5",
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
         ],
     },
     "degrade": {
         "description": "Create degraded image versions for upscale/enhance training",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
-            {"id": "output", "flag": "--output", "label": "Output dir", "type": "str", "required": True},
-            {"id": "type", "flag": "--type", "label": "Degradation type", "type": "select", "options": ["jpeg", "blur", "noise", "downscale", "random"], "default": "jpeg"},
-            {"id": "intensity", "flag": "--intensity", "label": "Intensity (0–1)", "type": "str", "placeholder": "0.5"},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "output",
+                "flag": "--output",
+                "label": "Output dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "type",
+                "flag": "--type",
+                "label": "Degradation type",
+                "type": "select",
+                "options": ["jpeg", "blur", "noise", "downscale", "random"],
+                "default": "jpeg",
+            },
+            {
+                "id": "intensity",
+                "flag": "--intensity",
+                "label": "Intensity (0–1)",
+                "type": "str",
+                "placeholder": "0.5",
+            },
             {"id": "paired", "flag": "--paired", "label": "Output LR/HR pairs", "type": "bool"},
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
         ],
@@ -404,54 +580,193 @@ COMMAND_SCHEMAS: dict = {
     "shuffle": {
         "description": "Shuffle and rename image/caption file pairs",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
-            {"id": "output", "flag": "--output", "label": "Output dir", "type": "str", "required": True},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "output",
+                "flag": "--output",
+                "label": "Output dir",
+                "type": "str",
+                "required": True,
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
         ],
     },
     "mask": {
         "description": "Generate segmentation masks using SAM / CLIPSeg",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
-            {"id": "output", "flag": "--output", "label": "Output dir", "type": "str", "required": True},
-            {"id": "keywords", "flag": "--keywords", "label": "Keywords", "type": "str", "placeholder": "face,hair,shirt"},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "output",
+                "flag": "--output",
+                "label": "Output dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "keywords",
+                "flag": "--keywords",
+                "label": "Keywords",
+                "type": "str",
+                "placeholder": "face,hair,shirt",
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
         ],
     },
     "synthetic": {
         "description": "Generate synthetic image variations using diffusion (requires synthetic extras + GPU)",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input dir", "type": "str", "required": True},
-            {"id": "output", "flag": "--output", "label": "Output dir", "type": "str", "required": True},
-            {"id": "prompt", "flag": "--prompt", "label": "Prompt", "type": "str", "required": True, "placeholder": "a photo of a person wearing a hat"},
-            {"id": "count", "flag": "--count", "label": "Images per input", "type": "str", "placeholder": "4"},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "output",
+                "flag": "--output",
+                "label": "Output dir",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "prompt",
+                "flag": "--prompt",
+                "label": "Prompt",
+                "type": "str",
+                "required": True,
+                "placeholder": "a photo of a person wearing a hat",
+            },
+            {
+                "id": "count",
+                "flag": "--count",
+                "label": "Images per input",
+                "type": "str",
+                "placeholder": "4",
+            },
             {"id": "recursive", "flag": "--recursive", "label": "Recursive", "type": "bool"},
         ],
     },
     "train": {
         "description": "Fine-tune a LoRA model on the dataset (requires train extras + GPU)",
         "args": [
-            {"id": "config", "flag": "--config", "label": "Config YAML", "type": "str", "placeholder": "train.yaml"},
+            {
+                "id": "config",
+                "flag": "--config",
+                "label": "Config YAML",
+                "type": "str",
+                "placeholder": "train.yaml",
+            },
             {"id": "input", "flag": "--input", "label": "Dataset dir", "type": "str"},
             {"id": "output", "flag": "--output", "label": "Output dir", "type": "str"},
-            {"id": "steps", "flag": "--steps", "label": "Training steps", "type": "str", "placeholder": "1000"},
-            {"id": "rank", "flag": "--rank", "label": "LoRA rank", "type": "str", "placeholder": "16"},
-            {"id": "lr", "flag": "--lr", "label": "Learning rate", "type": "str", "placeholder": "1e-4"},
-            {"id": "batch_size", "flag": "--batch-size", "label": "Batch size", "type": "str", "placeholder": "1"},
+            {
+                "id": "steps",
+                "flag": "--steps",
+                "label": "Training steps",
+                "type": "str",
+                "placeholder": "1000",
+            },
+            {
+                "id": "rank",
+                "flag": "--rank",
+                "label": "LoRA rank",
+                "type": "str",
+                "placeholder": "16",
+            },
+            {
+                "id": "lr",
+                "flag": "--lr",
+                "label": "Learning rate",
+                "type": "str",
+                "placeholder": "1e-4",
+            },
+            {
+                "id": "batch_size",
+                "flag": "--batch-size",
+                "label": "Batch size",
+                "type": "str",
+                "placeholder": "1",
+            },
         ],
     },
     "audio": {
         "description": "Build TTS audio dataset from video/audio (YouTube, URL, or local file)",
         "args": [
-            {"id": "input", "flag": "--input", "label": "Input source", "type": "str", "required": True, "placeholder": "video.mp4 or YouTube URL"},
-            {"id": "output", "flag": "--output", "label": "Output directory", "type": "str", "required": True},
-            {"id": "sample_rate", "flag": "--sample-rate", "label": "Sample rate (Hz)", "type": "str", "placeholder": "22050"},
-            {"id": "whisper_model", "flag": "--whisper-model", "label": "Whisper model", "type": "select", "options": ["tiny", "base", "small", "medium", "large-v3"], "default": "base"},
-            {"id": "language", "flag": "--language", "label": "Language code", "type": "str", "placeholder": "en (auto-detect if empty)"},
-            {"id": "min_duration", "flag": "--min-duration", "label": "Min segment (s)", "type": "str", "placeholder": "1.5"},
-            {"id": "max_duration", "flag": "--max-duration", "label": "Max segment (s)", "type": "str", "placeholder": "10.0"},
-            {"id": "normalize_numbers", "flag": "--normalize-numbers", "label": "Expand numbers to words", "type": "bool"},
-            {"id": "demucs", "flag": "--demucs", "label": "Isolate vocals (Demucs)", "type": "bool"},
+            {
+                "id": "input",
+                "flag": "--input",
+                "label": "Input source",
+                "type": "str",
+                "required": True,
+                "placeholder": "video.mp4 or YouTube URL",
+            },
+            {
+                "id": "output",
+                "flag": "--output",
+                "label": "Output directory",
+                "type": "str",
+                "required": True,
+            },
+            {
+                "id": "sample_rate",
+                "flag": "--sample-rate",
+                "label": "Sample rate (Hz)",
+                "type": "str",
+                "placeholder": "22050",
+            },
+            {
+                "id": "whisper_model",
+                "flag": "--whisper-model",
+                "label": "Whisper model",
+                "type": "select",
+                "options": ["tiny", "base", "small", "medium", "large-v3"],
+                "default": "base",
+            },
+            {
+                "id": "language",
+                "flag": "--language",
+                "label": "Language code",
+                "type": "str",
+                "placeholder": "en (auto-detect if empty)",
+            },
+            {
+                "id": "min_duration",
+                "flag": "--min-duration",
+                "label": "Min segment (s)",
+                "type": "str",
+                "placeholder": "1.5",
+            },
+            {
+                "id": "max_duration",
+                "flag": "--max-duration",
+                "label": "Max segment (s)",
+                "type": "str",
+                "placeholder": "10.0",
+            },
+            {
+                "id": "normalize_numbers",
+                "flag": "--normalize-numbers",
+                "label": "Expand numbers to words",
+                "type": "bool",
+            },
+            {
+                "id": "demucs",
+                "flag": "--demucs",
+                "label": "Isolate vocals (Demucs)",
+                "type": "bool",
+            },
             {"id": "dry_run", "flag": "--dry-run", "label": "Dry run (preview)", "type": "bool"},
         ],
     },
@@ -483,22 +798,37 @@ def _start_job(command: str, argv: list[str]) -> str:
     cmd = [sys.executable, "-m", "datasety.cli"] + [command] + argv
     try:
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1,
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
         )
     except Exception as exc:
         with _jobs_lock:
             _jobs[jid] = {
-                "id": jid, "command": command, "argv": argv, "proc": None,
-                "output": [f"Error: {exc}"], "status": "failed",
-                "started_at": time.time(), "ended_at": time.time(), "exit_code": -1,
+                "id": jid,
+                "command": command,
+                "argv": argv,
+                "proc": None,
+                "output": [f"Error: {exc}"],
+                "status": "failed",
+                "started_at": time.time(),
+                "ended_at": time.time(),
+                "exit_code": -1,
             }
         return jid
 
     entry: dict = {
-        "id": jid, "command": command, "argv": argv, "proc": proc,
-        "output": [], "status": "running",
-        "started_at": time.time(), "ended_at": None, "exit_code": None,
+        "id": jid,
+        "command": command,
+        "argv": argv,
+        "proc": proc,
+        "output": [],
+        "status": "running",
+        "started_at": time.time(),
+        "ended_at": None,
+        "exit_code": None,
     }
     with _jobs_lock:
         _jobs[jid] = entry
@@ -543,9 +873,11 @@ def _make_handler(
     audio_data = _scan_audio(input_dir, recursive)
     pairs: list = _build_pairs(input_dir, control_dir, recursive) if control_dir else []
     thumb_cache: dict = {}
-    print(f"Found {dataset['stats']['total']} images" +
-          (f", {len(pairs)} matched pairs." if control_dir else ".") +
-          f", {audio_data['stats']['total']} audio files.")
+    print(
+        f"Found {dataset['stats']['total']} images"
+        + (f", {len(pairs)} matched pairs." if control_dir else ".")
+        + f", {audio_data['stats']['total']} audio files."
+    )
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):
@@ -610,16 +942,20 @@ def _make_handler(
                 self._serve_page("audio")
             # API routes
             elif path == "/api/mode":
-                self._json({
-                    "has_pairs": bool(control_dir),
-                    "control_dir": str(control_dir) if control_dir else None,
-                    "pairs_count": len(pairs),
-                })
+                self._json(
+                    {
+                        "has_pairs": bool(control_dir),
+                        "control_dir": str(control_dir) if control_dir else None,
+                        "pairs_count": len(pairs),
+                    }
+                )
             elif path == "/api/dataset":
-                self._json({
-                    "input_dir": str(input_dir),
-                    "total": dataset["stats"]["total"],
-                })
+                self._json(
+                    {
+                        "input_dir": str(input_dir),
+                        "total": dataset["stats"]["total"],
+                    }
+                )
             elif path == "/api/stats":
                 self._json(dataset["stats"])
             elif path == "/api/images":
@@ -701,9 +1037,9 @@ def _make_handler(
             if q := params.get("search"):
                 ql = q.lower()
                 imgs = [
-                    i for i in imgs
-                    if ql in i.get("name", "").lower()
-                    or ql in i.get("caption", "").lower()
+                    i
+                    for i in imgs
+                    if ql in i.get("name", "").lower() or ql in i.get("caption", "").lower()
                 ]
             by = params.get("sort", "name")
             rev = params.get("order", "asc") == "desc"
@@ -799,10 +1135,12 @@ def _make_handler(
             if not p.exists():
                 self._json({"text": "", "exists": False})
                 return
-            self._json({
-                "text": p.read_text(encoding="utf-8", errors="replace"),
-                "exists": True,
-            })
+            self._json(
+                {
+                    "text": p.read_text(encoding="utf-8", errors="replace"),
+                    "exists": True,
+                }
+            )
 
         def _save_caption(self):
             try:
@@ -865,9 +1203,7 @@ def _make_handler(
                     cap.unlink()
                     deleted.append(str(cap))
             dead = set(deleted)
-            dataset["images"] = [
-                i for i in dataset["images"] if i.get("path") not in dead
-            ]
+            dataset["images"] = [i for i in dataset["images"] if i.get("path") not in dead]
             for h, pl in list(dataset["hashes"].items()):
                 dataset["hashes"][h] = [x for x in pl if x not in dead]
                 if not dataset["hashes"][h]:
@@ -906,9 +1242,7 @@ def _make_handler(
             # Remove pair from list and gallery cache
             dead = set(deleted)
             pairs[:] = [p for p in pairs if p["stem"] != stem]
-            dataset["images"] = [
-                i for i in dataset["images"] if i.get("path") not in dead
-            ]
+            dataset["images"] = [i for i in dataset["images"] if i.get("path") not in dead]
             # Purge thumbnails
             for key in [k for k in thumb_cache if k.split(":")[0] in dead]:
                 del thumb_cache[key]
@@ -940,7 +1274,7 @@ def _make_handler(
                 if sep < 0:
                     continue
                 raw_hdrs = raw[:sep].lstrip(b"\r\n")
-                content = raw[sep + 4:]
+                content = raw[sep + 4 :]
                 if content.endswith(b"\r\n"):
                     content = content[:-2]
                 if not content:
@@ -974,21 +1308,23 @@ def _make_handler(
                         w, h = img.size
                         o = _orientation(w, h)
                         size_bytes = dest.stat().st_size
-                        dataset["images"].append({
-                            "path": str(dest),
-                            "name": dest.name,
-                            "stem": dest.stem,
-                            "width": w,
-                            "height": h,
-                            "resolution": f"{w}x{h}",
-                            "format": ext,
-                            "size_bytes": size_bytes,
-                            "size_kb": round(size_bytes / 1024, 1),
-                            "orientation": o,
-                            "has_caption": False,
-                            "caption": "",
-                            "phash": "",
-                        })
+                        dataset["images"].append(
+                            {
+                                "path": str(dest),
+                                "name": dest.name,
+                                "stem": dest.stem,
+                                "width": w,
+                                "height": h,
+                                "resolution": f"{w}x{h}",
+                                "format": ext,
+                                "size_bytes": size_bytes,
+                                "size_kb": round(size_bytes / 1024, 1),
+                                "orientation": o,
+                                "has_caption": False,
+                                "caption": "",
+                                "phash": "",
+                            }
+                        )
                         uploaded.append(dest.name)
                 except Exception:
                     dest.unlink(missing_ok=True)
@@ -1000,11 +1336,13 @@ def _make_handler(
                 self._json({"groups": [], "total_groups": 0, "total_images": 0})
                 return
             groups = _dup_groups(dataset["hashes"])
-            self._json({
-                "groups": groups,
-                "total_groups": len(groups),
-                "total_images": sum(len(g) for g in groups),
-            })
+            self._json(
+                {
+                    "groups": groups,
+                    "total_groups": len(groups),
+                    "total_images": sum(len(g) for g in groups),
+                }
+            )
 
         def _run_command(self):
             try:
@@ -1028,16 +1366,18 @@ def _make_handler(
             if not j:
                 self._err(404, "Job not found")
                 return
-            self._json({
-                "id": j["id"],
-                "command": j["command"],
-                "argv": j["argv"],
-                "status": j["status"],
-                "output": j["output"],
-                "exit_code": j["exit_code"],
-                "started_at": j["started_at"],
-                "ended_at": j["ended_at"],
-            })
+            self._json(
+                {
+                    "id": j["id"],
+                    "command": j["command"],
+                    "argv": j["argv"],
+                    "status": j["status"],
+                    "output": j["output"],
+                    "exit_code": j["exit_code"],
+                    "started_at": j["started_at"],
+                    "ended_at": j["ended_at"],
+                }
+            )
 
         def _get_jobs(self):
             with _jobs_lock:
@@ -1081,9 +1421,9 @@ def _make_handler(
             if q := params.get("search"):
                 ql = q.lower()
                 audio = [
-                    a for a in audio
-                    if ql in a.get("name", "").lower()
-                    or ql in a.get("transcription", "").lower()
+                    a
+                    for a in audio
+                    if ql in a.get("name", "").lower() or ql in a.get("transcription", "").lower()
                 ]
             by = params.get("sort", "name")
             rev = params.get("order", "asc") == "desc"
@@ -1137,15 +1477,19 @@ def _make_handler(
                         cached = au
                         break
                 if cached:
-                    self._json({
-                        "text": cached.get("transcription", ""),
-                        "exists": cached.get("has_transcription", False),
-                    })
+                    self._json(
+                        {
+                            "text": cached.get("transcription", ""),
+                            "exists": cached.get("has_transcription", False),
+                        }
+                    )
                 elif txt_p.exists():
-                    self._json({
-                        "text": txt_p.read_text(encoding="utf-8", errors="replace"),
-                        "exists": True,
-                    })
+                    self._json(
+                        {
+                            "text": txt_p.read_text(encoding="utf-8", errors="replace"),
+                            "exists": True,
+                        }
+                    )
                 else:
                     self._json({"text": "", "exists": False})
                 return
@@ -1181,8 +1525,12 @@ def _make_handler(
                 "total": len(audio_data["audio"]),
                 "total_size_mb": audio_data["stats"].get("total_size_mb", 0),
                 "total_duration_s": audio_data["stats"].get("total_duration_s", 0),
-                "transcriptions_found": sum(1 for a in audio_data["audio"] if a.get("has_transcription")),
-                "transcriptions_missing": sum(1 for a in audio_data["audio"] if not a.get("has_transcription")),
+                "transcriptions_found": sum(
+                    1 for a in audio_data["audio"] if a.get("has_transcription")
+                ),
+                "transcriptions_missing": sum(
+                    1 for a in audio_data["audio"] if not a.get("has_transcription")
+                ),
             }
             self._json({"ok": True})
 
@@ -1210,9 +1558,7 @@ def _make_handler(
                     txt.unlink()
                     deleted.append(str(txt))
             dead = set(deleted)
-            audio_data["audio"] = [
-                a for a in audio_data["audio"] if a.get("path") not in dead
-            ]
+            audio_data["audio"] = [a for a in audio_data["audio"] if a.get("path") not in dead]
             audio_data["stats"]["total"] = len(audio_data["audio"])
             audio_data["stats"]["transcriptions_found"] = sum(
                 1 for a in audio_data["audio"] if a.get("has_transcription")
@@ -1301,4 +1647,3 @@ def register_parser(subparsers):
         help="Pre-compute perceptual hashes for duplicate detection",
     )
     p.set_defaults(func=cmd_server)
-

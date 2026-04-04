@@ -9,6 +9,7 @@ from datasety.common import get_image_files, resolve_device
 
 # ── CLIP backend ────────────────────────────────────────────────────────────
 
+
 def _load_clip(device):
     """Load CLIP model and processor."""
     from transformers import CLIPModel, CLIPProcessor
@@ -44,6 +45,7 @@ def _clip_score(image, queries, model, processor, device):
 
 # ── NudeNet backend ─────────────────────────────────────────────────────────
 
+
 def _load_nudenet():
     """Load NudeNet detector."""
     try:
@@ -73,6 +75,7 @@ def _nudenet_score(image_path, labels, detector):
 
 
 # ── Companion files ─────────────────────────────────────────────────────────
+
 
 def _find_companions(image_path):
     """Find companion files (captions, masks) for an image."""
@@ -106,6 +109,7 @@ def _act_on_file(file_path, action, output_dir, input_root, preserve_structure):
 
 
 # ── Main command ────────────────────────────────────────────────────────────
+
 
 def cmd_filter(args):
     """Execute the filter command."""
@@ -211,13 +215,15 @@ def cmd_filter(args):
 
             if args.log:
                 for q, s in scores:
-                    log_rows.append({
-                        "file": str(img_path),
-                        "query": q,
-                        "score": f"{s:.4f}",
-                        "match": str(is_match),
-                        "action": action if not args.dry_run else "dry-run",
-                    })
+                    log_rows.append(
+                        {
+                            "file": str(img_path),
+                            "query": q,
+                            "score": f"{s:.4f}",
+                            "match": str(is_match),
+                            "action": action if not args.dry_run else "dry-run",
+                        }
+                    )
 
             if args.dry_run:
                 if is_match:

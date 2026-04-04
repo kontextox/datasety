@@ -257,7 +257,7 @@ class TestResizeCommand:
         output_dir = tmp_path / "out"
         input_dir.mkdir()
         make_image(input_dir / "landscape.jpg", 3000, 2000)  # 3:2
-        make_image(input_dir / "portrait.jpg", 2000, 3000)   # 2:3
+        make_image(input_dir / "portrait.jpg", 2000, 3000)  # 2:3
 
         result = run_resize(
             "-i",

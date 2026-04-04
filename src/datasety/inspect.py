@@ -81,9 +81,9 @@ def cmd_inspect(args):
     total = len(image_files) - errors
 
     # ── Print report ──
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"  DATASET SUMMARY: {input_dir}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     print(f"  Images:          {total}")
     if errors:
         print(f"  Errors:          {errors}")
@@ -192,7 +192,7 @@ def cmd_inspect(args):
             print("  Duplicates:      none found")
         print()
 
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     # Export
     if args.json:
@@ -204,8 +204,9 @@ def cmd_inspect(args):
                 "min": f"{min(widths)}x{min(heights)}" if widths else None,
                 "max": f"{max(widths)}x{max(heights)}" if widths else None,
                 "average": (
-                    f"{sum(widths)//len(widths)}x{sum(heights)//len(heights)}"
-                    if widths else None
+                    f"{sum(widths) // len(widths)}x{sum(heights) // len(heights)}"
+                    if widths
+                    else None
                 ),
             },
             "formats": dict(format_counts),

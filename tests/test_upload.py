@@ -3,7 +3,7 @@
 import csv
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -19,6 +19,7 @@ class TestDetectDatasetType:
             (d / "metadata.csv").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "audio"
 
     def test_audio_by_extension(self):
@@ -29,6 +30,7 @@ class TestDetectDatasetType:
             (d / "clip.mp3").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "audio"
 
     def test_audio_flac(self):
@@ -38,6 +40,7 @@ class TestDetectDatasetType:
             (d / "audio.flac").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "audio"
 
     def test_image_with_subdirs(self):
@@ -50,6 +53,7 @@ class TestDetectDatasetType:
             (d / "test" / "img2.png").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "image"
 
     def test_image_without_subdirs_is_generic(self):
@@ -59,6 +63,7 @@ class TestDetectDatasetType:
             (d / "photo.jpg").touch()
 
             from datasety.upload import detect_dataset_type
+
             # No subdirs, so no ImageFolder structure — falls through
             assert detect_dataset_type(d) == "generic"
 
@@ -70,6 +75,7 @@ class TestDetectDatasetType:
             (d / "clip.mkv").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "video"
 
     def test_document_pdf(self):
@@ -79,6 +85,7 @@ class TestDetectDatasetType:
             (d / "doc.pdf").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "document"
 
     def test_model_safetensors(self):
@@ -88,6 +95,7 @@ class TestDetectDatasetType:
             (d / "lora.safetensors").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "model"
 
     def test_model_bin(self):
@@ -97,6 +105,7 @@ class TestDetectDatasetType:
             (d / "model.bin").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "model"
 
     def test_model_gguf(self):
@@ -106,6 +115,7 @@ class TestDetectDatasetType:
             (d / "model.gguf").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "model"
 
     def test_generic_csv(self):
@@ -115,6 +125,7 @@ class TestDetectDatasetType:
             (d / "data.csv").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "generic"
 
     def test_generic_json(self):
@@ -124,11 +135,13 @@ class TestDetectDatasetType:
             (d / "data.json").touch()
 
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(d) == "generic"
 
     def test_nonexistent_path_returns_generic(self):
         """Non-existent path should return generic (no files found)."""
         from datasety.upload import detect_dataset_type
+
         assert detect_dataset_type(Path("/nonexistent/path")) == "generic"
 
     def test_single_file_detection(self):
@@ -139,6 +152,7 @@ class TestDetectDatasetType:
 
         try:
             from datasety.upload import detect_dataset_type
+
             assert detect_dataset_type(p) == "audio"
         finally:
             p.unlink()
@@ -234,9 +248,7 @@ class TestGenerateDatasetCard:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             d = Path(tmpdir)
-            card = generate_dataset_card(
-                d, "generic", extra_metadata={"license": "cc-by-4.0"}
-            )
+            card = generate_dataset_card(d, "generic", extra_metadata={"license": "cc-by-4.0"})
 
             assert "cc-by-4.0" in card
 
@@ -246,9 +258,7 @@ class TestGenerateDatasetCard:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             d = Path(tmpdir)
-            card = generate_dataset_card(
-                d, "generic", extra_metadata={"language": ["en", "fr"]}
-            )
+            card = generate_dataset_card(d, "generic", extra_metadata={"language": ["en", "fr"]})
 
             # Should contain YAML list format
             assert "  - en" in card
@@ -441,8 +451,6 @@ class TestCmdUpload:
 
             from datasety.upload import cmd_upload
 
-            exited = []
-            # Use SystemExit exception to properly halt execution
             def mock_exit(code):
                 raise SystemExit(code)
 

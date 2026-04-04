@@ -165,9 +165,7 @@ def _generate_image_via_api(
                 if inner.startswith("data:image"):
                     b64_data = inner.split(",", 1)[-1]
                     return Image.open(io.BytesIO(base64.b64decode(b64_data)))
-        text_content = " ".join(
-            b.get("text", "") for b in text_content if isinstance(b, dict)
-        )
+        text_content = " ".join(b.get("text", "") for b in text_content if isinstance(b, dict))
     m = re.search(r"data:image/[^;]+;base64,([A-Za-z0-9+/=]+)", text_content)
     if m:
         return Image.open(io.BytesIO(base64.b64decode(m.group(1))))
@@ -335,16 +333,51 @@ class _HFModelBackend:
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
         # Filter out meta-commentary lines (reasoning exposed as plain text by thinking models)
         _reasoning_prefixes = (
-            "wait,", "let me", "let's", "i will", "i'll", "i need",
-            "actually,", "looking", "final check", "ok,", "okay,",
-            "now,", "so,", "note:", "note that", "important:", "step ",
-            "thinking", "reasoning", "analysis", "conclusion",
-            "let me check", "i should", "here are", "here is",
-            "the prompts", "these prompts", "revised", "draft",
-            "constraint", "output one", "nothing else",
-            "character:", "format:", "variation:", "style:", "task:",
-            "instruction:", "prompt:", "goal:", "requirement:",
-            "idea ", "option ", "version ", "example ",
+            "wait,",
+            "let me",
+            "let's",
+            "i will",
+            "i'll",
+            "i need",
+            "actually,",
+            "looking",
+            "final check",
+            "ok,",
+            "okay,",
+            "now,",
+            "so,",
+            "note:",
+            "note that",
+            "important:",
+            "step ",
+            "thinking",
+            "reasoning",
+            "analysis",
+            "conclusion",
+            "let me check",
+            "i should",
+            "here are",
+            "here is",
+            "the prompts",
+            "these prompts",
+            "revised",
+            "draft",
+            "constraint",
+            "output one",
+            "nothing else",
+            "character:",
+            "format:",
+            "variation:",
+            "style:",
+            "task:",
+            "instruction:",
+            "prompt:",
+            "goal:",
+            "requirement:",
+            "idea ",
+            "option ",
+            "version ",
+            "example ",
         )
         filtered_lines = []
         seen = set()
