@@ -110,9 +110,19 @@ def _resolve_piper_model(model_str: str):
         sys.exit(1)
 
     print(f"Downloading base Piper model from {repo} (folder: {subfolder})...")
-    path = snapshot_download(
-        repo_id=repo, allow_patterns=f"{subfolder}/*" if subfolder else ["*.ckpt", "config.json"]
-    )
+    try:
+        path = snapshot_download(
+            repo_id=repo,
+            allow_patterns=f"{subfolder}/*" if subfolder else ["*.ckpt", "config.json"],
+        )
+    except Exception:
+        # Fallback: rhasspy/piper-checkpoints is actually a "dataset" repo, not a "model" repo
+        print("Model repository not found. Trying as a dataset repository...")
+        path = snapshot_download(
+            repo_id=repo,
+            repo_type="dataset",
+            allow_patterns=f"{subfolder}/*" if subfolder else ["*.ckpt", "config.json"],
+        )
     base_dir = Path(path)
     if subfolder:
         base_dir = base_dir / subfolder
@@ -124,7 +134,7 @@ def _resolve_piper_model(model_str: str):
     return ckpts[0], cfg
 
 
-def _start_piper_watcher(output_dir: str, test_text: str, env_vars: dict):
+def _start_piper_watcher(output_dir: str, test_text: str, env_vars: dict, config_path: Path):
     """Watches output for new Lightning checkpoints, exports to ONNX, and runs TTS inference."""
 
     def watch():
@@ -160,6 +170,9 @@ def _start_piper_watcher(output_dir: str, test_text: str, env_vars: dict):
                             check=True,
                             capture_output=True,
                         )
+
+                        onnx_config_path = onnx_path.with_name(f"{onnx_path.name}.json")
+                        shutil.copy(config_path, onnx_config_path)
 
                         # Run Piper inference safely using stdin injection (cross-platform safe)
                         print(f"[Watcher] Generating test audio for {ckpt.name}...")
@@ -223,7 +236,7 @@ def _train_piper(args):
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    phoneme_type = cfg.get("phoneme_type", "espeak") # Default to standard espeak
+    phoneme_type = cfg.get("phoneme_type", "espeak")  # Default to standard espeak
     espeak_voice = cfg.get("espeak_voice", "en-us")
 
     if not phonemes_path.exists():
@@ -241,7 +254,7 @@ def _train_piper(args):
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # 5. Build the Piper PyTorch Lightning run command
-    cmd =[
+    cmd = [
         sys.executable,
         "-m",
         "piper.train",
@@ -292,7 +305,7 @@ def _train_piper(args):
 
     # 6. Fire up the test background thread
     if getattr(args, "test_text", None):
-        _start_piper_watcher(str(output_dir), args.test_text, env)
+        _start_piper_watcher(str(output_dir), args.test_text, env, config_path)
 
     # 7. Pre-flight RTX 5090 / CUDA 12.8 check
     import torch

@@ -187,8 +187,7 @@ def cmd_resize(args):
             min_w, min_h = map(int, args.min_resolution.lower().split("x"))
         except ValueError:
             print(
-                f"Error: Invalid --min-resolution '{args.min_resolution}'. "
-                "Use WxH (e.g., 256x256)"
+                f"Error: Invalid --min-resolution '{args.min_resolution}'. Use WxH (e.g., 256x256)"
             )
             sys.exit(1)
 

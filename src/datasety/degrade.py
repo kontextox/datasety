@@ -287,9 +287,9 @@ def cmd_degrade(args):
         return idx, "ok", variant_logs
 
     if args.workers > 1:
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
             futures = {
                 pool.submit(_process_one_degrade, idx, img_path): (idx, img_path)
                 for idx, img_path in enumerate(image_files, 1)

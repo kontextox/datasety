@@ -42,11 +42,7 @@ features:
     details: Filter datasets by content with CLIP (any text) or NudeNet (NSFW). Move, copy, delete, or keep.
     link: /commands/filter
     linkText: Learn more
-  - icon: "&#x1F4CA;"
-    title: Dataset Inspector
-    details: Stats, resolution distribution, caption coverage, format breakdown, and duplicate detection via perceptual hashing.
-    link: /commands/inspect
-    linkText: Learn more
+
   - icon: "&#x1F9D1;"
     title: Character Generation
     details: Identity-preserving datasets from reference faces. LLM-generated prompts.

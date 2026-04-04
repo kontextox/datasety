@@ -177,17 +177,16 @@ Requires `HF_TOKEN` env var or `--token` argument. See the [`upload`](/commands/
 
 ### Image Processing
 
-| Command                        | Description                                | Extra Deps  |
-| ------------------------------ | ------------------------------------------ | ----------- |
-| [`resize`](/commands/resize)   | Resize and crop to target resolution       | --          |
-| [`caption`](/commands/caption) | Generate captions (Florence-2 or API)      | `[caption]` |
-| [`audio`](/commands/audio)     | Build TTS audio datasets from video/audio  | `[audio]`   |
-| [`align`](/commands/align)     | Align control/target image pairs           | --          |
-| [`mask`](/commands/mask)       | Text-prompted segmentation masks           | `[mask]`    |
-| [`filter`](/commands/filter)   | Filter by content (CLIP or NudeNet)        | `[filter]`  |
-| [`inspect`](/commands/inspect) | Dataset statistics and duplicate detection | --          |
-| [`degrade`](/commands/degrade) | Degraded versions for upscale training     | --          |
-| [`upload`](/commands/upload)   | Upload datasets/models to HuggingFace Hub  | --          |
+| Command                        | Description                               | Extra Deps  |
+| ------------------------------ | ----------------------------------------- | ----------- |
+| [`resize`](/commands/resize)   | Resize and crop to target resolution      | --          |
+| [`caption`](/commands/caption) | Generate captions (Florence-2 or API)     | `[caption]` |
+| [`audio`](/commands/audio)     | Build TTS audio datasets from video/audio | `[audio]`   |
+| [`align`](/commands/align)     | Align control/target image pairs          | --          |
+| [`mask`](/commands/mask)       | Text-prompted segmentation masks          | `[mask]`    |
+| [`filter`](/commands/filter)   | Filter by content (CLIP or NudeNet)       | `[filter]`  |
+| [`degrade`](/commands/degrade) | Degraded versions for upscale training    | --          |
+| [`upload`](/commands/upload)   | Upload datasets/models to HuggingFace Hub | --          |
 
 ### Generation
 

@@ -157,8 +157,6 @@ datasety align -t ./target -c ./control --dry-run
 datasety align -t ./target -c ./control --output-format jpg
 ```
 
-> **Visual comparison:** use `datasety server -i ./target --control ./control` to browse and compare aligned pairs in the browser.
-
 [Full documentation →](https://kontextox.github.io/datasety/commands/align)
 
 ---
@@ -383,86 +381,40 @@ datasety filter -i ./dataset -o ./rejected --query "outdoor" --action copy --log
 
 ---
 
-### `inspect` — Dataset Statistics
+### `server` — REST API Server
 
-Scan a dataset directory and report image count, resolution distribution, format breakdown, file sizes, caption coverage, and optionally detect duplicate images via perceptual hashing.
-
-<!-- screenshot: inspect -->
+Start a headless REST API for remote dataset management and job execution.
 
 ```bash
-datasety inspect --input ./dataset --duplicates
+datasety server --port 8080
 ```
 
-<details>
-<summary>Options</summary>
+Provides `/v1/` endpoints to register datasets (auto-detects types), serve files securely, and remotely execute any `datasety` command via JSON payloads.
 
-| Option              | Description                               | Default  |
-| ------------------- | ----------------------------------------- | -------- |
-| `--input`, `-i`     | Input directory                           | required |
-| `--duplicates`      | Detect duplicate/near-duplicate images    | off      |
-| `--json`            | Export report as JSON to this path        |          |
-| `--csv`             | Export per-image data as CSV to this path |          |
-| `--recursive`, `-R` | Search input directory recursively        | off      |
+<details>
+<summary><b>Endpoints</b></summary>
+
+| Endpoint                            | Method | Description                                          |
+| ----------------------------------- | ------ | ---------------------------------------------------- |
+| `/v1/datasets`                      | POST   | Register a dataset                                   |
+| `/v1/datasets`                      | GET    | List all datasets                                    |
+| `/v1/datasets/<id>`                 | GET    | Get dataset info                                     |
+| `/v1/datasets/<id>`                 | PATCH  | Update dataset name                                  |
+| `/v1/datasets/<id>`                 | DELETE | Unregister dataset                                   |
+| `/v1/datasets/<id>/files`           | GET    | List files (supports `?folder=&group=` query params) |
+| `/v1/datasets/<id>/files/<path>`    | GET    | Download/serve a file                                |
+| `/v1/datasets/<id>/caption/<path>`  | GET    | Get caption for image                                |
+| `/v1/datasets/<id>/caption/<path>`  | PUT    | Save caption for image                               |
+| `/v1/datasets/<id>/metadata/<path>` | PUT    | Update metadata.csv text                             |
+| `/v1/jobs`                          | GET    | List all jobs                                        |
+| `/v1/jobs`                          | POST   | Start a new job (run any datasety command)           |
+| `/v1/jobs/<id>`                     | GET    | Get job status & output                              |
+| `/v1/jobs/<id>`                     | DELETE | Cancel a running job                                 |
+| `/v1/commands`                      | GET    | Get command schemas                                  |
 
 </details>
 
-```bash
-# Full report with duplicate detection
-datasety inspect -i ./dataset --duplicates
-
-# Export report to JSON
-datasety inspect -i ./dataset --json report.json
-
-# Export per-image data to CSV
-datasety inspect -i ./dataset --csv images.csv -R
-```
-
-[Full documentation →](https://kontextox.github.io/datasety/commands/inspect)
-
----
-
-### `server` — Dataset Management Dashboard
-
-<img src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/demo.png" alt="Start a universal web server for managing your entire dataset from the browser.">
-
-Start a universal web server for managing your entire dataset from the browser. Browse images in a gallery, edit and create captions, delete or compare images, view statistics, upload new images, and detect duplicates — all in one interface.
-
-```bash
-datasety server --input ./dataset
-```
-
-<details>
-<summary>Options</summary>
-
-| Option              | Description                                           | Default  |
-| ------------------- | ----------------------------------------------------- | -------- |
-| `--input`, `-i`     | Dataset directory to manage                           | required |
-| `--control`, `-c`   | Control images directory (enables Pairs tab)          |          |
-| `--port`            | Port for the web server                               | `8080`   |
-| `--recursive`, `-R` | Search directories recursively for images             | off      |
-| `--duplicates`      | Pre-compute perceptual hashes for duplicate detection | off      |
-
-</details>
-
-```bash
-# Start the dashboard on the default port
-datasety server -i ./dataset
-
-# With duplicate detection pre-computed
-datasety server -i ./dataset --duplicates --port 9000
-
-# Pairs comparison (align workflow)
-datasety server -i ./target --control ./control
-```
-
-The dashboard provides:
-
-- **Gallery** — thumbnail grid with sorting and filtering; click any image for the detail panel (caption editor, file info, delete)
-- **Compare** — drag-slider side-by-side comparison for any two images
-- **Pairs** _(with `--control`)_ — compare control/target pairs with a drag slider; edit captions for both sides; delete pairs; arrow-key navigation
-- **Stats** — live dataset overview: image count, total size, caption coverage, format and orientation breakdown
-- **Upload** — drag images into the browser or use the Upload button to add images to the dataset
-- **Keyboard navigation** — arrow keys to move through gallery or pairs, `Ctrl+S` to save, `T` to toggle theme, `?` for help
+[Full API documentation →](https://kontextox.github.io/datasety/commands/server)
 
 ---
 

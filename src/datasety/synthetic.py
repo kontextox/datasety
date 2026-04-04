@@ -17,16 +17,16 @@ _MODEL_VRAM_GB = {
     "qwen": 32,  # ~31 GB peak with offload; needs sequential offload on 32 GB
     "flux-kontext": 33,  # ~33 GB non-offloaded; triggers offload on 32 GB cards
     # Distilled (inference) variants — fast few-step generation, NOT for training
-    "flux2-klein": 8,          # 4B bf16 distilled
-    "flux2-klein-9b": 18,      # 9B bf16 distilled
-    "flux2-klein-9b-kv": 29,   # 9B KV-cache optimized, ~29 GB VRAM
-    "flux2-klein-4b-fp8": 5,   # 4B fp8 distilled — ~4-5 GB (local: falls back to bf16)
+    "flux2-klein": 8,  # 4B bf16 distilled
+    "flux2-klein-9b": 18,  # 9B bf16 distilled
+    "flux2-klein-9b-kv": 29,  # 9B KV-cache optimized, ~29 GB VRAM
+    "flux2-klein-4b-fp8": 5,  # 4B fp8 distilled — ~4-5 GB (local: falls back to bf16)
     "flux2-klein-9b-fp8": 10,  # 9B fp8 distilled — ~9-10 GB (local: falls back to bf16)
     # Base (undistilled) variants — recommended for LoRA fine-tuning
-    "flux2-klein-base": 8,       # 4B bf16 base
-    "flux2-klein-base-9b": 18,   # 9B bf16 base
+    "flux2-klein-base": 8,  # 4B bf16 base
+    "flux2-klein-base-9b": 18,  # 9B bf16 base
     "flux2-klein-base-4b-fp8": 5,  # 4B fp8 base (local: falls back to bf16 base)
-    "flux2-klein-base-9b-fp8": 10, # 9B fp8 base (local: falls back to bf16 base)
+    "flux2-klein-base-9b-fp8": 10,  # 9B fp8 base (local: falls back to bf16 base)
     "flux2-dev": 24,
     "longcat": 18,
     "sdxl": 7,
@@ -132,8 +132,14 @@ def _load_synthetic_pipeline(model_name, family, device, torch_dtype, gguf_path,
                 "official HuggingFace repo..."
             )
             subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "-q",
-                 "git+https://github.com/huggingface/diffusers.git"]
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "-q",
+                    "git+https://github.com/huggingface/diffusers.git",
+                ]
             )
             import importlib
 

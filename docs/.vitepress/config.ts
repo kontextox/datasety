@@ -34,7 +34,7 @@ export default defineConfig({
           { text: "synthetic", link: "/commands/synthetic" },
           { text: "mask", link: "/commands/mask" },
           { text: "filter", link: "/commands/filter" },
-          { text: "inspect", link: "/commands/inspect" },
+
           { text: "degrade", link: "/commands/degrade" },
           { text: "character", link: "/commands/character" },
           { text: "sweep", link: "/commands/sweep" },
@@ -65,7 +65,7 @@ export default defineConfig({
             { text: "align", link: "/commands/align" },
             { text: "mask", link: "/commands/mask" },
             { text: "filter", link: "/commands/filter" },
-            { text: "inspect", link: "/commands/inspect" },
+
             { text: "degrade", link: "/commands/degrade" },
           ],
         },
@@ -94,7 +94,7 @@ export default defineConfig({
           ],
         },
         {
-          text: "Dashboard",
+          text: "REST API",
           collapsed: false,
           items: [
             { text: "server", link: "/commands/server" },

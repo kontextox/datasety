@@ -214,8 +214,7 @@ def register_parser(subparsers):
         "--image-api",
         action="store_true",
         help=(
-            "Use OpenAI-compatible image API instead of local model"
-            " (passed to each synthetic step)"
+            "Use OpenAI-compatible image API instead of local model (passed to each synthetic step)"
         ),
     )
     sweep_parser.add_argument(

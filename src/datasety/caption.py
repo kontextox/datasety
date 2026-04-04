@@ -245,10 +245,7 @@ def cmd_caption(args):
     # Filter out images with existing captions if --skip-existing
     if args.skip_existing and not is_single:
         before = len(image_files)
-        image_files = [
-            f for f in image_files
-            if not (output_dir / f"{f.stem}.txt").exists()
-        ]
+        image_files = [f for f in image_files if not (output_dir / f"{f.stem}.txt").exists()]
         skipped = before - len(image_files)
         if skipped:
             print(f"Skipped {skipped} images with existing captions")

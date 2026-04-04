@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 datasety - resize, align, caption, shuffle, synthetic, mask, filter, degrade,
-character, sweep, workflow, inspect, server.
+character, sweep, workflow, server.
 
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
@@ -14,8 +14,7 @@ Usage:
     datasety degrade --input ./in --output ./out --type jpeg --intensity 0.5
     datasety character --reference face.jpg --output ./dataset --llm-ollama qwen3.5:4b
     datasety workflow --file datasety.yaml --dry-run
-    datasety inspect --input ./dataset --duplicates
-    datasety server --input ./dataset --port 8080
+    datasety server --port 8080
 """
 
 import argparse
@@ -25,7 +24,6 @@ from datasety import (
     caption,
     degrade,
     filter,
-    inspect,
     mask,
     resize,
     server,
@@ -83,7 +81,6 @@ def build_parser():
     synthetic.register_parser(subparsers)
     mask.register_parser(subparsers)
     filter.register_parser(subparsers)
-    inspect.register_parser(subparsers)
     degrade.register_parser(subparsers)
     server.register_parser(subparsers)
 

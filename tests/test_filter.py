@@ -70,9 +70,7 @@ class TestFilterCLI:
         inp = tmp_path / "in"
         inp.mkdir()
         make_image(inp / "1.jpg")
-        result = run_filter(
-            "-i", str(inp), "--query", "face", "--action", "delete"
-        )
+        result = run_filter("-i", str(inp), "--query", "face", "--action", "delete")
         assert result.returncode != 0
         assert "confirm" in result.stdout.lower() or "confirm" in result.stderr.lower()
 
@@ -80,9 +78,7 @@ class TestFilterCLI:
         inp = tmp_path / "in"
         inp.mkdir()
         make_image(inp / "1.jpg")
-        result = run_filter(
-            "-i", str(inp), "--query", "face", "--action", "move"
-        )
+        result = run_filter("-i", str(inp), "--query", "face", "--action", "move")
         assert result.returncode != 0
         assert "output" in result.stdout.lower() or "output" in result.stderr.lower()
 
@@ -91,8 +87,14 @@ class TestFilterCLI:
         inp.mkdir()
         make_image(inp / "1.jpg")
         result = run_filter(
-            "-i", str(inp), "-o", str(tmp_path / "out"),
-            "--labels", "FACE_FEMALE", "--model", "clip"
+            "-i",
+            str(inp),
+            "-o",
+            str(tmp_path / "out"),
+            "--labels",
+            "FACE_FEMALE",
+            "--model",
+            "clip",
         )
         assert result.returncode != 0
 
@@ -101,16 +103,18 @@ class TestFilterCLI:
         inp.mkdir()
         make_image(inp / "1.jpg")
         result = run_filter(
-            "-i", str(inp), "-o", str(tmp_path / "out"),
-            "--query", "face", "--model", "nudenet"
+            "-i", str(inp), "-o", str(tmp_path / "out"), "--query", "face", "--model", "nudenet"
         )
         assert result.returncode != 0
 
     def test_nonexistent_input(self, tmp_path):
         result = run_filter(
-            "-i", str(tmp_path / "nonexistent"),
-            "-o", str(tmp_path / "out"),
-            "--query", "face",
+            "-i",
+            str(tmp_path / "nonexistent"),
+            "-o",
+            str(tmp_path / "out"),
+            "--query",
+            "face",
         )
         assert result.returncode != 0
 
