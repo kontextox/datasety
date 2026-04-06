@@ -9,7 +9,7 @@ repos:
       - id: ruff-format
         types_or: [python, pyi, jupyter]
 
-  # Prettier: Format markdown, yaml, json (using active mirror)
+  # Prettier: Format markdown, yaml, json
   - repo: https://github.com/JoC0de/pre-commit-prettier
     rev: v3.8.1
     hooks:
