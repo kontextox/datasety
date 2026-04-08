@@ -389,28 +389,28 @@ Start a headless REST API for remote dataset management and job execution.
 datasety server --port 8080
 ```
 
-Provides `/v1/` endpoints to register datasets (auto-detects types), serve files securely, and remotely execute any `datasety` command via JSON payloads.
+Provides `/v1/` endpoints to register datasets (auto-detects types), manage files with full CRUD, and remotely execute any `datasety` command via JSON payloads.
 
 <details>
 <summary><b>Endpoints</b></summary>
 
-| Endpoint                            | Method | Description                                          |
-| ----------------------------------- | ------ | ---------------------------------------------------- |
-| `/v1/datasets`                      | POST   | Register a dataset                                   |
-| `/v1/datasets`                      | GET    | List all datasets                                    |
-| `/v1/datasets/<id>`                 | GET    | Get dataset info                                     |
-| `/v1/datasets/<id>`                 | PATCH  | Update dataset name                                  |
-| `/v1/datasets/<id>`                 | DELETE | Unregister dataset                                   |
-| `/v1/datasets/<id>/files`           | GET    | List files (supports `?folder=&group=` query params) |
-| `/v1/datasets/<id>/files/<path>`    | GET    | Download/serve a file                                |
-| `/v1/datasets/<id>/caption/<path>`  | GET    | Get caption for image                                |
-| `/v1/datasets/<id>/caption/<path>`  | PUT    | Save caption for image                               |
-| `/v1/datasets/<id>/metadata/<path>` | PUT    | Update metadata.csv text                             |
-| `/v1/jobs`                          | GET    | List all jobs                                        |
-| `/v1/jobs`                          | POST   | Start a new job (run any datasety command)           |
-| `/v1/jobs/<id>`                     | GET    | Get job status & output                              |
-| `/v1/jobs/<id>`                     | DELETE | Cancel a running job                                 |
-| `/v1/commands`                      | GET    | Get command schemas                                  |
+| Endpoint                         | Method | Description                                                     |
+| -------------------------------- | ------ | --------------------------------------------------------------- |
+| `/v1/datasets`                   | POST   | Register a dataset                                              |
+| `/v1/datasets`                   | GET    | List all datasets                                               |
+| `/v1/datasets/<id>`              | GET    | Get dataset info                                                |
+| `/v1/datasets/<id>`              | PATCH  | Update dataset name                                             |
+| `/v1/datasets/<id>`              | DELETE | Unregister dataset                                              |
+| `/v1/datasets/<id>/files`        | GET    | List files (supports `?folder=&group=` query params)            |
+| `/v1/datasets/<id>/files/<path>` | GET    | Download a file (or get info with `?info=true`)                 |
+| `/v1/datasets/<id>/files/<path>` | POST   | Create a new file (binary, base64, or sidecar caption/metadata) |
+| `/v1/datasets/<id>/files/<path>` | PUT    | Update a file and/or its caption/metadata sidecars              |
+| `/v1/datasets/<id>/files/<path>` | DELETE | Delete a file (add `?caption=true` to also remove .txt sidecar) |
+| `/v1/jobs`                       | GET    | List all jobs                                                   |
+| `/v1/jobs`                       | POST   | Start a new job (run any datasety command)                      |
+| `/v1/jobs/<id>`                  | GET    | Get job status & output                                         |
+| `/v1/jobs/<id>`                  | DELETE | Cancel a running job                                            |
+| `/v1/commands`                   | GET    | Get command schemas                                             |
 
 </details>
 

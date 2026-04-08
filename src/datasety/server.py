@@ -175,7 +175,7 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
@@ -187,6 +187,60 @@ class APIHandler(BaseHTTPRequestHandler):
             return json.loads(self.rfile.read(content_length))
         except json.JSONDecodeError:
             return None
+
+    def _resolve_dataset_file(self, path, require_dataset=True):
+        """Parse a /v1/datasets/<id>/files/<filepath> URL.
+
+        Returns (ds_id, ds, ds_path, target_path) or sends an error and
+        returns None.
+        """
+        match = re.match(r"^/v1/datasets/([a-zA-Z0-9-]+)/files/(.+)$", path)
+        if not match:
+            return None
+        ds_id, filepath = match.groups()
+        filepath = urllib.parse.unquote(filepath)
+        with _STATE_LOCK:
+            ds = _DATASETS.get(ds_id)
+        if not ds:
+            self.send_error_json(404, "Dataset not found")
+            return None
+        ds_path = Path(ds["path"]).resolve()
+        target_path = (ds_path / filepath).resolve()
+        try:
+            target_path.relative_to(ds_path)
+        except ValueError:
+            self.send_error_json(403, "Access denied: Path traversal detected")
+            return None
+        return ds_id, ds, ds_path, target_path
+
+    @staticmethod
+    def _write_caption_sidecar(ds_path, file_path, caption_text):
+        """Write a .txt sidecar caption file next to *file_path*."""
+        base = file_path.stem
+        txt_path = file_path.parent / f"{base}.txt"
+        txt_path.write_text(caption_text)
+        return str(txt_path.relative_to(ds_path))
+
+    @staticmethod
+    def _write_metadata_csv(ds_path, filepath, text):
+        """Update a row in metadata.csv (Piper / LJSpeech format)."""
+        metadata_csv = ds_path / "metadata.csv"
+        base = Path(filepath).stem
+        rows = []
+        if metadata_csv.exists():
+            try:
+                with open(metadata_csv, "r", encoding="utf-8") as f:
+                    reader = csv.reader(f, delimiter="|")
+                    for row in reader:
+                        if len(row) >= 2 and row[0].strip() == base:
+                            row[1] = text
+                        rows.append(row)
+            except Exception:
+                pass
+        with open(metadata_csv, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, delimiter="|")
+            writer.writerows(rows)
+        return "metadata.csv"
 
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
@@ -265,15 +319,40 @@ class APIHandler(BaseHTTPRequestHandler):
                     file_type = "target"
                 elif parent_name == "mask":
                     file_type = "mask"
-                elif "_input" in base or "_start" in base:
+                elif parent_name == "canny":
+                    file_type = "canny"
+                elif parent_name == "pose":
+                    file_type = "pose"
+                elif parent_name == "seg":
+                    file_type = "seg"
+                elif parent_name == "depth":
+                    file_type = "depth"
+                elif parent_name == "normal":
+                    file_type = "normal"
+                elif "_input" in base or "_start" in base or "_control" in base:
                     file_type = "input"
-                    base = base.replace("_input", "").replace("_start", "")
+                    base = base.replace("_input", "").replace("_start", "").replace("_control", "")
                 elif "_target" in base or "_end" in base:
                     file_type = "target"
                     base = base.replace("_target", "").replace("_end", "")
                 elif "_mask" in base:
                     file_type = "mask"
                     base = base.replace("_mask", "")
+                elif "_canny" in base:
+                    file_type = "canny"
+                    base = base.replace("_canny", "")
+                elif "_pose" in base:
+                    file_type = "pose"
+                    base = base.replace("_pose", "")
+                elif "_seg" in base:
+                    file_type = "seg"
+                    base = base.replace("_seg", "")
+                elif "_depth" in base:
+                    file_type = "depth"
+                    base = base.replace("_depth", "")
+                elif "_normal" in base:
+                    file_type = "normal"
+                    base = base.replace("_normal", "")
                 elif ext in [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]:
                     file_type = "image"
 
@@ -323,6 +402,21 @@ class APIHandler(BaseHTTPRequestHandler):
                         "mask": next(
                             (f["path"] for f in data["files"] if f["file_type"] == "mask"), None
                         ),
+                        "canny": next(
+                            (f["path"] for f in data["files"] if f["file_type"] == "canny"), None
+                        ),
+                        "pose": next(
+                            (f["path"] for f in data["files"] if f["file_type"] == "pose"), None
+                        ),
+                        "seg": next(
+                            (f["path"] for f in data["files"] if f["file_type"] == "seg"), None
+                        ),
+                        "depth": next(
+                            (f["path"] for f in data["files"] if f["file_type"] == "depth"), None
+                        ),
+                        "normal": next(
+                            (f["path"] for f in data["files"] if f["file_type"] == "normal"), None
+                        ),
                         "image": next(
                             (f["path"] for f in data["files"] if f["file_type"] == "image"), None
                         ),
@@ -335,25 +429,39 @@ class APIHandler(BaseHTTPRequestHandler):
                 return self.send_json({"pairs": pairs})
             return self.send_json({"files": files})
 
-        match = re.match(r"^/v1/datasets/([a-zA-Z0-9-]+)/files/(.+)$", path)
-        if match:
-            ds_id, filepath = match.groups()
-            filepath = urllib.parse.unquote(filepath)
-            with _STATE_LOCK:
-                ds = _DATASETS.get(ds_id)
-            if not ds:
-                return self.send_error_json(404, "Dataset not found")
-
-            ds_path = Path(ds["path"]).resolve()
-            target_path = (ds_path / filepath).resolve()
-
-            try:
-                target_path.relative_to(ds_path)
-            except ValueError:
-                return self.send_error_json(403, "Access denied: Path traversal detected")
+        result = self._resolve_dataset_file(path)
+        if result is not None:
+            ds_id, ds, ds_path, target_path = result
 
             if not target_path.is_file():
                 return self.send_error_json(404, "File not found")
+
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            info = query_params.get("info", ["false"])[0] == "true"
+
+            if info:
+                resp = {
+                    "path": str(target_path.relative_to(ds_path)),
+                    "size_bytes": target_path.stat().st_size,
+                }
+                base = target_path.stem
+                ext = target_path.suffix.lower()
+                txt_path = target_path.parent / f"{base}.txt"
+                if txt_path.exists():
+                    resp["caption"] = txt_path.read_text()
+                    resp["caption_path"] = str(txt_path.relative_to(ds_path))
+                metadata_csv = ds_path / "metadata.csv"
+                if metadata_csv.exists() and ext in _AUDIO_EXTENSIONS:
+                    try:
+                        with open(metadata_csv, "r", encoding="utf-8") as f:
+                            reader = csv.reader(f, delimiter="|")
+                            for row in reader:
+                                if len(row) >= 2 and row[0].strip() == base:
+                                    resp["metadata"] = row[1].strip()
+                                    break
+                    except Exception:
+                        pass
+                return self.send_json(resp)
 
             mime = mimetypes.guess_type(str(target_path))[0] or "application/octet-stream"
             file_size = target_path.stat().st_size
@@ -370,32 +478,6 @@ class APIHandler(BaseHTTPRequestHandler):
             with _STATE_LOCK:
                 safe_jobs = [{k: v for k, v in j.items() if k != "proc"} for j in _JOBS.values()]
             return self.send_json({"jobs": safe_jobs})
-
-        match = re.match(r"^/v1/datasets/([a-zA-Z0-9-]+)/caption/(.+)$", path)
-        if match:
-            ds_id, filepath = match.groups()
-            filepath = urllib.parse.unquote(filepath)
-            with _STATE_LOCK:
-                ds = _DATASETS.get(ds_id)
-            if not ds:
-                return self.send_error_json(404, "Dataset not found")
-
-            ds_path = Path(ds["path"]).resolve()
-            file_path = (ds_path / filepath).resolve()
-
-            try:
-                file_path.relative_to(ds_path)
-            except ValueError:
-                return self.send_error_json(403, "Access denied")
-
-            base = file_path.stem
-            txt_path = file_path.parent / f"{base}.txt"
-
-            caption = ""
-            if txt_path.exists():
-                caption = txt_path.read_text()
-
-            return self.send_json({"caption": caption, "path": str(txt_path.relative_to(ds_path))})
 
         match = re.match(r"^/v1/jobs/([a-zA-Z0-9-]+)$", path)
         if match:
@@ -414,12 +496,16 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
-        body = self.parse_body()
-
-        if body is None:
-            return self.send_error_json(400, "Invalid JSON payload")
+        content_type = self.headers.get("Content-Type", "")
+        body = None
+        if content_type == "application/json":
+            body = self.parse_body()
+            if body is None:
+                return self.send_error_json(400, "Invalid JSON payload")
 
         if path == "/v1/datasets":
+            if body is None:
+                return self.send_error_json(400, "Invalid JSON payload")
             ds_path_str = body.get("path")
             if not ds_path_str:
                 return self.send_error_json(400, "Missing 'path' in payload")
@@ -450,6 +536,8 @@ class APIHandler(BaseHTTPRequestHandler):
             return self.send_json(ds_obj, status=201)
 
         if path == "/v1/jobs":
+            if body is None:
+                return self.send_error_json(400, "Invalid JSON payload")
             command = body.get("command")
             args_dict = body.get("args", {})
             if not command:
@@ -495,29 +583,18 @@ class APIHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send_error_json(500, f"Failed to start job: {str(e)}")
 
-        match = re.match(r"^/v1/datasets/([a-zA-Z0-9-]+)/files/(.+)$", path)
-        if match:
-            ds_id, filepath = match.groups()
-            filepath = urllib.parse.unquote(filepath)
-            with _STATE_LOCK:
-                ds = _DATASETS.get(ds_id)
-            if not ds:
-                return self.send_error_json(404, "Dataset not found")
-
-            ds_path = Path(ds["path"]).resolve()
-            target_path = (ds_path / filepath).resolve()
-
-            try:
-                target_path.relative_to(ds_path)
-            except ValueError:
-                return self.send_error_json(403, "Access denied: Path traversal detected")
-
-            content_type = self.headers.get("Content-Type", "")
+        result = self._resolve_dataset_file(path)
+        if result is not None:
+            ds_id, ds, ds_path, target_path = result
             content_length = int(self.headers.get("Content-Length", 0))
 
+            sidecar_results = {}
+
             if content_type == "application/json":
+                if body is None:
+                    return self.send_error_json(400, "Invalid JSON payload")
                 data = body.get("data", "")
-                if isinstance(data, str):
+                if isinstance(data, str) and data:
                     import base64
 
                     try:
@@ -525,18 +602,38 @@ class APIHandler(BaseHTTPRequestHandler):
                     except Exception:
                         return self.send_error_json(400, "Invalid base64 data")
                 else:
-                    return self.send_error_json(400, "Expected base64 string in 'data' field")
+                    file_data = None
+
+                if "caption" in body:
+                    rel = self._write_caption_sidecar(ds_path, target_path, body["caption"])
+                    sidecar_results["caption_path"] = rel
+                if "metadata" in body:
+                    rel = self._write_metadata_csv(
+                        ds_path, str(target_path.relative_to(ds_path)), body["metadata"]
+                    )
+                    sidecar_results["metadata_path"] = rel
+
+                if file_data is not None:
+                    try:
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        target_path.write_bytes(file_data)
+                    except Exception as e:
+                        return self.send_error_json(500, f"Failed to save file: {str(e)}")
+
+                result_resp = {"status": "created", "path": str(target_path.relative_to(ds_path))}
+                result_resp.update(sidecar_results)
+                return self.send_json(result_resp, status=201)
             else:
                 file_data = self.rfile.read(content_length)
-
-            try:
-                target_path.parent.mkdir(parents=True, exist_ok=True)
-                target_path.write_bytes(file_data)
-                return self.send_json(
-                    {"status": "saved", "path": str(target_path.relative_to(ds_path))}
-                )
-            except Exception as e:
-                return self.send_error_json(500, f"Failed to save file: {str(e)}")
+                try:
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    target_path.write_bytes(file_data)
+                    return self.send_json(
+                        {"status": "created", "path": str(target_path.relative_to(ds_path))},
+                        status=201,
+                    )
+                except Exception as e:
+                    return self.send_error_json(500, f"Failed to save file: {str(e)}")
 
         self.send_error_json(404, "Endpoint not found")
 
@@ -548,69 +645,39 @@ class APIHandler(BaseHTTPRequestHandler):
         if body is None:
             return self.send_error_json(400, "Invalid JSON payload")
 
-        match = re.match(r"^/v1/datasets/([a-zA-Z0-9-]+)/caption/(.+)$", path)
-        if match:
-            ds_id, filepath = match.groups()
-            filepath = urllib.parse.unquote(filepath)
-            with _STATE_LOCK:
-                ds = _DATASETS.get(ds_id)
-            if not ds:
-                return self.send_error_json(404, "Dataset not found")
+        result = self._resolve_dataset_file(path)
+        if result is not None:
+            ds_id, ds, ds_path, target_path = result
 
-            ds_path = Path(ds["path"]).resolve()
-            file_path = (ds_path / filepath).resolve()
+            if not target_path.is_file():
+                return self.send_error_json(404, "File not found")
 
-            try:
-                file_path.relative_to(ds_path)
-            except ValueError:
-                return self.send_error_json(403, "Access denied")
+            sidecar_results = {}
 
-            base = Path(filepath).stem
-            txt_path = file_path.parent / f"{base}.txt"
-            txt_path.write_text(body.get("caption", ""))
+            if "caption" in body:
+                rel = self._write_caption_sidecar(ds_path, target_path, body["caption"])
+                sidecar_results["caption_path"] = rel
+            if "metadata" in body:
+                rel = self._write_metadata_csv(
+                    ds_path, str(target_path.relative_to(ds_path)), body["metadata"]
+                )
+                sidecar_results["metadata_path"] = rel
 
-            return self.send_json({"status": "saved", "path": str(txt_path.relative_to(ds_path))})
+            content_type = self.headers.get("Content-Type", "")
+            if content_type == "application/json":
+                data = body.get("data", "")
+                if isinstance(data, str) and data:
+                    import base64
 
-        match = re.match(r"^/v1/datasets/([a-zA-Z0-9-]+)/metadata/(.+)$", path)
-        if match:
-            ds_id, filepath = match.groups()
-            filepath = urllib.parse.unquote(filepath)
-            with _STATE_LOCK:
-                ds = _DATASETS.get(ds_id)
-            if not ds:
-                return self.send_error_json(404, "Dataset not found")
+                    try:
+                        file_data = base64.b64decode(data)
+                        target_path.write_bytes(file_data)
+                    except Exception as e:
+                        return self.send_error_json(500, f"Failed to save file: {str(e)}")
 
-            ds_path = Path(ds["path"]).resolve()
-            file_path = (ds_path / filepath).resolve()
-
-            try:
-                file_path.relative_to(ds_path)
-            except ValueError:
-                return self.send_error_json(403, "Access denied")
-
-            metadata_csv = ds_path / "metadata.csv"
-            base = Path(filepath).stem
-            new_text = body.get("text", "")
-
-            rows = []
-            if metadata_csv.exists():
-                try:
-                    with open(metadata_csv, "r", encoding="utf-8") as f:
-                        reader = csv.reader(f, delimiter="|")
-                        for row in reader:
-                            if len(row) >= 2 and row[0].strip() == base:
-                                row[1] = new_text
-                            rows.append(row)
-                except Exception:
-                    pass
-
-            try:
-                with open(metadata_csv, "w", encoding="utf-8", newline="") as f:
-                    writer = csv.writer(f, delimiter="|")
-                    writer.writerows(rows)
-                return self.send_json({"status": "saved", "path": "metadata.csv"})
-            except Exception as e:
-                return self.send_error_json(500, f"Failed to update metadata: {str(e)}")
+            result_resp = {"status": "saved", "path": str(target_path.relative_to(ds_path))}
+            result_resp.update(sidecar_results)
+            return self.send_json(result_resp)
 
         self.send_error_json(404, "Endpoint not found")
 
@@ -648,6 +715,31 @@ class APIHandler(BaseHTTPRequestHandler):
                     del _DATASETS[ds_id]
                     return self.send_json({"status": "deleted"})
             return self.send_error_json(404, "Dataset not found")
+
+        result = self._resolve_dataset_file(path)
+        if result is not None:
+            ds_id, ds, ds_path, target_path = result
+
+            if not target_path.is_file():
+                return self.send_error_json(404, "File not found")
+
+            try:
+                target_path.unlink()
+            except Exception as e:
+                return self.send_error_json(500, f"Failed to delete file: {str(e)}")
+
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            remove_caption = query_params.get("caption", ["false"])[0] == "true"
+            caption_path = target_path.parent / f"{target_path.stem}.txt"
+            if remove_caption and caption_path.exists():
+                try:
+                    caption_path.unlink()
+                except Exception:
+                    pass
+
+            return self.send_json(
+                {"status": "deleted", "path": str(target_path.relative_to(ds_path))}
+            )
 
         match = re.match(r"^/v1/jobs/([a-zA-Z0-9-]+)$", path)
         if match:

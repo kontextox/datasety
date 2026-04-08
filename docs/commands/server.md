@@ -2,7 +2,7 @@
 
 Start the datasety REST API server for headless, remote dataset management and job execution.
 
-The API provides endpoints to register datasets, browse their files, and trigger _any_ `datasety` command remotely using JSON payloads.
+The API provides endpoints to register datasets, manage their files with full CRUD, and trigger _any_ `datasety` command remotely using JSON payloads.
 
 ## Usage
 
@@ -17,23 +17,23 @@ _Note: If the requested port is occupied, the server will automatically find the
 <details>
 <summary><b>Endpoints</b></summary>
 
-| Endpoint                            | Method | Description                                          |
-| ----------------------------------- | ------ | ---------------------------------------------------- |
-| `/v1/datasets`                      | POST   | Register a dataset                                   |
-| `/v1/datasets`                      | GET    | List all datasets                                    |
-| `/v1/datasets/<id>`                 | GET    | Get dataset info                                     |
-| `/v1/datasets/<id>`                 | PATCH  | Update dataset name                                  |
-| `/v1/datasets/<id>`                 | DELETE | Unregister dataset                                   |
-| `/v1/datasets/<id>/files`           | GET    | List files (supports `?folder=&group=` query params) |
-| `/v1/datasets/<id>/files/<path>`    | GET    | Download/serve a file                                |
-| `/v1/datasets/<id>/caption/<path>`  | GET    | Get caption for image                                |
-| `/v1/datasets/<id>/caption/<path>`  | PUT    | Save caption for image                               |
-| `/v1/datasets/<id>/metadata/<path>` | PUT    | Update metadata.csv text                             |
-| `/v1/jobs`                          | GET    | List all jobs                                        |
-| `/v1/jobs`                          | POST   | Start a new job (run any datasety command)           |
-| `/v1/jobs/<id>`                     | GET    | Get job status & output                              |
-| `/v1/jobs/<id>`                     | DELETE | Cancel a running job                                 |
-| `/v1/commands`                      | GET    | Get command schemas                                  |
+| Endpoint                         | Method | Description                                                     |
+| -------------------------------- | ------ | --------------------------------------------------------------- |
+| `/v1/datasets`                   | POST   | Register a dataset                                              |
+| `/v1/datasets`                   | GET    | List all datasets                                               |
+| `/v1/datasets/<id>`              | GET    | Get dataset info                                                |
+| `/v1/datasets/<id>`              | PATCH  | Update dataset name                                             |
+| `/v1/datasets/<id>`              | DELETE | Unregister dataset                                              |
+| `/v1/datasets/<id>/files`        | GET    | List files (supports `?folder=&group=` query params)            |
+| `/v1/datasets/<id>/files/<path>` | GET    | Download a file (or get info with `?info=true`)                 |
+| `/v1/datasets/<id>/files/<path>` | POST   | Create a new file (binary, base64, or sidecar caption/metadata) |
+| `/v1/datasets/<id>/files/<path>` | PUT    | Update a file and/or its caption/metadata sidecars              |
+| `/v1/datasets/<id>/files/<path>` | DELETE | Delete a file (add `?caption=true` to also remove .txt sidecar) |
+| `/v1/jobs`                       | GET    | List all jobs                                                   |
+| `/v1/jobs`                       | POST   | Start a new job (run any datasety command)                      |
+| `/v1/jobs/<id>`                  | GET    | Get job status & output                                         |
+| `/v1/jobs/<id>`                  | DELETE | Cancel a running job                                            |
+| `/v1/commands`                   | GET    | Get command schemas                                             |
 
 </details>
 
@@ -324,6 +324,225 @@ Returns the raw binary file content with the appropriate `Content-Type` header (
 
 ---
 
+#### Get File Info
+
+Returns metadata about a file including its caption sidecar and metadata.csv entry. Useful for getting caption/metadata without downloading the full binary.
+
+`GET /v1/datasets/<id>/files/<relative/file/path.ext>?info=true`
+
+**Response: 200 OK**
+
+```json
+{
+  "path": "photo.jpg",
+  "size_bytes": 1048576,
+  "caption": "a person walking in the park",
+  "caption_path": "photo.txt",
+  "metadata": "transcription text for audio"
+}
+```
+
+The `caption` and `caption_path` fields are included when a companion `.txt` file exists. The `metadata` field is included for audio files with a `metadata.csv` entry.
+
+---
+
+#### Create File
+
+Creates a new file at the specified path within the dataset directory. Supports raw binary upload, base64-encoded data, and optional sidecar caption/metadata writing.
+
+`POST /v1/datasets/<id>/files/<relative/file/path.ext>`
+
+**Option 1: Binary upload**
+
+Send raw file bytes with the appropriate `Content-Type` header:
+
+```
+Content-Type: image/png
+<binary image data>
+```
+
+**Response: 201 Created**
+
+```json
+{
+  "status": "created",
+  "path": "masks/photo_mask.png"
+}
+```
+
+**Option 2: JSON with base64 data and/or sidecar fields**
+
+```json
+{
+  "data": "<base64-encoded-file-bytes>",
+  "caption": "a photo of a person",
+  "metadata": "transcription text for audio"
+}
+```
+
+All fields are optional:
+
+- `data` — base64-encoded file content to write at the specified path
+- `caption` — writes a companion `.txt` sidecar file with this text
+- `metadata` — updates the row in `metadata.csv` (Piper/LJSpeech format)
+
+You can send `caption` or `metadata` without `data` to create only sidecar data. Parent directories are created automatically.
+
+**Response: 201 Created**
+
+```json
+{
+  "status": "created",
+  "path": "photo.png",
+  "caption_path": "photo.txt"
+}
+```
+
+**Error Responses:**
+
+`400 Bad Request` - Invalid base64 data:
+
+```json
+{
+  "error": "Invalid base64 data"
+}
+```
+
+`403 Forbidden` - Path traversal attempt:
+
+```json
+{
+  "error": "Access denied: Path traversal detected"
+}
+```
+
+`404 Not Found` - Dataset not found:
+
+```json
+{
+  "error": "Dataset not found"
+}
+```
+
+`500 Internal Server Error` - Failed to save:
+
+```json
+{
+  "error": "Failed to save file: [error details]"
+}
+```
+
+---
+
+#### Update File
+
+Updates an existing file's binary content and/or its caption/metadata sidecars.
+
+`PUT /v1/datasets/<id>/files/<relative/file/path.ext>`
+
+**Request (JSON):**
+
+```json
+{
+  "data": "<base64-encoded-file-bytes>",
+  "caption": "updated caption text",
+  "metadata": "updated transcription text"
+}
+```
+
+All fields are optional:
+
+- `data` — base64-encoded file content to replace the existing file
+- `caption` — writes/updates the companion `.txt` sidecar file
+- `metadata` — updates the row in `metadata.csv` for this file
+
+You can send only `caption` or `metadata` to update sidecar data without modifying the file itself.
+
+**Response: 200 OK**
+
+```json
+{
+  "status": "saved",
+  "path": "photo.jpg",
+  "caption_path": "photo.txt"
+}
+```
+
+**Error Responses:**
+
+`404 Not Found` - File not found:
+
+```json
+{
+  "error": "File not found"
+}
+```
+
+`404 Not Found` - Dataset not found:
+
+```json
+{
+  "error": "Dataset not found"
+}
+```
+
+`403 Forbidden` - Path traversal attempt:
+
+```json
+{
+  "error": "Access denied: Path traversal detected"
+}
+```
+
+---
+
+#### Delete File
+
+Deletes a file from the dataset. Optionally removes the companion `.txt` sidecar caption file.
+
+`DELETE /v1/datasets/<id>/files/<relative/file/path.ext>`
+
+**Query Parameters:**
+
+- `caption` (optional) - When `true`, also deletes the companion `.txt` sidecar file
+
+**Response: 200 OK**
+
+```json
+{
+  "status": "deleted",
+  "path": "photo.jpg"
+}
+```
+
+**Error Responses:**
+
+`404 Not Found` - File not found:
+
+```json
+{
+  "error": "File not found"
+}
+```
+
+`404 Not Found` - Dataset not found:
+
+```json
+{
+  "error": "Dataset not found"
+}
+```
+
+`500 Internal Server Error` - Failed to delete:
+
+```json
+{
+  "error": "Failed to delete file: [error details]"
+}
+```
+
+---
+
 ### Jobs (Command Execution)
 
 You can trigger _any_ datasety command (e.g., `resize`, `caption`, `train`) remotely. The parameters in the `args` dictionary map directly to the command-line flags.
@@ -562,73 +781,6 @@ Get all available command schemas with their parameters. Useful for building dyn
 
 ---
 
-### Caption Management
-
-#### Get Caption
-
-Get the caption/instruction text for an image (reads from companion .txt file).
-
-`GET /v1/datasets/<id>/caption/<relative/path/image.ext>`
-
-**Response: 200 OK**
-
-```json
-{
-  "caption": "add a winter hat to the person",
-  "path": "edit_001.txt"
-}
-```
-
-#### Save Caption
-
-Save the caption/instruction text for an image (writes to companion .txt file).
-
-`PUT /v1/datasets/<id>/caption/<relative/path/image.ext>`
-
-**Request:**
-
-```json
-{
-  "caption": "change background to blue"
-}
-```
-
-**Response: 200 OK**
-
-```json
-{
-  "status": "saved",
-  "path": "edit_001.txt"
-}
-```
-
----
-
-#### Save Metadata
-
-Update the text in `metadata.csv` for an audio file (Piper/LJSpeech format).
-
-`PUT /v1/datasets/<id>/metadata/<relative/path/audio.wav>`
-
-**Request:**
-
-```json
-{
-  "text": "Updated transcription text"
-}
-```
-
-**Response: 200 OK**
-
-```json
-{
-  "status": "saved",
-  "path": "metadata.csv"
-}
-```
-
----
-
 ### Dataset File Queries
 
 #### List Files with Folder Filter
@@ -690,6 +842,11 @@ Filter files by subfolder and optionally group by base filename.
       "input": "edit_001_input.png",
       "target": "edit_001_target.png",
       "mask": null,
+      "canny": null,
+      "pose": null,
+      "seg": null,
+      "depth": null,
+      "normal": null,
       "image": null,
       "caption": "add a winter hat",
       "all_files": [...]
@@ -700,10 +857,17 @@ Filter files by subfolder and optionally group by base filename.
 
 **Supported naming conventions:**
 
-- `*_input` or `*_start` → original image
+- `*_input` or `*_start` or `*_control` → original image
 - `*_target` or `*_end` → edited result
 - `*_mask` → binary mask (optional)
+- `*_canny` → canny edge detection (optional)
+- `*_pose` → human pose (optional)
+- `*_seg` → semantic segmentation (optional)
+- `*_depth` → greyscale depth map (optional)
+- `*_normal` → normal map (optional)
 - `*.txt` → caption/instruction file
+
+Files can also be organized by folder name: `input/`, `control/`, `target/`, `output/`, `mask/`, `canny/`, `pose/`, `seg/`, `depth/`, `normal/`.
 
 ---
 
