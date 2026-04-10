@@ -17,7 +17,7 @@ steps:
     args:
       input: ./dataset
       output: ./dataset
-      trigger-word: "ohwx,"
+      template: "ohwx, {{caption}}"
 ```
 
 Validate first, then run:
@@ -31,11 +31,30 @@ datasety workflow
 
 See the [workflow command reference](/commands/workflow) for full format details.
 
+## Template System
+
+The `caption`, `audio`, and `video` commands support `--template` for formatting output text:
+
+- **With placeholder** — `{{caption}}` or `{{transcript}}` is replaced with the generated text:
+  `template: "photo of sks person, {{caption}}"` → `photo of sks person, a woman in a red dress`
+- **Without placeholder** — text is prepended:
+  `template: "ohwx person,"` → `ohwx person, a woman in a red dress`
+
+In workflow YAML, use `template:` as the key:
+
+```yaml
+- command: caption
+  args:
+    input: ./dataset
+    output: ./dataset
+    template: "photo of sks person, {{caption}}"
+```
+
 ## Real-World Pipelines
 
 ### Face/Person LoRA Training
 
-The most common use case: prepare a face LoRA dataset from raw selfies or portrait photos. Resize to square, caption with a rare trigger word, and generate face masks so the trainer can focus loss on the subject.
+The most common use case: prepare a face LoRA dataset from raw selfies or portrait photos. Resize to square, caption with a template, and generate face masks so the trainer can focus loss on the subject.
 
 ```yaml
 # face-lora.yaml
@@ -53,7 +72,7 @@ steps:
     args:
       input: ./dataset
       output: ./dataset
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
 
   - command: mask
     args:
@@ -112,19 +131,19 @@ steps:
     args:
       input: ./augmented/hats
       output: ./augmented/hats
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
 
   - command: caption
     args:
       input: ./augmented/glasses
       output: ./augmented/glasses
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
 
   - command: caption
     args:
       input: ./augmented/scarves
       output: ./augmented/scarves
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
 ```
 
 ### Product Photography LoRA
@@ -147,7 +166,7 @@ steps:
     args:
       input: ./dataset
       output: ./dataset
-      trigger-word: "sks product,"
+      template: "sks product, {{caption}}"
       florence-2-large: true
 
   - command: mask
@@ -295,7 +314,7 @@ steps:
       output: ./dataset
       llm-api: true
       model: gpt-5-nano
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
       prompt: "Describe this person's appearance, clothing, pose, expression, and setting in one detailed paragraph. Do not mention image quality or photography terms."
       temperature: 0.3
       max-tokens: 200
@@ -338,19 +357,19 @@ steps:
     args:
       input: ./dataset_1024
       output: ./dataset_512
-      trigger-word: "ohwx,"
+      template: "ohwx, {{caption}}"
 
   - command: caption
     args:
       input: ./dataset_1024
       output: ./dataset_768
-      trigger-word: "ohwx,"
+      template: "ohwx, {{caption}}"
 
   - command: caption
     args:
       input: ./dataset_1024
       output: ./dataset_1024
-      trigger-word: "ohwx,"
+      template: "ohwx, {{caption}}"
 ```
 
 ### Sweep Then Train
@@ -388,7 +407,7 @@ steps:
     args:
       input: ./augmented
       output: ./augmented
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
 ```
 
 ### Cyanotype Style LoRA (API dataset + two models)
@@ -430,7 +449,7 @@ steps:
     args:
       input: ./dataset/prepared
       output: ./dataset/prepared
-      trigger-word: "cyanotype,"
+      template: "cyanotype, {{caption}}"
       llm-api: true
       model: google/gemini-2.5-flash
       prompt: >
@@ -561,12 +580,12 @@ steps:
 
 ### TTS Audio Dataset from YouTube
 
-Build a TTS training dataset from a YouTube video or a directory of audio files. The `audio` command transcribes speech, slices audio at word boundaries, and outputs LJSpeech-compatible `wavs/` + `metadata.csv`.
+Build a TTS training dataset from a YouTube video or a directory of audio files. The `audio` command transcribes speech, slices audio at word boundaries, and outputs paired `.wav` + `.txt` files by default, or LJSpeech-compatible `wavs/` + `metadata.csv` with `--metadata`.
 
 ```yaml
 # tts-from-youtube.yaml
 # Input: YouTube URL or local directory
-# Output: ./tts_dataset/ with wavs/ and metadata.csv ready for Piper training
+# Output: ./tts_dataset/ with flat .wav/.txt pairs
 steps:
   - command: audio
     args:
@@ -596,11 +615,51 @@ datasety workflow -f tts-from-youtube.yaml
 datasety workflow -f tts-from-youtube.yaml
 ```
 
-> **Tip:** Use `--workers 4` (or more) to transcribe multiple files in parallel. Use `--normalize-numbers` to expand digits like `123` into words so the TTS model pronounces them correctly.
+> **Tip:** Use `--workers 4` (or more) to transcribe multiple files in parallel. Use `--normalize-numbers` to expand digits like `123` into words so the TTS model pronounces them correctly. Use `--metadata` for Piper/LJSpeech-compatible output.
+
+### TTS Audio Dataset with LJSpeech Format
+
+For Piper training, use `--metadata` to generate the `metadata.csv` + `wavs/` structure:
+
+```yaml
+# tts-ljspeech.yaml
+steps:
+  - command: audio
+    args:
+      input: "https://www.youtube.com/watch?v=..."
+      output: ./tts_dataset
+      metadata: true
+      whisper-model: large-v3
+      language: en
+      normalize-numbers: true
+```
+
+### Video Dataset from YouTube
+
+Build a video dataset from a YouTube video or local video files. The `video` command transcribes speech and slices the video into segments, outputting paired `.mp4` + `.txt` files with timestamp-based naming.
+
+```yaml
+# video-dataset.yaml
+steps:
+  - command: video
+    args:
+      input: "https://www.youtube.com/watch?v=..."
+      output: ./video_dataset
+      whisper-model: base
+      language: en
+    # Output: dQw4w9WgXcQ-000000-000003.mp4 + .txt
+```
+
+```bash
+datasety workflow -f video-dataset.yaml --dry-run
+datasety workflow -f video-dataset.yaml
+```
+
+> **Tip:** Use `--re-encode` for frame-accurate cuts (slower). Default is stream-copy (fast).
 
 ### Upload TTS Dataset to HuggingFace
 
-After building a TTS dataset, upload it to HuggingFace Hub with auto-generated dataset card:
+After building a TTS dataset with `--metadata`, upload it to HuggingFace Hub with auto-generated dataset card:
 
 ```yaml
 # upload-tts.yaml
@@ -609,6 +668,7 @@ steps:
     args:
       input: "https://www.youtube.com/watch?v=..."
       output: ./tts_dataset
+      metadata: true
       whisper-model: base
       language: en
       workers: 4
@@ -643,7 +703,7 @@ steps:
     args:
       input: ./dataset
       output: ./dataset
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
 
   - command: train
     args:

@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from datasety.common import _resolve_io_mode, get_image_files, resolve_device
+from datasety.media import _apply_template
 
 
 def _load_caption_model_native(model_name, torch_dtype, device):
@@ -150,8 +151,9 @@ def _cmd_caption_llm_api(args, image_files, output_path, output_dir, is_single, 
     print(f"Model: {model}")
     print(f"Found {len(image_files)} images")
     print(f"Prompt: {prompt}")
-    if args.trigger_word:
-        print(f"Trigger word: {args.trigger_word}")
+    template = args.template
+    if template:
+        print(f"Template: {template}")
     print("-" * 50)
 
     processed = 0
@@ -170,8 +172,8 @@ def _cmd_caption_llm_api(args, image_files, output_path, output_dir, is_single, 
             )
             caption = caption.strip()
 
-            if args.trigger_word:
-                caption = f"{args.trigger_word} {caption}"
+            if template:
+                caption = _apply_template(template, caption)
 
             if is_single and output_path:
                 caption_path = output_path
@@ -299,8 +301,9 @@ def cmd_caption(args):
 
     print(f"Found {len(image_files)} images")
     print(f"Prompt: {args.prompt}")
-    if args.trigger_word:
-        print(f"Trigger word: {args.trigger_word}")
+    template = args.template
+    if template:
+        print(f"Template: {template}")
     print("-" * 50)
 
     processed = 0
@@ -346,8 +349,8 @@ def cmd_caption(args):
 
                 caption = parsed.get(args.prompt, "")
 
-                if args.trigger_word:
-                    caption = f"{args.trigger_word} {caption}"
+                if template:
+                    caption = _apply_template(template, caption)
 
                 if is_single and output_path:
                     caption_path = output_path
@@ -398,9 +401,11 @@ def register_parser(subparsers):
         help="Device to run model on (default: auto-detect GPU/MPS)",
     )
     caption_parser.add_argument(
-        "--trigger-word",
+        "--template",
         default="",
-        help="Text to prepend to each caption (e.g., '[trigger]' or 'photo,')",
+        help="Template for caption text. Use {{caption}} as placeholder for the "
+        "generated caption. Without {{caption}}, text is prepended. "
+        "Examples: '[trigger] {{caption}}', 'photo of sks person, {{caption}}'",
     )
     caption_parser.add_argument(
         "--prompt",

@@ -111,6 +111,9 @@ upload =[
     "langdetect",
     "pyyaml>=6.0",
 ]
+video = [
+    "datasety[audio]",
+]
 all = [
     "datasety[caption,synthetic,mask,filter,degrade,character,train,workflow,audio-full,upload]",
 ]

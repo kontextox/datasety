@@ -42,6 +42,7 @@ export default defineConfig({
           { text: "train", link: "/commands/train" },
           { text: "server", link: "/commands/server" },
           { text: "audio", link: "/commands/audio" },
+          { text: "video", link: "/commands/video" },
         ],
       },
       { text: "Workflows", link: "/workflows" },
@@ -87,10 +88,11 @@ export default defineConfig({
           ],
         },
         {
-          text: "Training",
+          text: "Audio & Video",
           collapsed: false,
           items: [
-            { text: "train", link: "/commands/train" },
+            { text: "audio", link: "/commands/audio" },
+            { text: "video", link: "/commands/video" },
           ],
         },
         {
@@ -104,7 +106,8 @@ export default defineConfig({
           text: "Audio",
           collapsed: false,
           items: [
-            { text: "audio", link: "/commands/audio" },
+          { text: "audio", link: "/commands/audio" },
+          { text: "video", link: "/commands/video" },
           ],
         },
       ],

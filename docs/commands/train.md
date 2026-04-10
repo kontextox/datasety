@@ -202,7 +202,7 @@ Prepare a dataset first, then train:
 ```bash
 # 1. Prepare dataset
 datasety resize -i ./raw -o ./dataset -r 512x512
-datasety caption -i ./dataset -o ./dataset --trigger-word "ohwx person,"
+datasety caption -i ./dataset -o ./dataset --template "ohwx person, {{caption}}"
 
 # 2. Train LoRA on FLUX.2-klein-base-4B (~8 GB VRAM)
 datasety train \

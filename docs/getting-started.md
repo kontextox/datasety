@@ -17,6 +17,7 @@ pip install datasety[mask]           # Mask generation (SAM 3, SAM 2, CLIPSeg)
 pip install datasety[filter]         # Content filtering (CLIP, NudeNet)
 pip install datasety[character]      # Character dataset generation
 pip install datasety[audio]          # TTS audio datasets (Whisper transcription)
+pip install datasety[video]          # Video datasets (same deps as audio)
 pip install datasety[train]          # LoRA training (FLUX, SDXL)
 pip install datasety[upload]         # Upload to HuggingFace Hub
 pip install datasety[workflow]       # YAML/JSON workflow support
@@ -38,8 +39,8 @@ datasety --help
 # 1. Resize images to training resolution
 datasety resize -i ./raw -o ./dataset -r 1024x1024
 
-# 2. Generate captions with a trigger word
-datasety caption -i ./dataset -o ./dataset --trigger-word "[trigger]"
+# 2. Generate captions with a template
+datasety caption -i ./dataset -o ./dataset --template "[trigger] {{caption}}"
 ```
 
 ### Use a Vision API for Captions
@@ -53,21 +54,41 @@ datasety caption -i ./dataset -o ./dataset --llm-api --model gpt-5-nano
 ### Build a TTS Audio Dataset
 
 ```bash
-# From a YouTube video
+# From a YouTube video (flat .wav/.txt pairs by default)
 datasety audio --input "https://www.youtube.com/watch?v=..." \
     --output ./tts_dataset --language en --workers 4
+
+# With LJSpeech/Piper format (metadata.csv + wavs/)
+datasety audio --input ./video.mp4 --output ./dataset --metadata
 
 # From a directory of audio files
 datasety audio --input ./recordings/ --output ./dataset \
     --normalize-numbers --workers 4
 
-# With phoneme map filtering (drops invalid segments automatically)
+# With phoneme map filtering (drops invalid segments, requires --metadata)
 datasety audio --input ./video.mp4 --output ./dataset \
-    --phoneme-map /path/to/piper/config.json
+    --metadata --phoneme-map /path/to/piper/config.json
 
 # Time-slicing from a URL
 datasety audio --input "https://youtube.com/watch?v=...&start=50&end=90" \
     --output ./dataset
+```
+
+### Build a Video Dataset
+
+```bash
+# From a YouTube video
+datasety video --input "https://www.youtube.com/watch?v=..." \
+    --output ./video_dataset --language en
+
+# From a local video file
+datasety video --input ./interview.mp4 --output ./dataset
+
+# With frame-accurate cuts (slower, default is fast stream-copy)
+datasety video --input ./video.mp4 --output ./dataset --re-encode
+
+# Directory of clips with vocal isolation for transcription
+datasety video --input ./clips/ --output ./dataset --demucs
 ```
 
 ### Train a LoRA Adapter (Image Fine-Tuning)
@@ -75,7 +96,7 @@ datasety audio --input "https://youtube.com/watch?v=...&start=50&end=90" \
 ```bash
 # 1. Prepare dataset
 datasety resize -i ./raw -o ./dataset -r 512x512
-datasety caption -i ./dataset -o ./dataset --trigger-word "[trigger]"
+datasety caption -i ./dataset -o ./dataset --template "photo of sks person, {{caption}}"
 
 # 2. Train LoRA on FLUX.2-klein-base-4B (~8 GB VRAM)
 datasety train --input ./dataset \
@@ -140,7 +161,7 @@ steps:
     args:
       input: ./dataset
       output: ./dataset
-      trigger-word: "[trigger]"
+      template: "[trigger] {{caption}}"
 
   - command: mask
     args:
@@ -182,6 +203,7 @@ Requires `HF_TOKEN` env var or `--token` argument. See the [`upload`](/commands/
 | [`resize`](/commands/resize)   | Resize and crop to target resolution      | --          |
 | [`caption`](/commands/caption) | Generate captions (Florence-2 or API)     | `[caption]` |
 | [`audio`](/commands/audio)     | Build TTS audio datasets from video/audio | `[audio]`   |
+| [`video`](/commands/video)     | Build video datasets from video files     | `[video]`   |
 | [`align`](/commands/align)     | Align control/target image pairs          | --          |
 | [`mask`](/commands/mask)       | Text-prompted segmentation masks          | `[mask]`    |
 | [`filter`](/commands/filter)   | Filter by content (CLIP or NudeNet)       | `[filter]`  |
