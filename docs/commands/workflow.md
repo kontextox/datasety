@@ -92,7 +92,7 @@ No models are loaded and no images are processed.
 
 ### Face LoRA with Masks
 
-The most common pipeline: resize raw photos, caption with a trigger word, and generate face masks for focused training loss.
+The most common pipeline: resize raw photos, caption with a template, and generate face masks for focused training loss.
 
 ```yaml
 steps:
@@ -106,7 +106,7 @@ steps:
     args:
       input: ./dataset
       output: ./dataset
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
   - command: mask
     args:
       input: ./dataset
@@ -136,7 +136,7 @@ steps:
     args:
       input: ./augmented
       output: ./augmented
-      trigger-word: "ohwx person,"
+      template: "ohwx person, {{caption}}"
 ```
 
 ### Upscale Training (Paired Degradation)

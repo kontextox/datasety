@@ -14,28 +14,37 @@ datasety caption --input ./images --output ./captions --llm-api --model gpt-5-na
 
 ## Options
 
-| Option               | Description                        | Default                   |
-| -------------------- | ---------------------------------- | ------------------------- |
-| `--input`, `-i`      | Input directory                    | (required\*)              |
-| `--output`, `-o`     | Output directory for .txt files    | (required\*)              |
-| `--input-image`      | Single input image                 |                           |
-| `--output-caption`   | Single output .txt path            |                           |
-| `--device`           | `auto`, `cpu`, `cuda`, or `mps`    | `auto`                    |
-| `--trigger-word`     | Text to prepend to captions        | (none)                    |
-| `--prompt`           | Florence-2 task prompt             | `<MORE_DETAILED_CAPTION>` |
-| `--model`            | HF model or API model ID           | (none)                    |
-| `--num-beams`        | Beam search width (1 = greedy)     | `3`                       |
-| `--florence-2-base`  | Use base model (0.23B, faster)     | (default)                 |
-| `--florence-2-large` | Use large model (0.77B, better)    |                           |
-| `--llm-api`          | Use OpenAI-compatible vision API   |                           |
-| `--max-tokens`       | Max response tokens (API mode)     | `300`                     |
-| `--temperature`      | Temperature (API mode)             | `0.3`                     |
-| `--skip-existing`    | Skip images with existing .txt     | `false`                   |
-| `--append`           | Append text to existing captions   |                           |
-| `--prepend`          | Prepend text to existing captions  |                           |
-| `--recursive`, `-R`  | Search input directory recursively | `false`                   |
-| `--progress`         | Show tqdm progress bar             | `false`                   |
-| `--dry-run`          | Preview without writing files      | `false`                   |
+| Option               | Description                                                                                         | Default                   |
+| -------------------- | --------------------------------------------------------------------------------------------------- | ------------------------- |
+| `--input`, `-i`      | Input directory                                                                                     | (required\*)              |
+| `--output`, `-o`     | Output directory for .txt files                                                                     | (required\*)              |
+| `--input-image`      | Single input image                                                                                  |                           |
+| `--output-caption`   | Single output .txt path                                                                             |                           |
+| `--device`           | `auto`, `cpu`, `cuda`, or `mps`                                                                     | `auto`                    |
+| `--template`         | Template for caption text. Use `{{caption}}` as placeholder; without placeholder, text is prepended | (none)                    |
+| `--prompt`           | Florence-2 task prompt                                                                              | `<MORE_DETAILED_CAPTION>` |
+| `--model`            | HF model or API model ID                                                                            | (none)                    |
+| `--num-beams`        | Beam search width (1 = greedy)                                                                      | `3`                       |
+| `--florence-2-base`  | Use base model (0.23B, faster)                                                                      | (default)                 |
+| `--florence-2-large` | Use large model (0.77B, better)                                                                     |                           |
+| `--llm-api`          | Use OpenAI-compatible vision API                                                                    |                           |
+| `--max-tokens`       | Max response tokens (API mode)                                                                      | `300`                     |
+| `--temperature`      | Temperature (API mode)                                                                              | `0.3`                     |
+| `--skip-existing`    | Skip images with existing .txt                                                                      | `false`                   |
+| `--append`           | Append text to existing captions                                                                    |                           |
+| `--prepend`          | Prepend text to existing captions                                                                   |                           |
+| `--recursive`, `-R`  | Search input directory recursively                                                                  | `false`                   |
+| `--progress`         | Show tqdm progress bar                                                                              | `false`                   |
+| `--dry-run`          | Preview without writing files                                                                       | `false`                   |
+
+## Template System
+
+The `--template` flag formats generated captions using a template string:
+
+- **With placeholder** — `{{caption}}` is replaced with the generated text:
+  `--template "photo of sks person, {{caption}}"` → `photo of sks person, a woman in a red dress`
+- **Without placeholder** — text is prepended:
+  `--template "ohwx person,"` → `ohwx person, a woman in a red dress`
 
 ## Environment Variables
 
@@ -57,8 +66,11 @@ datasety caption --input ./images --output ./captions --llm-api --model gpt-5-na
 ## Examples
 
 ```bash
-# Florence-2 base with trigger word
-datasety caption -i ./dataset -o ./dataset --trigger-word "photo of sks person,"
+# Florence-2 base with template
+datasety caption -i ./dataset -o ./dataset --template "photo of sks person, {{caption}}"
+
+# Template without placeholder (prepends text)
+datasety caption -i ./dataset -o ./dataset --template "ohwx person,"
 
 # Florence-2 large
 datasety caption -i ./dataset -o ./dataset --florence-2-large --device cuda

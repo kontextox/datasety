@@ -1,5 +1,3 @@
-# datasety
-
 <img align="right" src="https://raw.githubusercontent.com/kontextox/datasety/refs/heads/main/docs/public/mascot.png" alt="CLI tool for dataset preparation" width="120" />
 
 [![PyPI](https://img.shields.io/pypi/v/datasety)](https://pypi.org/project/datasety/)
@@ -9,6 +7,28 @@
 CLI tool for dataset preparation — resize, caption, align, shuffle, synthetic editing, masking, degradation, character generation, LoRA training, audio TTS datasets, upload to HuggingFace, and multi-step workflows.
 
 [Full documentation →](https://kontextox.github.io/datasety/)
+
+---
+
+- [Installation](#installation)
+- [Commands](#commands)
+  - [`resize` — Resize \& Crop Images](#resize--resize--crop-images)
+  - [`filter` — Filter Dataset by Content](#filter--filter-dataset-by-content)
+  - [`degrade` — Image Degradation](#degrade--image-degradation)
+  - [`mask` — Text-Prompted Segmentation Masks](#mask--text-prompted-segmentation-masks)
+  - [`caption` — Generate Image Captions](#caption--generate-image-captions)
+  - [`shuffle` — Random Caption Generation](#shuffle--random-caption-generation)
+  - [`synthetic` — Synthetic Image Editing](#synthetic--synthetic-image-editing)
+  - [`character` — Character Dataset Generation](#character--character-dataset-generation)
+  - [`audio` — Build TTS Audio Datasets](#audio--build-tts-audio-datasets)
+  - [`video` — Build Video Datasets](#video--build-video-datasets)
+  - [`align` — Align Control/Target Pairs](#align--align-controltarget-pairs)
+  - [`train` — LoRA Fine-Tuning \& TTS Training](#train--lora-fine-tuning--tts-training)
+  - [`sweep` — Parameter Grid Search](#sweep--parameter-grid-search)
+  - [`workflow` — Multi-Step Pipelines](#workflow--multi-step-pipelines)
+  - [`server` — REST API Server](#server--rest-api-server)
+  - [`upload` — Upload to HuggingFace Hub](#upload--upload-to-huggingface-hub)
+- [License](#license)
 
 ## Installation
 
@@ -21,7 +41,7 @@ pip install datasety[filter]         # + content filtering (CLIP, NudeNet)
 pip install datasety[character]      # + character dataset generation
 pip install datasety[workflow]       # + YAML workflow support
 pip install datasety[train]          # + LoRA training (FLUX, Qwen) & TTS (Piper)
-pip install datasety[audio]          # + TTS audio datasets (YouTube, VAD, Piper)
+pip install datasety[audio]          # + TTS audio & video datasets (YouTube, VAD, Piper)
 pip install datasety[upload]         # + upload to HuggingFace Hub
 pip install datasety[all]            # everything
 ```
@@ -77,6 +97,156 @@ datasety resize -i ./photos -o ./dataset -r 1024x1024 --output-name-numbers --cr
 
 ---
 
+### `filter` — Filter Dataset by Content
+
+Filter, curate, or clean datasets based on image content. Use CLIP for arbitrary text queries or NudeNet for NSFW label detection.
+
+<!-- screenshot: filter -->
+
+```bash
+datasety filter --input ./dataset --output ./rejected --query "leg,male face" --action move
+```
+
+<details>
+<summary>Options</summary>
+
+| Option                 | Description                                             | Default  |
+| ---------------------- | ------------------------------------------------------- | -------- |
+| `--input`, `-i`        | Input directory                                         | required |
+| `--output`, `-o`       | Output directory for matched/rejected images            |          |
+| `--query`, `-q`        | Comma-separated text queries (CLIP)                     |          |
+| `--labels`, `-l`       | Comma-separated NudeNet labels                          |          |
+| `--model`              | `clip`, `nudenet`                                       | `clip`   |
+| `--action`             | `move`, `copy`, `delete`, `keep`                        | `move`   |
+| `--threshold`          | Confidence threshold (0.0-1.0)                          | `0.5`    |
+| `--device`             | `auto`, `cpu`, `cuda`, `mps`                            | `auto`   |
+| `--confirm`            | Required for destructive actions (`delete`, `keep`)     | off      |
+| `--preserve-structure` | Keep subfolder hierarchy in output (with `--recursive`) | off      |
+| `--invert`             | Invert match logic (act on non-matches)                 | off      |
+| `--log`                | Write CSV log of all decisions to this path             |          |
+| `--dry-run`            | Preview detections without modifying files              | off      |
+| `--recursive`, `-R`    | Search input directory recursively                      | off      |
+| `--progress`           | Show tqdm progress bar                                  | off      |
+
+</details>
+
+```bash
+# Move images containing legs or male faces to a reject folder
+datasety filter -i ./dataset -o ./rejected --query "leg,male face" --action move
+
+# Delete NSFW images using NudeNet labels
+datasety filter -i ./dataset --labels "FEMALE_BREAST_EXPOSED,MALE_GENITALIA_EXPOSED" \
+    --action delete --model nudenet --threshold 0.6 --confirm
+
+# Keep only images with "hat and socks", move the rest out
+datasety filter -i ./dataset -o ./rejected --query "hat and socks" --action keep
+
+# Dry-run to preview what would be filtered
+datasety filter -i ./dataset --query "blurry,low quality" --action delete --dry-run -R
+
+# Write a decision log for review
+datasety filter -i ./dataset -o ./rejected --query "outdoor" --action copy --log filter_log.csv
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/filter)
+
+---
+
+### `degrade` — Image Degradation
+
+Create degraded versions of images for upscale/enhance training. Pure Pillow, no extra dependencies.
+
+<!-- screenshot: degrade -->
+
+```bash
+datasety degrade --input ./originals --output ./dataset --type random --intensity-range 0.2-0.8 --paired
+```
+
+<details>
+<summary>Options</summary>
+
+| Option              | Description                           | Default    |
+| ------------------- | ------------------------------------- | ---------- |
+| `--input`, `-i`     | Input directory                       | required\* |
+| `--output`, `-o`    | Output directory                      | required\* |
+| `--input-image`     | Single input image                    |            |
+| `--output-image`    | Single output image                   |            |
+| `--type`, `-t`      | Degradation type(s), repeatable       | `random`   |
+| `--intensity`       | Global intensity (0.0-1.0)            | `0.5`      |
+| `--intensity-range` | Random range `MIN-MAX`                |            |
+| `--chain`           | Apply multiple types sequentially     | off        |
+| `--num-variants`    | Variants per input image              | `1`        |
+| `--paired`          | Create `control/` + `target/` subdirs | off        |
+| `--seed`            | Random seed                           |            |
+| `--output-format`   | `png`, `jpg`, `webp`                  | `png`      |
+| `--skip-existing`   | Skip images with existing output      | off        |
+| `--workers`         | Parallel workers for processing       | `1`        |
+| `--progress`        | Show tqdm progress bar                | off        |
+| `--dry-run`         | Preview without writing files         | off        |
+
+**Degradation types:** `lowres`, `oversharpen`, `noise`, `blur`, `jpeg`, `motion-blur`, `pixelate`, `color-bands`, `upscale-sim`, `random`
+
+</details>
+
+```bash
+# Chain specific degradations for paired output
+datasety degrade -i ./images -o ./dataset --type jpeg --type noise --chain --paired --seed 42
+
+# Multiple random variants per image
+datasety degrade -i ./images -o ./degraded --type random --num-variants 3 --intensity-range 0.3-0.8
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/degrade)
+
+---
+
+### `mask` — Text-Prompted Segmentation Masks
+
+Generate binary masks from images using text keywords. Supports SAM 3, SAM 2, and CLIPSeg.
+
+<!-- screenshot: mask -->
+
+```bash
+datasety mask --input ./dataset --output ./masks --keywords "face,hair" --device cuda
+```
+
+<details>
+<summary>Options</summary>
+
+| Option              | Description                        | Default    |
+| ------------------- | ---------------------------------- | ---------- |
+| `--input`, `-i`     | Input directory                    | required\* |
+| `--output`, `-o`    | Output directory for masks         | required\* |
+| `--input-image`     | Single input image                 |            |
+| `--output-image`    | Single output mask                 |            |
+| `--keywords`, `-k`  | Comma-separated keywords           | required   |
+| `--model`           | `sam3`, `sam2`, `clipseg`          | `sam3`     |
+| `--device`          | `auto`, `cpu`, `cuda`, `mps`       | `auto`     |
+| `--threshold`       | Confidence threshold (0.0-1.0)     | `0.3`      |
+| `--padding`         | Pixels to expand mask (dilation)   | `0`        |
+| `--blur`            | Gaussian blur radius for edges     | `0`        |
+| `--invert`          | Invert mask colors                 | off        |
+| `--naming`          | `folder` or `suffix` (`_mask`)     | `folder`   |
+| `--output-format`   | `png`, `jpg`, `webp`               | `png`      |
+| `--skip-existing`   | Skip images with existing masks    | off        |
+| `--dry-run`         | Preview detections without saving  | off        |
+| `--recursive`, `-R` | Search input directory recursively | off        |
+| `--progress`        | Show tqdm progress bar             | off        |
+
+</details>
+
+```bash
+# CLIPSeg (lightweight, no extra deps)
+datasety mask -i ./dataset -o ./masks -k "face" --model clipseg --threshold 0.5
+
+# SAM 2 with mask refinement
+datasety mask -i ./dataset -o ./masks -k "hat,glasses" --model sam2 --padding 5 --blur 3
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/mask)
+
+---
+
 ### `caption` — Generate Image Captions
 
 Generate captions using Florence-2 (local) or OpenAI-compatible vision APIs.
@@ -84,7 +254,7 @@ Generate captions using Florence-2 (local) or OpenAI-compatible vision APIs.
 <!-- screenshot: caption -->
 
 ```bash
-datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
+datasety caption --input ./images --output ./captions --template "[trigger] {{caption}}"
 ```
 
 <details>
@@ -97,7 +267,7 @@ datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
 | `--input-image`      | Single input image                          |                           |
 | `--output-caption`   | Single output .txt path                     |                           |
 | `--device`           | `auto`, `cpu`, `cuda`, `mps`                | `auto`                    |
-| `--trigger-word`     | Text to prepend to each caption             |                           |
+| `--template`         | Template for caption text.                  |                           |
 | `--prompt`           | Florence-2 task prompt                      | `<MORE_DETAILED_CAPTION>` |
 | `--model`            | HF model name or API model ID               |                           |
 | `--num-beams`        | Beam search width (1 = greedy)              | `3`                       |
@@ -116,48 +286,17 @@ datasety caption --input ./images --output ./captions --trigger-word "[trigger]"
 </details>
 
 ```bash
-# Florence-2 with trigger word
-datasety caption -i ./dataset -o ./dataset --trigger-word "photo of sks person," --device cuda
+# Florence-2 with template
+datasety caption -i ./dataset -o ./dataset --template "photo of sks person, {{caption}}" --device cuda
+
+# Template without placeholder (prepends text)
+datasety caption -i ./dataset -o ./dataset --template "photo of sks person," --device cuda
 
 # OpenAI vision API (supports OPENAI_MODEL env var)
 datasety caption -i ./images -o ./captions --llm-api --model gpt-5-nano
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/caption)
-
----
-
-### `align` — Align Control/Target Pairs
-
-Match dimensions, enforce multiples of 32, and unify formats for control/target training pairs. Includes a built-in web server for visual comparison with a compare slider, caption editing, and pair management.
-
-<!-- screenshot: align -->
-
-```bash
-datasety align --target ./target --control ./control --dry-run
-```
-
-<details>
-<summary>Options</summary>
-
-| Option              | Description                              | Default       |
-| ------------------- | ---------------------------------------- | ------------- |
-| `--target`, `-t`    | Target images directory                  | required      |
-| `--control`, `-c`   | Control images directory                 | required      |
-| `--multiple-of`     | Align dimensions to this multiple        | `32`          |
-| `--output-format`   | Convert all images: `jpg`, `png`, `webp` | keep original |
-| `--recursive`, `-R` | Search input directories recursively     | off           |
-| `--dry-run`         | Preview changes without modifying files  | off           |
-
-</details>
-
-```bash
-# Preview, then apply
-datasety align -t ./target -c ./control --dry-run
-datasety align -t ./target -c ./control --output-format jpg
-```
-
-[Full documentation →](https://kontextox.github.io/datasety/commands/align)
 
 ---
 
@@ -279,193 +418,6 @@ datasety synthetic -i ./dataset -o ./synthetic \
 
 ---
 
-### `mask` — Text-Prompted Segmentation Masks
-
-Generate binary masks from images using text keywords. Supports SAM 3, SAM 2, and CLIPSeg.
-
-<!-- screenshot: mask -->
-
-```bash
-datasety mask --input ./dataset --output ./masks --keywords "face,hair" --device cuda
-```
-
-<details>
-<summary>Options</summary>
-
-| Option              | Description                        | Default    |
-| ------------------- | ---------------------------------- | ---------- |
-| `--input`, `-i`     | Input directory                    | required\* |
-| `--output`, `-o`    | Output directory for masks         | required\* |
-| `--input-image`     | Single input image                 |            |
-| `--output-image`    | Single output mask                 |            |
-| `--keywords`, `-k`  | Comma-separated keywords           | required   |
-| `--model`           | `sam3`, `sam2`, `clipseg`          | `sam3`     |
-| `--device`          | `auto`, `cpu`, `cuda`, `mps`       | `auto`     |
-| `--threshold`       | Confidence threshold (0.0-1.0)     | `0.3`      |
-| `--padding`         | Pixels to expand mask (dilation)   | `0`        |
-| `--blur`            | Gaussian blur radius for edges     | `0`        |
-| `--invert`          | Invert mask colors                 | off        |
-| `--naming`          | `folder` or `suffix` (`_mask`)     | `folder`   |
-| `--output-format`   | `png`, `jpg`, `webp`               | `png`      |
-| `--skip-existing`   | Skip images with existing masks    | off        |
-| `--dry-run`         | Preview detections without saving  | off        |
-| `--recursive`, `-R` | Search input directory recursively | off        |
-| `--progress`        | Show tqdm progress bar             | off        |
-
-</details>
-
-```bash
-# CLIPSeg (lightweight, no extra deps)
-datasety mask -i ./dataset -o ./masks -k "face" --model clipseg --threshold 0.5
-
-# SAM 2 with mask refinement
-datasety mask -i ./dataset -o ./masks -k "hat,glasses" --model sam2 --padding 5 --blur 3
-```
-
-[Full documentation →](https://kontextox.github.io/datasety/commands/mask)
-
----
-
-### `filter` — Filter Dataset by Content
-
-Filter, curate, or clean datasets based on image content. Use CLIP for arbitrary text queries or NudeNet for NSFW label detection.
-
-<!-- screenshot: filter -->
-
-```bash
-datasety filter --input ./dataset --output ./rejected --query "leg,male face" --action move
-```
-
-<details>
-<summary>Options</summary>
-
-| Option                 | Description                                             | Default  |
-| ---------------------- | ------------------------------------------------------- | -------- |
-| `--input`, `-i`        | Input directory                                         | required |
-| `--output`, `-o`       | Output directory for matched/rejected images            |          |
-| `--query`, `-q`        | Comma-separated text queries (CLIP)                     |          |
-| `--labels`, `-l`       | Comma-separated NudeNet labels                          |          |
-| `--model`              | `clip`, `nudenet`                                       | `clip`   |
-| `--action`             | `move`, `copy`, `delete`, `keep`                        | `move`   |
-| `--threshold`          | Confidence threshold (0.0-1.0)                          | `0.5`    |
-| `--device`             | `auto`, `cpu`, `cuda`, `mps`                            | `auto`   |
-| `--confirm`            | Required for destructive actions (`delete`, `keep`)     | off      |
-| `--preserve-structure` | Keep subfolder hierarchy in output (with `--recursive`) | off      |
-| `--invert`             | Invert match logic (act on non-matches)                 | off      |
-| `--log`                | Write CSV log of all decisions to this path             |          |
-| `--dry-run`            | Preview detections without modifying files              | off      |
-| `--recursive`, `-R`    | Search input directory recursively                      | off      |
-| `--progress`           | Show tqdm progress bar                                  | off      |
-
-</details>
-
-```bash
-# Move images containing legs or male faces to a reject folder
-datasety filter -i ./dataset -o ./rejected --query "leg,male face" --action move
-
-# Delete NSFW images using NudeNet labels
-datasety filter -i ./dataset --labels "FEMALE_BREAST_EXPOSED,MALE_GENITALIA_EXPOSED" \
-    --action delete --model nudenet --threshold 0.6 --confirm
-
-# Keep only images with "hat and socks", move the rest out
-datasety filter -i ./dataset -o ./rejected --query "hat and socks" --action keep
-
-# Dry-run to preview what would be filtered
-datasety filter -i ./dataset --query "blurry,low quality" --action delete --dry-run -R
-
-# Write a decision log for review
-datasety filter -i ./dataset -o ./rejected --query "outdoor" --action copy --log filter_log.csv
-```
-
-[Full documentation →](https://kontextox.github.io/datasety/commands/filter)
-
----
-
-### `server` — REST API Server
-
-Start a headless REST API for remote dataset management and job execution.
-
-```bash
-datasety server --port 8080
-```
-
-Provides `/v1/` endpoints to register datasets (auto-detects types), manage files with full CRUD, and remotely execute any `datasety` command via JSON payloads.
-
-<details>
-<summary><b>Endpoints</b></summary>
-
-| Endpoint                         | Method | Description                                                     |
-| -------------------------------- | ------ | --------------------------------------------------------------- |
-| `/v1/datasets`                   | POST   | Register a dataset                                              |
-| `/v1/datasets`                   | GET    | List all datasets                                               |
-| `/v1/datasets/<id>`              | GET    | Get dataset info                                                |
-| `/v1/datasets/<id>`              | PATCH  | Update dataset name                                             |
-| `/v1/datasets/<id>`              | DELETE | Unregister dataset                                              |
-| `/v1/datasets/<id>/files`        | GET    | List files (supports `?folder=&group=` query params)            |
-| `/v1/datasets/<id>/files/<path>` | GET    | Download a file (or get info with `?info=true`)                 |
-| `/v1/datasets/<id>/files/<path>` | POST   | Create a new file (binary, base64, or sidecar caption/metadata) |
-| `/v1/datasets/<id>/files/<path>` | PUT    | Update a file and/or its caption/metadata sidecars              |
-| `/v1/datasets/<id>/files/<path>` | DELETE | Delete a file (add `?caption=true` to also remove .txt sidecar) |
-| `/v1/jobs`                       | GET    | List all jobs                                                   |
-| `/v1/jobs`                       | POST   | Start a new job (run any datasety command)                      |
-| `/v1/jobs/<id>`                  | GET    | Get job status & output                                         |
-| `/v1/jobs/<id>`                  | DELETE | Cancel a running job                                            |
-| `/v1/commands`                   | GET    | Get command schemas                                             |
-
-</details>
-
-[Full API documentation →](https://kontextox.github.io/datasety/commands/server)
-
----
-
-### `degrade` — Image Degradation
-
-Create degraded versions of images for upscale/enhance training. Pure Pillow, no extra dependencies.
-
-<!-- screenshot: degrade -->
-
-```bash
-datasety degrade --input ./originals --output ./dataset --type random --intensity-range 0.2-0.8 --paired
-```
-
-<details>
-<summary>Options</summary>
-
-| Option              | Description                           | Default    |
-| ------------------- | ------------------------------------- | ---------- |
-| `--input`, `-i`     | Input directory                       | required\* |
-| `--output`, `-o`    | Output directory                      | required\* |
-| `--input-image`     | Single input image                    |            |
-| `--output-image`    | Single output image                   |            |
-| `--type`, `-t`      | Degradation type(s), repeatable       | `random`   |
-| `--intensity`       | Global intensity (0.0-1.0)            | `0.5`      |
-| `--intensity-range` | Random range `MIN-MAX`                |            |
-| `--chain`           | Apply multiple types sequentially     | off        |
-| `--num-variants`    | Variants per input image              | `1`        |
-| `--paired`          | Create `control/` + `target/` subdirs | off        |
-| `--seed`            | Random seed                           |            |
-| `--output-format`   | `png`, `jpg`, `webp`                  | `png`      |
-| `--skip-existing`   | Skip images with existing output      | off        |
-| `--workers`         | Parallel workers for processing       | `1`        |
-| `--progress`        | Show tqdm progress bar                | off        |
-| `--dry-run`         | Preview without writing files         | off        |
-
-**Degradation types:** `lowres`, `oversharpen`, `noise`, `blur`, `jpeg`, `motion-blur`, `pixelate`, `color-bands`, `upscale-sim`, `random`
-
-</details>
-
-```bash
-# Chain specific degradations for paired output
-datasety degrade -i ./images -o ./dataset --type jpeg --type noise --chain --paired --seed 42
-
-# Multiple random variants per image
-datasety degrade -i ./images -o ./degraded --type random --num-variants 3 --intensity-range 0.3-0.8
-```
-
-[Full documentation →](https://kontextox.github.io/datasety/commands/degrade)
-
----
-
 ### `character` — Character Dataset Generation
 
 Generate character datasets using LLM-generated prompts + text-to-image (FLUX.2-klein local or cloud API).
@@ -526,46 +478,150 @@ datasety character -o ./dataset --llm-api --prompts-only
 
 ---
 
-### `sweep` — Parameter Grid Search
+### `audio` — Build TTS Audio Datasets
 
-Generate workflow YAML files with parameter grid combinations for synthetic editing. Computes the Cartesian product of sweep parameters.
-
-<!-- screenshot: sweep -->
+Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, local files, and text files containing lists of paths. Extracts audio, transcribes with faster-whisper, performs deep text cleaning, and outputs paired `.wav` + `.txt` files, or LJSpeech-compatible format with `--metadata`.
 
 ```bash
-datasety sweep -i ./images -o ./sweep_output -p "add a winter hat" --steps 4,8,16 --cfg-scale 1.0,2.5,5.0
+datasety audio --input ./video.mp4 --output ./dataset
+datasety audio --input ./clips/ --output ./dataset
+datasety audio --input "https://www.youtube.com/watch?v=..." --output ./dataset --language uk
 ```
 
 <details>
 <summary>Options</summary>
 
-| Option             | Description                              | Default      |
-| ------------------ | ---------------------------------------- | ------------ |
-| `--input`, `-i`    | Input images directory                   | required     |
-| `--output`, `-o`   | Base output directory                    | required     |
-| `--prompt`, `-p`   | Edit prompt                              | required     |
-| `--steps`          | Comma-separated step values to sweep     |              |
-| `--cfg-scale`      | Comma-separated CFG values to sweep      |              |
-| `--true-cfg-scale` | Comma-separated true CFG values to sweep |              |
-| `--strength`       | Comma-separated strength values to sweep |              |
-| `--lora`           | Comma-separated LoRA specs to sweep      |              |
-| `--model`          | Comma-separated model names to sweep     |              |
-| `--seed`           | Random seed (passed through)             |              |
-| `--output-file`    | Output YAML path                         | `sweep.yaml` |
-| `--run`            | Generate and immediately execute         | off          |
+| Option                | Description                                                                      | Default     |
+| --------------------- | -------------------------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input: local file, URL, dir, or `.txt` list. Append `?start=X&end=Y` to slice    | required    |
+| `--output`, `-o`      | Output directory for the dataset                                                 | required    |
+| `--sample-rate`       | Output audio sample rate in Hz                                                   | `22050`     |
+| `--metadata`          | Output LJSpeech/Piper format with `metadata.csv` + `wavs/` (default: flat pairs) | `false`     |
+| `--demucs`            | Enable Demucs vocal isolation                                                    | `false`     |
+| `--demucs-model`      | Demucs model name                                                                | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                        | `base`      |
+| `--language`          | Language code (e.g., en, es, fr, uk). Auto-detected if omitted                   | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                                     | `auto`      |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                       | `false`     |
+| `--min-duration`      | Minimum segment duration in seconds                                              | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                                              | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                                     | `0.0` (off) |
+| `--normalize-numbers` | Expand digits into words                                                         | `false`     |
+| `--no-clean-text`     | Disable special character stripping                                              | `false`     |
+| `--phoneme-map`       | Path to `config.json`/`phonemes.json` to filter bad text (with `--metadata`)     |             |
+| `--workers`           | Number of parallel file workers (default: 1)                                     | `1`         |
+| `--keep-temp`         | Keep temporary audio files at this path                                          |             |
+| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                      | `false`     |
+| `--overwrite`         | Overwrite existing output directory                                              | `false`     |
+| `--dry-run`           | Print pipeline steps without executing                                           | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                                                 | `false`     |
 
 </details>
 
 ```bash
-# Generate YAML, inspect, then run
-datasety sweep -i ./images -o ./sweep -p "add sunglasses" --steps 4,8,16 --cfg-scale 1.0,2.5
-datasety workflow -f sweep.yaml
+# Default: flat .wav/.txt pairs with timestamp-based naming
+datasety audio --input ./video.mp4 --output ./dataset
 
-# Generate and run immediately
-datasety sweep -i ./images -o ./sweep -p "add a hat" --steps 4,8 --cfg-scale 2.0,3.0 --run
+# LJSpeech/Piper format with metadata.csv + wavs/
+datasety audio --input ./video.mp4 --output ./dataset --metadata
+
+# Extract a specific 40-second slice from a YouTube video
+datasety audio --input "https://youtube.com/watch?v=...?start=50&end=90" -o ./dataset
+
+# Local video with vocal isolation and high-quality transcription
+datasety audio --input ./video.mp4 --output ./dataset --demucs --whisper-model large-v3
+
+# Parallel processing of multiple files
+datasety audio --input ./videos/ --output ./dataset --workers 4
 ```
 
-[Full documentation →](https://kontextox.github.io/datasety/commands/sweep)
+[Full documentation →](https://kontextox.github.io/datasety/commands/audio)
+
+---
+
+### `video` — Build Video Datasets
+
+Build video datasets from video files. Extracts video segments based on speech transcription and outputs paired `.mp4` + `.txt` files.
+
+```bash
+datasety video --input ./video.mp4 --output ./dataset
+datasety video --input ./clips/ --output ./dataset
+datasety video --input "https://www.youtube.com/watch?v=..." --output ./dataset --language en
+```
+
+<details>
+<summary>Options</summary>
+
+| Option                | Description                                                                   | Default     |
+| --------------------- | ----------------------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input: local file, URL, dir, or `.txt` list. Append `?start=X&end=Y` to slice | required    |
+| `--output`, `-o`      | Output directory for the dataset                                              | required    |
+| `--demucs`            | Enable Demucs vocal isolation for transcription                               | `false`     |
+| `--demucs-model`      | Demucs model name                                                             | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                     | `base`      |
+| `--language`          | Language code (e.g., en, es, fr). Auto-detected if omitted                    | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                                  | `auto`      |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                    | `false`     |
+| `--min-duration`      | Minimum segment duration in seconds                                           | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                                           | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                                  | `0.0` (off) |
+| `--re-encode`         | Re-encode for frame-accurate cuts (default: stream-copy)                      | `false`     |
+| `--normalize-numbers` | Expand digits into words                                                      | `false`     |
+| `--no-clean-text`     | Disable special character stripping                                           | `false`     |
+| `--workers`           | Number of parallel file workers (default: 1)                                  | `1`         |
+| `--resume`            | Resume a previous run                                                         | `false`     |
+| `--overwrite`         | Overwrite existing output directory                                           | `false`     |
+| `--dry-run`           | Print pipeline steps without executing                                        | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                                              | `false`     |
+
+</details>
+
+```bash
+# YouTube video with timestamp-based segment naming
+datasety video --input "https://youtube.com/watch?v=..." --output ./dataset
+
+# Local video with frame-accurate cuts
+datasety video --input ./interview.mp4 --output ./dataset --re-encode
+
+# Directory of clips with vocal isolation for transcription
+datasety video --input ./videos/ --output ./dataset --demucs --workers 4
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/video)
+
+---
+
+### `align` — Align Control/Target Pairs
+
+Match dimensions, enforce multiples of 32, and unify formats for control/target training pairs. Includes a built-in web server for visual comparison with a compare slider, caption editing, and pair management.
+
+<!-- screenshot: align -->
+
+```bash
+datasety align --target ./target --control ./control --dry-run
+```
+
+<details>
+<summary>Options</summary>
+
+| Option              | Description                              | Default       |
+| ------------------- | ---------------------------------------- | ------------- |
+| `--target`, `-t`    | Target images directory                  | required      |
+| `--control`, `-c`   | Control images directory                 | required      |
+| `--multiple-of`     | Align dimensions to this multiple        | `32`          |
+| `--output-format`   | Convert all images: `jpg`, `png`, `webp` | keep original |
+| `--recursive`, `-R` | Search input directories recursively     | off           |
+| `--dry-run`         | Preview changes without modifying files  | off           |
+
+</details>
+
+```bash
+# Preview, then apply
+datasety align -t ./target -c ./control --dry-run
+datasety align -t ./target -c ./control --output-format jpg
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/align)
 
 ---
 
@@ -642,107 +698,46 @@ datasety train -i ./tts_dataset -o ./tts_output --backend piper \
 
 ---
 
-### `audio` — Build TTS Audio Datasets
+### `sweep` — Parameter Grid Search
 
-Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, local files, and text files containing lists of paths. Extracts audio, transcribes with faster-whisper, performs deep text cleaning, and outputs Piper/LJSpeech-compatible datasets.
+Generate workflow YAML files with parameter grid combinations for synthetic editing. Computes the Cartesian product of sweep parameters.
+
+<!-- screenshot: sweep -->
 
 ```bash
-datasety audio --input ./video.mp4 --output ./dataset
-datasety audio --input ./clips/ --output ./dataset
-datasety audio --input "https://www.youtube.com/watch?v=..." --output ./dataset --language uk
+datasety sweep -i ./images -o ./sweep_output -p "add a winter hat" --steps 4,8,16 --cfg-scale 1.0,2.5,5.0
 ```
 
 <details>
 <summary>Options</summary>
 
-| Option                | Description                                                                   | Default     |
-| --------------------- | ----------------------------------------------------------------------------- | ----------- |
-| `--input`, `-i`       | Input: local file, URL, dir, or `.txt` list. Append `?start=X&end=Y` to slice | required    |
-| `--output`, `-o`      | Output directory for the dataset                                              | required    |
-| `--sample-rate`       | Output audio sample rate in Hz                                                | `22050`     |
-| `--demucs`            | Enable Demucs vocal isolation                                                 | `false`     |
-| `--demucs-model`      | Demucs model name                                                             | `htdemucs`  |
-| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                     | `base`      |
-| `--language`          | Language code (e.g., en, es, fr, uk). Auto-detected if omitted                | (auto)      |
-| `--device`            | Device: auto, cpu, cuda, mps                                                  | `auto`      |
-| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                    | `false`     |
-| `--min-duration`      | Minimum segment duration in seconds                                           | `1.5`       |
-| `--max-duration`      | Maximum segment duration in seconds                                           | `30.0`      |
-| `--merge-gap`         | Merge segments closer than this many seconds                                  | `0.0` (off) |
-| `--normalize-numbers` | Expand digits into words                                                      | `false`     |
-| `--no-clean-text`     | Disable special character stripping                                           | `false`     |
-| `--phoneme-map`       | Path to `config.json`/`phonemes.json` to filter bad text                      |             |
-| `--workers`           | Number of parallel file workers (default: 1)                                  | `1`         |
-| `--keep-temp`         | Keep temporary audio files at this path                                       |             |
-| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                   | `false`     |
-| `--overwrite`         | Overwrite existing output directory                                           | `false`     |
-| `--dry-run`           | Print pipeline steps without executing                                        | `false`     |
-| `--verbose`, `-V`     | Print detailed progress messages                                              | `false`     |
+| Option             | Description                              | Default      |
+| ------------------ | ---------------------------------------- | ------------ |
+| `--input`, `-i`    | Input images directory                   | required     |
+| `--output`, `-o`   | Base output directory                    | required     |
+| `--prompt`, `-p`   | Edit prompt                              | required     |
+| `--steps`          | Comma-separated step values to sweep     |              |
+| `--cfg-scale`      | Comma-separated CFG values to sweep      |              |
+| `--true-cfg-scale` | Comma-separated true CFG values to sweep |              |
+| `--strength`       | Comma-separated strength values to sweep |              |
+| `--lora`           | Comma-separated LoRA specs to sweep      |              |
+| `--model`          | Comma-separated model names to sweep     |              |
+| `--seed`           | Random seed (passed through)             |              |
+| `--output-file`    | Output YAML path                         | `sweep.yaml` |
+| `--run`            | Generate and immediately execute         | off          |
 
 </details>
 
 ```bash
-# Process a list of URLs from a text file, dropping unsupported characters
-datasety audio --input urls.txt --output ./dataset --phoneme-map phonemes.json
+# Generate YAML, inspect, then run
+datasety sweep -i ./images -o ./sweep -p "add sunglasses" --steps 4,8,16 --cfg-scale 1.0,2.5
+datasety workflow -f sweep.yaml
 
-# Extract a specific 40-second slice from a YouTube video
-datasety audio --input "https://youtube.com/watch?v=...?start=50&end=90" -o ./dataset
-
-# Local video with vocal isolation and high-quality transcription
-datasety audio --input ./video.mp4 --output ./dataset --demucs --whisper-model large-v3
-
-# Parallel processing of multiple files
-datasety audio --input ./videos/ --output ./dataset --workers 4
+# Generate and run immediately
+datasety sweep -i ./images -o ./sweep -p "add a hat" --steps 4,8 --cfg-scale 2.0,3.0 --run
 ```
 
-[Full documentation →](https://kontextox.github.io/datasety/commands/audio)
-
----
-
-### `upload` — Upload to HuggingFace Hub
-
-Upload datasets and model adapters to HuggingFace Hub. Auto-detects type (audio, image, video, document, model, generic) from directory structure and generates HF-compliant README dataset cards with YAML frontmatter.
-
-```bash
-datasety upload --path ./tts_dataset --repo-id user/my-voice --type audio
-datasety upload --path ./lora_output --repo-id user/klein-lora --type model
-datasety upload --path ./dataset --repo-id user/my-dataset --dry-run
-```
-
-<details>
-<summary>Options</summary>
-
-| Option            | Description                                                                        | Default    |
-| ----------------- | ---------------------------------------------------------------------------------- | ---------- |
-| `--path`, `-p`    | Path to the dataset or model directory to upload                                   | required   |
-| `--repo-id`, `-r` | HuggingFace repo ID (e.g. `username/my-dataset`). Derived from dir name if omitted | (derived)  |
-| `--type`, `-t`    | Dataset or model type                                                              | `auto`     |
-| `--private`       | Make the repository private                                                        | `false`    |
-| `--token`         | HuggingFace API token (or set `HF_TOKEN` env var)                                  | `HF_TOKEN` |
-| `--force`         | Force regenerate README.md if it already exists                                    | `false`    |
-| `--dry-run`       | Show what would be uploaded without uploading                                      | `false`    |
-| `--metadata`      | Extra YAML `key: value` pairs for dataset card frontmatter                         |            |
-| `--yes`, `-y`     | Skip all confirmation prompts                                                      | `false`    |
-| `--verbose`, `-V` | Print detailed progress messages                                                   | `false`    |
-
-</details>
-
-```bash
-# Upload a TTS dataset (auto-generates README with TTS task card)
-datasety upload --path ./tts_dataset --repo-id your-username/my-voice --private
-
-# Upload a LoRA adapter
-datasety upload --path ./lora.safetensors --repo-id your-username/klein-lora --type model
-
-# Dry-run to verify what will be uploaded
-datasety upload --path ./dataset --repo-id user/dataset --dry-run --verbose
-
-# With extra metadata
-datasety upload --path ./dataset --repo-id user/dataset \
-    --metadata 'license:cc-by-4.0 language: [en,fr]'
-```
-
-[Full documentation →](https://kontextox.github.io/datasety/commands/upload)
+[Full documentation →](https://kontextox.github.io/datasety/commands/sweep)
 
 ---
 
@@ -790,6 +785,90 @@ datasety workflow
 ```
 
 [Full documentation →](https://kontextox.github.io/datasety/commands/workflow)
+
+---
+
+### `server` — REST API Server
+
+Start a headless REST API for remote dataset management and job execution.
+
+```bash
+datasety server --port 8080
+```
+
+Provides `/v1/` endpoints to register datasets (auto-detects types), manage files with full CRUD, and remotely execute any `datasety` command via JSON payloads.
+
+<details>
+<summary><b>Endpoints</b></summary>
+
+| Endpoint                         | Method | Description                                                     |
+| -------------------------------- | ------ | --------------------------------------------------------------- |
+| `/v1/datasets`                   | POST   | Register a dataset                                              |
+| `/v1/datasets`                   | GET    | List all datasets                                               |
+| `/v1/datasets/<id>`              | GET    | Get dataset info                                                |
+| `/v1/datasets/<id>`              | PATCH  | Update dataset name                                             |
+| `/v1/datasets/<id>`              | DELETE | Unregister dataset                                              |
+| `/v1/datasets/<id>/files`        | GET    | List files (supports `?folder=&group=` query params)            |
+| `/v1/datasets/<id>/files/<path>` | GET    | Download a file (or get info with `?info=true`)                 |
+| `/v1/datasets/<id>/files/<path>` | POST   | Create a new file (binary, base64, or sidecar caption/metadata) |
+| `/v1/datasets/<id>/files/<path>` | PUT    | Update a file and/or its caption/metadata sidecars              |
+| `/v1/datasets/<id>/files/<path>` | DELETE | Delete a file (add `?caption=true` to also remove .txt sidecar) |
+| `/v1/jobs`                       | GET    | List all jobs                                                   |
+| `/v1/jobs`                       | POST   | Start a new job (run any datasety command)                      |
+| `/v1/jobs/<id>`                  | GET    | Get job status & output                                         |
+| `/v1/jobs/<id>`                  | DELETE | Cancel a running job                                            |
+| `/v1/commands`                   | GET    | Get command schemas                                             |
+
+</details>
+
+[Full API documentation →](https://kontextox.github.io/datasety/commands/server)
+
+---
+
+### `upload` — Upload to HuggingFace Hub
+
+Upload datasets and model adapters to HuggingFace Hub. Auto-detects type (audio, image, video, document, model, generic) from directory structure and generates HF-compliant README dataset cards with YAML frontmatter.
+
+```bash
+datasety upload --path ./tts_dataset --repo-id user/my-voice --type audio
+datasety upload --path ./lora_output --repo-id user/klein-lora --type model
+datasety upload --path ./dataset --repo-id user/my-dataset --dry-run
+```
+
+<details>
+<summary>Options</summary>
+
+| Option            | Description                                                                        | Default    |
+| ----------------- | ---------------------------------------------------------------------------------- | ---------- |
+| `--path`, `-p`    | Path to the dataset or model directory to upload                                   | required   |
+| `--repo-id`, `-r` | HuggingFace repo ID (e.g. `username/my-dataset`). Derived from dir name if omitted | (derived)  |
+| `--type`, `-t`    | Dataset or model type                                                              | `auto`     |
+| `--private`       | Make the repository private                                                        | `false`    |
+| `--token`         | HuggingFace API token (or set `HF_TOKEN` env var)                                  | `HF_TOKEN` |
+| `--force`         | Force regenerate README.md if it already exists                                    | `false`    |
+| `--dry-run`       | Show what would be uploaded without uploading                                      | `false`    |
+| `--metadata`      | Extra YAML `key: value` pairs for dataset card frontmatter                         |            |
+| `--yes`, `-y`     | Skip all confirmation prompts                                                      | `false`    |
+| `--verbose`, `-V` | Print detailed progress messages                                                   | `false`    |
+
+</details>
+
+```bash
+# Upload a TTS dataset (auto-generates README with TTS task card)
+datasety upload --path ./tts_dataset --repo-id your-username/my-voice --private
+
+# Upload a LoRA adapter
+datasety upload --path ./lora.safetensors --repo-id your-username/klein-lora --type model
+
+# Dry-run to verify what will be uploaded
+datasety upload --path ./dataset --repo-id user/dataset --dry-run --verbose
+
+# With extra metadata
+datasety upload --path ./dataset --repo-id user/dataset \
+    --metadata 'license:cc-by-4.0 language: [en,fr]'
+```
+
+[Full documentation →](https://kontextox.github.io/datasety/commands/upload)
 
 ---
 

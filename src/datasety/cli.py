@@ -6,7 +6,8 @@ character, sweep, workflow, server.
 Usage:
     datasety resize --input ./in --output ./out --resolution 768x1024 --crop-position top
     datasety align --target ./target --control ./control --dry-run
-    datasety caption --input ./in --output ./out --trigger-word "[trigger]" --florence-2-base
+    datasety caption --input ./in --output ./out \
+        --template "[trigger] {{caption}}" --florence-2-base
     datasety shuffle --input ./in --output ./out --group "Hello.|Hey!" --group "World.|Earth!"
     datasety synthetic --input ./in --output ./out --prompt "add a winter hat"
     datasety mask --input ./in --output ./masks --keywords "face,hair" --model clipseg
@@ -58,6 +59,11 @@ except ImportError:
     audio = None
 
 try:
+    from datasety import video
+except ImportError:
+    video = None
+
+try:
     from datasety import upload
 except ImportError:
     upload = None
@@ -98,6 +104,9 @@ def build_parser():
 
     if audio is not None:
         audio.register_parser(subparsers)
+
+    if video is not None:
+        video.register_parser(subparsers)
 
     if upload is not None:
         upload.register_parser(subparsers)

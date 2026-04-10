@@ -1,15 +1,15 @@
 # audio
 
-Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, local files, and directories of files (sorted by name). Outputs Piper/LJSpeech-compatible datasets with `metadata.csv` and a `wavs/` directory.
+Build TTS (Text-to-Speech) audio datasets from video or audio files. Supports YouTube URLs, direct media URLs, local files, and directories of files (sorted by name). Outputs paired `.wav` + `.txt` files by default, or Piper/LJSpeech format with `--metadata`.
 
 ## Usage
 
 ```bash
-# YouTube video
+# YouTube video (flat pairs output)
 datasety audio --input "https://www.youtube.com/watch?v=..." --output ./dataset
 
-# Local video file
-datasety audio --input ./video.mp4 --output ./dataset
+# Local video file with LJSpeech/Piper format
+datasety audio --input ./video.mp4 --output ./dataset --metadata
 
 # Directory of audio/video files (sorted by name: 1.mp3, 2.mp3, ...)
 datasety audio --input ./clips/ --output ./dataset
@@ -23,33 +23,49 @@ datasety audio --input ./video.mp4 --output ./dataset --whisper-model large-v3 -
 
 ## Options
 
-| Option                | Description                                                                                       | Default     |
-| --------------------- | ------------------------------------------------------------------------------------------------- | ----------- |
-| `--input`, `-i`       | Input: local file, directory, `.txt` list, YouTube/URL (append `?start=X&end=Y` for time-slicing) | (required)  |
-| `--output`, `-o`      | Output directory for the dataset                                                                  | (required)  |
-| `--sample-rate`       | Output audio sample rate in Hz                                                                    | `22050`     |
-| `--demucs`            | Enable Demucs vocal isolation (removes background noise/music)                                    | `false`     |
-| `--demucs-model`      | Demucs model name                                                                                 | `htdemucs`  |
-| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                                         | `base`      |
-| `--language`          | Language code (e.g., en, es, fr). Auto-detected if omitted                                        | (auto)      |
-| `--device`            | Device: auto, cpu, cuda, mps                                                                      | `auto`      |
-| `--min-duration`      | Minimum segment duration in seconds                                                               | `1.5`       |
-| `--max-duration`      | Maximum segment duration in seconds                                                               | `30.0`      |
-| `--merge-gap`         | Merge segments closer than this many seconds                                                      | `0.0` (off) |
-| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                                        | `false`     |
-| `--normalize-numbers` | Expand digits into words (e.g., 123 -> one hundred twenty-three)                                  | `false`     |
-| `--no-clean-text`     | Disable special character stripping                                                               | `false`     |
-| `--phoneme-map`       | Path to `config.json` or `phonemes.json`. Silently drops segments with unknown chars              |             |
-| `--workers`           | Number of parallel file workers (default: 1)                                                      | `1`         |
-| `--keep-temp`         | Keep temporary audio files at this path                                                           |             |
-| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                                       | `false`     |
-| `--overwrite`         | Overwrite existing output directory                                                               | `false`     |
-| `--dry-run`           | Print pipeline steps without executing                                                            | `false`     |
-| `--verbose`, `-V`     | Print detailed progress messages                                                                  | `false`     |
+| Option                | Description                                                                                                   | Default     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- | ----------- |
+| `--input`, `-i`       | Input: local file, directory, `.txt` list, YouTube/URL (append `?start=X&end=Y` for time-slicing)             | (required)  |
+| `--output`, `-o`      | Output directory for the dataset                                                                              | (required)  |
+| `--sample-rate`       | Output audio sample rate in Hz                                                                                | `22050`     |
+| `--metadata`          | Output LJSpeech/Piper format with `metadata.csv` and `wavs/` directory (default: flat `.wav`/`.txt` pairs)    | `false`     |
+| `--demucs`            | Enable Demucs vocal isolation (removes background noise/music)                                                | `false`     |
+| `--demucs-model`      | Demucs model name                                                                                             | `htdemucs`  |
+| `--whisper-model`     | Faster-Whisper model: tiny, base, small, medium, large-v3                                                     | `base`      |
+| `--language`          | Language code (e.g., en, es, fr). Auto-detected if omitted                                                    | (auto)      |
+| `--device`            | Device: auto, cpu, cuda, mps                                                                                  | `auto`      |
+| `--min-duration`      | Minimum segment duration in seconds                                                                           | `1.5`       |
+| `--max-duration`      | Maximum segment duration in seconds                                                                           | `30.0`      |
+| `--merge-gap`         | Merge segments closer than this many seconds                                                                  | `0.0` (off) |
+| `--vad`               | Enable voice activity detection (VAD) to filter non-speech                                                    | `false`     |
+| `--normalize-numbers` | Expand digits into words (e.g., 123 -> one hundred twenty-three)                                              | `false`     |
+| `--no-clean-text`     | Disable special character stripping                                                                           | `false`     |
+| `--phoneme-map`       | Path to `config.json` or `phonemes.json`. Silently drops segments with unknown chars (only with `--metadata`) |             |
+| `--workers`           | Number of parallel file workers (default: 1)                                                                  | `1`         |
+| `--keep-temp`         | Keep temporary audio files at this path                                                                       |             |
+| `--resume`            | Resume a previous run (skip existing chunks, append to CSV)                                                   | `false`     |
+| `--overwrite`         | Overwrite existing output directory                                                                           | `false`     |
+| `--dry-run`           | Print pipeline steps without executing                                                                        | `false`     |
+| `--verbose`, `-V`     | Print detailed progress messages                                                                              | `false`     |
+| `--template`          | Template for transcript text. Use `{{transcript}}` as placeholder; without placeholder, text is prepended     | (none)      |
 
 ## Output
 
-The command creates a dataset directory with the following structure:
+### Default (flat pairs)
+
+By default, the command creates paired `.wav` + `.txt` files in a flat directory:
+
+```
+output/
+├── 000000-000003.wav
+├── 000000-000003.txt
+├── clip23-000005-000010.wav
+└── clip23-000005-000010.txt
+```
+
+### With `--metadata` (LJSpeech/Piper format)
+
+Use `--metadata` for Piper/LJSpeech-compatible output with `metadata.csv` and a `wavs/` directory:
 
 ```
 output/
@@ -66,6 +82,28 @@ The `metadata.csv` uses LJSpeech/Piper format:
 utt_0001.wav|Hello world, this is a test.
 utt_0002.wav|How are you doing today?
 ```
+
+### Naming Convention (default mode)
+
+Segment filenames use timestamp ranges in `HHMMSS` format:
+
+| Input Source       | Segment Filename Pattern       | Example                          |
+| ------------------ | ------------------------------ | -------------------------------- |
+| Single local file  | `{start}-{end}.wav`            | `000000-000003.wav`              |
+| Directory of files | `{stem}-{start}-{end}.wav`     | `clip23-000000-000003.wav`       |
+| YouTube URL        | `{video_id}-{start}-{end}.wav` | `dQw4w9WgXcQ-000123-000127.wav`  |
+| Non-YouTube URL    | `{hash}-{start}-{end}.wav`     | `4a1b2c3d4e5f-000000-000005.wav` |
+
+For example, `012345-012347` means the segment starts at 01h 23m 45s and ends at 01h 23m 47s.
+
+## Template System
+
+The `--template` flag formats transcribed text using a template string:
+
+- **With placeholder** — `{{transcript}}` is replaced with the transcribed text:
+  `--template "sks person says: {{transcript}}"` → `sks person says: hello world`
+- **Without placeholder** — text is prepended:
+  `--template "ohwx person,"` → `ohwx person, hello world`
 
 ## Examples
 
@@ -268,7 +306,7 @@ datasety audio \
 
 ## Use with Piper Training
 
-The output format is compatible with [OHF-Voice/piper1-gpl](https://github.com/OHF-Voice/piper1-gpl):
+The `--metadata` output format is compatible with [OHF-Voice/piper1-gpl](https://github.com/OHF-Voice/piper1-gpl):
 
 ```bash
 piper-train fit \

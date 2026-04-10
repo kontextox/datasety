@@ -24,7 +24,7 @@ features:
     linkText: Learn more
   - icon: "&#x1F4DD;"
     title: Caption
-    details: Florence-2 (local, 0.23B or 0.77B) or any OpenAI-compatible vision API. Trigger words, custom prompts.
+    details: Florence-2 (local, 0.23B or 0.77B) or any OpenAI-compatible vision API. Templates, custom prompts.
     link: /commands/caption
     linkText: Learn more
   - icon: "&#x1F3A8;"
@@ -62,6 +62,11 @@ features:
     title: Audio Dataset
     details: Build TTS datasets from video/audio/YouTube. Whisper transcription, word-boundary alignment, parallel workers.
     link: /commands/audio
+    linkText: Learn more
+  - icon: "&#x1F4F9;"
+    title: Video Dataset
+    details: Build video datasets from YouTube or local files. Speech-based segmentation, timestamp naming, stream-copy or re-encode.
+    link: /commands/video
     linkText: Learn more
   - icon: "&#x1F517;"
     title: Align Pairs
@@ -108,8 +113,8 @@ pip install datasety[all]     # everything
 # 1. Resize raw photos
 datasety resize -i ./raw -o ./dataset -r 1024x1024
 
-# 2. Generate captions with a trigger word
-datasety caption -i ./dataset -o ./dataset --trigger-word "[trigger]"
+# 2. Generate captions with a template
+datasety caption -i ./dataset -o ./dataset --template "[trigger] {{caption}}"
 
 # 3. Generate face masks for focused training
 datasety mask -i ./dataset -o ./masks -k "face,hair"
@@ -123,7 +128,8 @@ steps:
   - command: resize
     args: { input: ./raw, output: ./dataset, resolution: 1024x1024 }
   - command: caption
-    args: { input: ./dataset, output: ./dataset, trigger-word: "[trigger]" }
+    args:
+      { input: ./dataset, output: ./dataset, template: "[trigger] {{caption}}" }
   - command: mask
     args: { input: ./dataset, output: ./masks, keywords: "face,hair" }
 ```

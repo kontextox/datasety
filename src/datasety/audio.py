@@ -9,372 +9,48 @@ Supports:
   - Text file with lists: --input list.txt
   - YouTube/URL sources: --input "https://youtube.com/watch?v=...&start=50&end=90"
 
+Default output format (flat pairs):
+  output/
+  ├── 000000-000003.wav
+  ├── 000000-000003.txt
+  ├── clip23-000005-000010.wav
+  └── clip23-000005-000010.txt
+
+With --metadata (LJSpeech/Piper format):
+  output/
+  ├── wavs/
+  │   ├── utt_0001.wav
+  │   └── ...
+  └── metadata.csv
+
 Requires: ffmpeg on PATH. Install with: pip install datasety[audio]
 """
 
 import csv
-import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-# Supported audio/video extensions
-AUDIO_EXTENSIONS = {
-    ".mp3",
-    ".wav",
-    ".flac",
-    ".ogg",
-    ".m4a",
-    ".aac",
-    ".opus",
-    ".webm",
-    ".mp4",
-    ".mkv",
-    ".avi",
-    ".mov",
-}
-
-
-def _check_ffmpeg():
-    """Verify ffmpeg is on PATH. Exit with an actionable install message if missing."""
-    if shutil.which("ffmpeg") is None:
-        print("Error: ffmpeg is not installed or not on PATH.", file=sys.stderr)
-        print("Install instructions:", file=sys.stderr)
-        print("  macOS:     brew install ffmpeg", file=sys.stderr)
-        print("  Ubuntu:    sudo apt install ffmpeg", file=sys.stderr)
-        print("  Windows:   winget install ffmpeg  (or download from ffmpeg.org)", file=sys.stderr)
-        sys.exit(1)
-
-
-def _is_youtube(source: str) -> bool:
-    """Check if source is a YouTube URL."""
-    return "youtube.com" in source or "youtu.be" in source
-
-
-def _parse_source_string(src: str) -> tuple[str, float | None, float | None]:
-    """Parse custom start/end time queries from URLs or file paths."""
-    start, end = None, None
-    if "?" in src and ("start=" in src or "end=" in src):
-        from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
-        parsed = urlparse(src)
-        qs = parse_qs(parsed.query)
-        if "start" in qs:
-            start = float(qs.pop("start")[0])
-        if "end" in qs:
-            end = float(qs.pop("end")[0])
-        new_query = urlencode(qs, doseq=True)
-        src = urlunparse(parsed._replace(query=new_query))
-    return src, start, end
-
-
-def _get_media_files(input_dir: Path) -> list[Path]:
-    """Get all audio/video files from a directory, sorted by name (numeric-aware)."""
-    files = []
-    for p in input_dir.iterdir():
-        if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS:
-            files.append(p)
-
-    def _sort_key(p: Path) -> tuple[tuple[int | str, ...], str]:
-        parts = re.split(r"(\d+)", p.stem)
-        key = tuple(int(part) if part.isdigit() else part.lower() for part in parts)
-        return (key, p.suffix.lower())
-
-    return sorted(files, key=_sort_key)
-
-
-def _download_media(source: str, temp_dir: Path, verbose: bool) -> Path:
-    """Download remote media using yt-dlp. Returns path to downloaded file."""
-    try:
-        import yt_dlp
-    except ImportError:
-        print("Error: yt-dlp is required for downloading from URLs.", file=sys.stderr)
-        sys.exit(1)
-
-    output_path = temp_dir / "download"
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": str(output_path),
-        "quiet": not verbose,
-        "no_warnings": not verbose,
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(source, download=True)
-            candidates = [
-                temp_dir / "download",
-                temp_dir / "download.webm",
-                temp_dir / "download.mkv",
-                temp_dir / "download.mp4",
-            ]
-            for candidate in candidates:
-                if candidate.exists():
-                    return candidate
-            downloaded = list(temp_dir.glob("download.*"))
-            return downloaded[0] if downloaded else temp_dir / "download"
-    except yt_dlp.utils.DownloadError as e:
-        print(f"Error downloading media: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-def _extract_audio(
-    input_media: Path,
-    output_wav: Path,
-    sample_rate: int = 22050,
-    verbose: bool = False,
-    start: float = None,
-    end: float = None,
-):
-    """Extract mono audio using FFmpeg via subprocess."""
-    cmd = ["ffmpeg", "-y"]
-    if start is not None:
-        cmd.extend(["-ss", str(start)])
-    if end is not None:
-        cmd.extend(["-to", str(end)])
-
-    cmd.extend(
-        [
-            "-i",
-            str(input_media),
-            "-vn",
-            "-acodec",
-            "pcm_s16le",
-            "-ar",
-            str(sample_rate),
-            "-ac",
-            "1",
-            str(output_wav),
-        ]
-    )
-    stdout = subprocess.DEVNULL if not verbose else None
-    stderr = subprocess.DEVNULL if not verbose else None
-    subprocess.run(cmd, stdout=stdout, stderr=stderr, check=True)
-
-
-def _isolate_vocals(
-    audio_path: Path, temp_dir: Path, model: str, device: str, verbose: bool = False
-) -> Path:
-    """Lazy-load Demucs to isolate vocals. Returns path to isolated vocals stem."""
-    import julius
-    import soundfile as sf
-    import torch as th
-    from demucs.apply import apply_model
-    from demucs.audio import convert_audio
-    from demucs.pretrained import get_model
-
-    separator = get_model(model)
-    separator.eval()
-
-    wav_np, sr = sf.read(str(audio_path))
-    wav_t = th.from_numpy(wav_np).float()
-    if wav_t.ndim == 1:
-        wav_t = wav_t.unsqueeze(0)
-
-    wav_t = julius.resample_frac(wav_t, sr, 44100)
-    wav_t = convert_audio(wav_t, 44100, 44100, 2)
-
-    with th.no_grad():
-        result = apply_model(separator, wav_t.unsqueeze(0), shifts=0, split=True, overlap=0.25)
-
-    vocals_tensor = None
-    if isinstance(result, th.Tensor) and result.ndim == 4:
-        vocals_idx = separator.sources.index("vocals")
-        if vocals_idx < result.shape[1]:
-            vocals_tensor = result[0, vocals_idx]
-    elif isinstance(result, dict):
-        vocals_tensor = result.get("vocals")
-
-    if vocals_tensor is None:
-        print("Warning: No vocals stem found by Demucs. Using original audio.", file=sys.stderr)
-        return audio_path
-
-    vocals_path = temp_dir / "vocals.wav"
-    vocals_np = vocals_tensor.cpu().numpy()
-    if vocals_np.ndim == 1:
-        sf.write(str(vocals_path), vocals_np, 44100)
-    else:
-        sf.write(str(vocals_path), vocals_np.T, 44100)
-    return vocals_path
-
-
-def _build_segment_with_word_alignment(seg) -> dict:
-    if not seg.words:
-        return {"start": seg.start, "end": seg.end, "text": seg.text}
-
-    words = seg.words
-    word_list = [(w.start, w.end, w.word.strip()) for w in words]
-
-    if not word_list:
-        return {"start": seg.start, "end": seg.end, "text": seg.text}
-
-    snapped_end = word_list[-1][1]
-    trimmed_text_parts = [
-        wtext for start_t, end_t, wtext in word_list if end_t <= snapped_end + 0.01
-    ]
-
-    trimmed = " ".join(trimmed_text_parts).strip()
-    if not trimmed:
-        trimmed = seg.text.strip()
-
-    return {"start": seg.start, "end": snapped_end, "text": trimmed}
-
-
-def _transcribe(
-    audio_path: Path,
-    model_size: str,
-    device: str,
-    language: str | None,
-    verbose: bool = False,
-    vad: bool = False,
-    show_progress: bool = True,
-) -> list[dict]:
-    """Lazy-load faster-whisper. Run transcription. Returns list of segment dicts."""
-    from faster_whisper import WhisperModel
-
-    compute_type = "float16" if device == "cuda" else "int8"
-    model = WhisperModel(model_size, device=device, compute_type=compute_type)
-
-    kwargs = {"vad_filter": vad, "word_timestamps": True}
-    if vad:
-        kwargs["vad_parameters"] = {"min_silence_duration_ms": 500, "threshold": 0.01}
-    if language:
-        kwargs["language"] = language
-
-    if verbose:
-        lang_display = language or "auto"
-        print(
-            f"Transcribing with faster-whisper ({model_size}) on {device} "
-            f"[language={lang_display}]..."
-        )
-
-    segments, info = model.transcribe(str(audio_path), **kwargs)
-
-    pbar = None
-    if show_progress:
-        try:
-            from tqdm import tqdm
-
-            pbar = tqdm(desc="Transcribing", unit="s", total=int(info.duration))
-        except ImportError:
-            pbar = None
-
-    result = []
-    last_end = 0.0
-    for seg in segments:
-        seg_dict = _build_segment_with_word_alignment(seg)
-        result.append(seg_dict)
-        if pbar is not None:
-            pbar.update(int(seg_dict["end"] - last_end))
-            last_end = seg_dict["end"]
-
-    if pbar is not None:
-        pbar.close()
-
-    if verbose:
-        print(f"  Done: {len(result)} segments from {info.duration:.0f}s of audio")
-
-    return result
-
-
-def _normalize_text(
-    text: str, lang: str, normalize_numbers: bool = False, clean_text: bool = True
-) -> str:
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text)
-
-    if not clean_text:
-        text = text.strip()
-        if normalize_numbers:
-            text = _expand_numbers(text, lang)
-        return text
-
-    try:
-        from nemo_text_processing.text_normalization.normalize import Normalizer
-
-        lang_map = {
-            "en": "en",
-            "es": "es",
-            "fr": "fr",
-            "de": "de",
-            "ar": "ar",
-            "ru": "ru",
-            "sv": "sv",
-            "vi": "vi",
-            "pt": "pt",
-            "zh": "zh",
-            "hu": "hu",
-            "it": "it",
-            "hy": "hy",
-            "mr": "mr",
-            "es_en": "es_en",
-        }
-        nemo_lang = lang_map.get(lang, lang)
-        normalizer = Normalizer(input_case="cased", lang=nemo_lang, deterministic=True)
-        text = normalizer.normalize(text, verbose=False, punct_post_process=True)
-    except Exception:
-        if lang == "en":
-            try:
-                from whisper_normalizer.english import EnglishTextNormalizer
-
-                normalizer = EnglishTextNormalizer()
-                text = normalizer(text)
-            except Exception:
-                text = _basic_clean_text(text)
-        else:
-            text = _basic_clean_text(text)
-
-    text = text.strip()
-    if normalize_numbers:
-        text = _expand_numbers(text, lang)
-    return text
-
-
-def _basic_clean_text(text: str) -> str:
-    return "".join(
-        c for c in text if c.isalpha() or c.isdigit() or c.isspace() or c in ".,!?'\":;-"
-    )
-
-
-def _expand_numbers(text: str, lang: str) -> str:
-    try:
-        from num2words import num2words
-    except ImportError:
-        return text
-
-    def replace_number(match):
-        number = match.group(0)
-        try:
-            return num2words(int(number), lang=lang)
-        except Exception:
-            return number
-
-    return re.sub(r"\d+", replace_number, text)
-
-
-def _clean_tts_text(text: str) -> str:
-    text = re.sub(r"[—–]", "-", text)
-    text = re.sub(r"(?<=[^\W\d_])\s*-\s*(?=[^\W\d_])", "-", text)
-    text = re.sub(r"(?<=[^\W\d_])\s+'\s*(?=[^\W\d_])", "'", text)
-    text = re.sub(r"\s+([.,!?;:])", r"\1", text)
-    text = re.sub(r"\s{2,}", " ", text)
-    text = re.sub(r"(.{15,})\1{2,}", r"\1", text)
-    return text.strip()
-
-
-def _is_valid_by_phonemes(text: str, valid_chars: set) -> bool:
-    if not valid_chars:
-        return True
-    allowed_extras = set(" \t\n\r")
-    for char in text:
-        if (
-            char.lower() not in valid_chars
-            and char not in valid_chars
-            and char not in allowed_extras
-        ):
-            return False
-    return True
+from datasety.media import (
+    _apply_template,
+    _check_ffmpeg,
+    _clean_tts_text,
+    _download_media,
+    _extract_audio,
+    _get_source_name,
+    _get_start_idx,
+    _is_valid_by_phonemes,
+    _isolate_vocals,
+    _load_progress,
+    _make_segment_name,
+    _mark_complete,
+    _mark_in_progress,
+    _normalize_text,
+    _save_progress,
+    _transcribe,
+    build_media_items,
+)
 
 
 def _slice_audio(
@@ -391,7 +67,11 @@ def _slice_audio(
     clean_text: bool = True,
     valid_chars: set = None,
     verbose: bool = False,
-) -> list[dict]:
+    source_name: str | None = None,
+    output_format: str = "ljspeech",
+    output_ext: str = ".wav",
+    template: str | None = None,
+):
     import soundfile as sf
 
     audio_data, samplerate = sf.read(str(audio_path))
@@ -457,7 +137,7 @@ def _slice_audio(
 
         clean = _normalize_text(merged[i]["text"], lang, normalize_numbers, clean_text)
         clean = _clean_tts_text(clean)
-        clean = clean.replace("|", " ")  # Prevent CSV delimiter collision
+        clean = clean.replace("|", " ")
 
         if valid_chars and not _is_valid_by_phonemes(clean, valid_chars):
             if verbose:
@@ -469,20 +149,31 @@ def _slice_audio(
                 print(f'    [SKIP] seg {i}: non-phoneme chars {invalid_chars} - "{clean[:50]}..."')
             continue
 
-        idx += 1
-        chunk_filename = f"utt_{idx:04d}.wav"
-        chunk_path = output_dir / chunk_filename
-
-        chunk_data = audio_data[start_sample:end_sample]
-        sf.write(str(chunk_path), chunk_data, samplerate)
-
-        metadata.append({"filename": chunk_filename, "text": clean})
-        yield (idx, i, metadata[-1])
+        if output_format == "ljspeech":
+            idx += 1
+            chunk_filename = f"utt_{idx:04d}.wav"
+            chunk_path = output_dir / chunk_filename
+            chunk_data = audio_data[start_sample:end_sample]
+            sf.write(str(chunk_path), chunk_data, samplerate)
+            text = _apply_template(template, clean) if template else clean
+            metadata.append({"filename": chunk_filename, "text": text})
+            yield (idx, i, metadata[-1])
+        else:
+            seg_name = _make_segment_name(source_name, seg["start"], seg["end"])
+            chunk_filename = f"{seg_name}{output_ext}"
+            chunk_path = output_dir / chunk_filename
+            chunk_data = audio_data[start_sample:end_sample]
+            sf.write(str(chunk_path), chunk_data, samplerate)
+            text = _apply_template(template, clean) if template else clean
+            text_path = output_dir / f"{seg_name}.txt"
+            text_path.write_text(text, encoding="utf-8")
+            metadata.append({"filename": chunk_filename, "text": text})
+            yield (len(metadata), i, metadata[-1])
 
 
 def _process_single_media(
     media_item: dict,
-    wavs_dir: Path,
+    output_dir: Path,
     args,
     temp_path: Path,
     verbose: bool,
@@ -490,6 +181,10 @@ def _process_single_media(
     local_skip: int = 0,
     show_progress: bool = True,
     valid_chars: set = None,
+    source_name: str | None = None,
+    output_format: str = "ljspeech",
+    output_ext: str = ".wav",
+    template: str | None = None,
 ) -> int:
     is_url = media_item["is_url"]
     is_youtube = media_item["is_youtube"]
@@ -539,7 +234,7 @@ def _process_single_media(
     for idx, seg_i, entry in _slice_audio(
         target_audio,
         list(segments),
-        wavs_dir,
+        output_dir,
         global_idx,
         local_skip,
         args.min_duration,
@@ -550,6 +245,10 @@ def _process_single_media(
         clean_text=not args.no_clean_text,
         valid_chars=valid_chars,
         verbose=verbose,
+        source_name=source_name,
+        output_format=output_format,
+        output_ext=output_ext,
+        template=template,
     ):
         yield (idx, seg_i, entry)
 
@@ -561,42 +260,6 @@ def _process_single_media(
     return global_idx
 
 
-_PROGRESS_FILE = "progress.json"
-
-
-def _load_progress(output_dir: Path) -> dict:
-    path = output_dir / _PROGRESS_FILE
-    if not path.exists():
-        return {}
-    import json
-
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _save_progress(output_dir: Path, progress: dict) -> None:
-    import json
-
-    path = output_dir / _PROGRESS_FILE
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(progress, f, indent=2)
-    tmp.rename(path)
-
-
-def _mark_in_progress(progress: dict, filename: str, start_idx: int) -> None:
-    progress[filename] = {"status": "in_progress", "start_idx": start_idx}
-
-
-def _mark_complete(progress: dict, filename: str, chunks_written: int) -> None:
-    progress[filename] = {"status": "complete", "chunks_written": chunks_written}
-
-
-def _get_start_idx(progress: dict, filename: str) -> int:
-    entry = progress.get(filename, {})
-    return entry.get("start_idx", 0)
-
-
 def _process_file_in_worker(
     item: tuple, pipeline_kwargs: dict, temp_dir: Path
 ) -> tuple[str, list, Path]:
@@ -604,14 +267,21 @@ def _process_file_in_worker(
     args = pipeline_kwargs["args"]
     verbose = pipeline_kwargs["verbose"]
     valid_chars = pipeline_kwargs["valid_chars"]
+    output_format = pipeline_kwargs["output_format"]
+    source_name = pipeline_kwargs.get("source_name")
+    output_ext = pipeline_kwargs.get("output_ext", ".wav")
+    template = pipeline_kwargs.get("template")
 
-    temp_wavs_dir = temp_dir / "wavs"
-    temp_wavs_dir.mkdir(parents=True, exist_ok=True)
+    if output_format == "ljspeech":
+        temp_output_dir = temp_dir / "wavs"
+    else:
+        temp_output_dir = temp_dir / "output"
+    temp_output_dir.mkdir(parents=True, exist_ok=True)
 
     entries = []
     for idx, seg_i, entry in _process_single_media(
         media_item,
-        temp_wavs_dir,
+        temp_output_dir,
         args,
         temp_dir,
         verbose,
@@ -619,9 +289,13 @@ def _process_file_in_worker(
         local_skip=start_idx,
         show_progress=True,
         valid_chars=valid_chars,
+        source_name=source_name,
+        output_format=output_format,
+        output_ext=output_ext,
+        template=template,
     ):
         entries.append((seg_i, entry))
-    return (media_item["name"], entries, temp_wavs_dir)
+    return (media_item["name"], entries, temp_output_dir)
 
 
 def _write_deletion_log(output_dir: Path, deletions: list[dict]) -> None:
@@ -681,89 +355,70 @@ def _deduplicate_metadata(output_dir: Path, wavs_dir: Path) -> None:
         _write_deletion_log(output_dir, deletion_log)
 
 
+def _deduplicate_pairs(output_dir: Path, output_ext: str = ".wav") -> None:
+    """Remove consecutive duplicate text entries in flat pair mode."""
+    media_files = sorted(
+        [f for f in output_dir.iterdir() if f.suffix.lower() == output_ext.lower()]
+    )
+    if not media_files:
+        return
+
+    deletions = []
+    prev_text = None
+    for media_path in media_files:
+        txt_path = media_path.with_suffix(".txt")
+        if not txt_path.exists():
+            continue
+        text = txt_path.read_text(encoding="utf-8").strip()
+        if text and text == prev_text:
+            media_path.unlink()
+            txt_path.unlink()
+            deletions.append(
+                {
+                    "filename": media_path.name,
+                    "reason": "duplicate_text",
+                    "text": text,
+                }
+            )
+        else:
+            prev_text = text
+
+    if deletions:
+        _write_deletion_log(output_dir, deletions)
+        print(f"Removed {len(deletions)} consecutive duplicate pairs")
+
+
 def cmd_audio(args):
     _check_ffmpeg()
 
     output_dir = Path(args.output)
-    wavs_dir = output_dir / "wavs"
     verbose = args.verbose
     dry_run = args.dry_run
+
+    use_metadata = getattr(args, "metadata", False)
+    output_format = "ljspeech" if use_metadata else "pairs"
+    output_ext = ".wav"
 
     input_source = args.input
     if not input_source:
         print("Error: --input is required.", file=sys.stderr)
         sys.exit(1)
 
-    input_path = Path(input_source)
-    if input_path.is_file() and input_path.suffix.lower() == ".txt":
-        sources = [
-            line.strip()
-            for line in input_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        if verbose:
-            print(f"Loaded {len(sources)} sources from {input_path.name}")
-    else:
-        sources = [input_source]
-
-    media_items = []
-    for src in sources:
-        src_clean, start_t, end_t = _parse_source_string(src)
-        is_url = src_clean.startswith(("http://", "https://", "ftp://"))
-        is_yt = _is_youtube(src_clean)
-
-        if is_url or is_yt:
-            import hashlib
-
-            safe_name = hashlib.md5(src_clean.encode()).hexdigest()[:12] + ".url"
-            media_items.append(
-                {
-                    "source": src_clean,
-                    "name": safe_name,
-                    "path": Path(safe_name),
-                    "start": start_t,
-                    "end": end_t,
-                    "is_url": is_url,
-                    "is_youtube": is_yt,
-                }
-            )
-        else:
-            p = Path(src_clean)
-            if p.is_dir():
-                for f in _get_media_files(p):
-                    media_items.append(
-                        {
-                            "source": str(f),
-                            "name": f.name,
-                            "path": f,
-                            "start": None,
-                            "end": None,
-                            "is_url": False,
-                            "is_youtube": False,
-                        }
-                    )
-            elif p.is_file():
-                media_items.append(
-                    {
-                        "source": str(p),
-                        "name": p.name,
-                        "path": p,
-                        "start": start_t,
-                        "end": end_t,
-                        "is_url": False,
-                        "is_youtube": False,
-                    }
-                )
-            else:
-                print(f"Warning: Source not found: {src_clean}", file=sys.stderr)
+    media_items = build_media_items(input_source, verbose)
 
     if not media_items:
         print("Error: No valid media files found to process.", file=sys.stderr)
         sys.exit(1)
 
+    is_single_source = len(media_items) == 1
+
     if verbose:
         print(f"Output: {args.output}")
         print(f"Sample rate: {args.sample_rate}")
+        if use_metadata:
+            print("Format: LJSpeech (metadata.csv + wavs/)")
+        else:
+            print("Format: flat pairs (.wav + .txt)")
 
     valid_chars = None
     if args.phoneme_map:
@@ -786,26 +441,51 @@ def cmd_audio(args):
             print(f"Error: Phoneme map file not found: {pm_path}", file=sys.stderr)
             sys.exit(1)
 
-    existing_wavs = list(wavs_dir.glob("utt_*.wav")) if wavs_dir.exists() else []
-    existing_count = len(existing_wavs)
+    if output_format == "ljspeech":
+        wavs_dir = output_dir / "wavs"
+        existing_wavs = list(wavs_dir.glob("utt_*.wav")) if wavs_dir.exists() else []
+        existing_count = len(existing_wavs)
+    else:
+        existing_media = (
+            [f for f in output_dir.iterdir() if f.suffix.lower() == ".wav"]
+            if output_dir.exists()
+            else []
+        )
+        existing_count = len(existing_media)
 
     if existing_count > 0 and not args.resume and not args.overwrite:
-        print(
-            f"Error: Output already has {existing_count} audio chunks in {wavs_dir}/",
-            file=sys.stderr,
-        )
+        if output_format == "ljspeech":
+            print(
+                f"Error: Output already has {existing_count} audio chunks "
+                f"in {output_dir / 'wavs'}/",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"Error: Output already has {existing_count} audio files in {output_dir}/",
+                file=sys.stderr,
+            )
         print("Use --resume to continue, or --overwrite to start fresh.", file=sys.stderr)
         sys.exit(1)
 
     if args.overwrite:
-        if wavs_dir.exists():
-            for f in wavs_dir.glob("utt_*.wav"):
-                f.unlink()
-        if (output_dir / "metadata.csv").exists():
-            (output_dir / "metadata.csv").unlink()
+        if output_format == "ljspeech":
+            wavs_dir = output_dir / "wavs"
+            if wavs_dir.exists():
+                for f in wavs_dir.glob("utt_*.wav"):
+                    f.unlink()
+            if (output_dir / "metadata.csv").exists():
+                (output_dir / "metadata.csv").unlink()
+        else:
+            if output_dir.exists():
+                for f in list(output_dir.glob("*.wav")) + list(output_dir.glob("*.txt")):
+                    f.unlink()
         existing_count = 0
 
-    wavs_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if output_format == "ljspeech":
+        wavs_dir = output_dir / "wavs"
+        wavs_dir.mkdir(parents=True, exist_ok=True)
 
     if dry_run:
         print("=== DRY RUN: would process media ===")
@@ -815,10 +495,13 @@ def cmd_audio(args):
         print("Done! (dry-run — no files written)")
         return
 
-    metadata_csv = output_dir / "metadata.csv"
-    csv_mode = "a" if args.resume else "w"
-    csv_file = open(metadata_csv, csv_mode, encoding="utf-8", newline="")
-    writer = csv.writer(csv_file, delimiter="|")
+    csv_file = None
+    writer = None
+    if output_format == "ljspeech":
+        metadata_csv = output_dir / "metadata.csv"
+        csv_mode = "a" if args.resume else "w"
+        csv_file = open(metadata_csv, csv_mode, encoding="utf-8", newline="")
+        writer = csv.writer(csv_file, delimiter="|")
 
     total_chunks = existing_count
     workers = getattr(args, "workers", 1)
@@ -844,11 +527,18 @@ def cmd_audio(args):
                         _mark_in_progress(progress, filename, start_idx)
                         _save_progress(output_dir, progress)
 
+                    src_name = None if is_single_source else _get_source_name(media_item)
+
                     print(f"[{file_idx + 1}/{len(media_items)}] Processing {filename}...")
                     last_seg_i = start_idx - 1
+
+                    actual_output_dir = output_dir
+                    if output_format == "ljspeech":
+                        actual_output_dir = output_dir / "wavs"
+
                     for idx, seg_i, entry in _process_single_media(
                         media_item,
-                        wavs_dir,
+                        actual_output_dir,
                         args,
                         Path(temp_dir),
                         verbose,
@@ -856,10 +546,17 @@ def cmd_audio(args):
                         local_skip=start_idx,
                         show_progress=verbose,
                         valid_chars=valid_chars,
+                        source_name=src_name,
+                        output_format=output_format,
+                        output_ext=output_ext,
+                        template=getattr(args, "template", None) or None,
                     ):
-                        writer.writerow([entry["filename"], entry["text"]])
-                        csv_file.flush()
-                        total_chunks = idx
+                        if output_format == "ljspeech" and writer is not None:
+                            writer.writerow([entry["filename"], entry["text"]])
+                            csv_file.flush()
+                            total_chunks = idx
+                        else:
+                            total_chunks += 1
                         last_seg_i = seg_i
                         _mark_in_progress(progress, filename, seg_i + 1)
                         _save_progress(output_dir, progress)
@@ -874,7 +571,8 @@ def cmd_audio(args):
                         _mark_complete(progress, filename, last_seg_i + 1)
                         _save_progress(output_dir, progress)
         finally:
-            csv_file.close()
+            if csv_file is not None:
+                csv_file.close()
     else:
         try:
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -892,7 +590,8 @@ def cmd_audio(args):
 
             if not pending:
                 print("All files already processed.")
-                csv_file.close()
+                if csv_file is not None:
+                    csv_file.close()
                 return
 
             print(f"Processing {len(pending)} files with {workers} workers...")
@@ -907,14 +606,25 @@ def cmd_audio(args):
                 if verbose:
                     print("  Model cached.")
 
-            pipeline_kwargs = {"args": args, "verbose": verbose, "valid_chars": valid_chars}
+            pipeline_kwargs = {
+                "args": args,
+                "verbose": verbose,
+                "valid_chars": valid_chars,
+                "output_format": output_format,
+                "output_ext": output_ext,
+                "template": getattr(args, "template", None) or None,
+            }
 
             def acquire_and_process(item, order_idx):
                 import tempfile
 
                 temp_dir = tempfile.mkdtemp()
+                src_name = None if is_single_source else _get_source_name(item[0])
+                pipeline_kwargs_local = {**pipeline_kwargs, "source_name": src_name}
                 try:
-                    return order_idx, _process_file_in_worker(item, pipeline_kwargs, Path(temp_dir))
+                    return order_idx, _process_file_in_worker(
+                        item, pipeline_kwargs_local, Path(temp_dir)
+                    )
                 finally:
                     pass
 
@@ -929,16 +639,16 @@ def cmd_audio(args):
                     filename = futures_map[future]
                     try:
                         order_idx, worker_result = future.result()
-                        _, entries, temp_wavs_dir = worker_result
-                        temp_dirs_to_cleanup.append(temp_wavs_dir.parent)
-                        results.append((order_idx, filename, entries, temp_wavs_dir))
+                        _, entries, temp_output_dir = worker_result
+                        temp_dirs_to_cleanup.append(temp_output_dir.parent)
+                        results.append((order_idx, filename, entries, temp_output_dir))
                     except Exception as e:
                         print(f"Error processing {filename}: {e}", file=sys.stderr)
                         raise
 
             results.sort(key=lambda x: x[0])
             total_chunks = existing_count
-            for order_idx, filename, entries, temp_wavs_dir in results:
+            for order_idx, filename, entries, temp_output_dir in results:
                 if not entries:
                     _mark_complete(progress, filename, 0)
                     _save_progress(output_dir, progress)
@@ -947,16 +657,28 @@ def cmd_audio(args):
                 entries.sort(key=lambda x: x[0])
                 last_seg_i = 0
                 for seg_i, entry in entries:
-                    old_path = temp_wavs_dir / entry["filename"]
+                    old_path = temp_output_dir / entry["filename"]
                     if old_path.exists():
-                        total_chunks += 1
-                        new_name = f"utt_{total_chunks:04d}.wav"
-                        shutil.move(str(old_path), str(wavs_dir / new_name))
-                        entry["filename"] = new_name
-                        writer.writerow([entry["filename"], entry["text"]])
+                        if output_format == "ljspeech":
+                            total_chunks += 1
+                            new_name = f"utt_{total_chunks:04d}.wav"
+                            shutil.move(str(old_path), str(output_dir / "wavs" / new_name))
+                            entry["filename"] = new_name
+                            if writer is not None:
+                                writer.writerow([entry["filename"], entry["text"]])
+                        else:
+                            total_chunks += 1
+                            shutil.move(str(old_path), str(output_dir / entry["filename"]))
+                            old_txt = old_path.with_suffix(".txt")
+                            if old_txt.exists():
+                                shutil.move(
+                                    str(old_txt),
+                                    str(output_dir / entry["filename"].replace(output_ext, ".txt")),
+                                )
                         last_seg_i = seg_i
 
-                csv_file.flush()
+                if csv_file is not None:
+                    csv_file.flush()
                 _mark_complete(progress, filename, last_seg_i + 1)
                 _save_progress(output_dir, progress)
 
@@ -966,20 +688,29 @@ def cmd_audio(args):
                 print(f"  ... {total_chunks} chunks written")
 
         finally:
-            csv_file.close()
+            if csv_file is not None:
+                csv_file.close()
             for td in temp_dirs_to_cleanup:
                 if td.exists():
                     shutil.rmtree(td, ignore_errors=True)
 
     new_count = total_chunks - existing_count
     print(f"Created {new_count} new audio chunks ({total_chunks} total)")
-    csv_file.close()
-    _deduplicate_metadata(output_dir, wavs_dir)
+
+    if output_format == "ljspeech":
+        if csv_file is not None:
+            csv_file.close()
+        _deduplicate_metadata(output_dir, output_dir / "wavs")
+    else:
+        _deduplicate_pairs(output_dir, output_ext)
 
     print("=" * 50)
     print(f"Done! Dataset ready at: {output_dir}")
-    print(f"  - {wavs_dir}/  ({total_chunks} audio files)")
-    print(f"  - {output_dir / 'metadata.csv'}")
+    if output_format == "ljspeech":
+        print(f"  - {output_dir / 'wavs'}/  ({total_chunks} audio files)")
+        print(f"  - {output_dir / 'metadata.csv'}")
+    else:
+        print(f"  - {output_dir}/  ({total_chunks} audio + text pairs)")
 
 
 def register_parser(subparsers):
@@ -1002,6 +733,18 @@ def register_parser(subparsers):
         type=int,
         default=22050,
         help="Output audio sample rate in Hz (default: 22050)",
+    )
+    audio_parser.add_argument(
+        "--metadata",
+        action="store_true",
+        help="Output LJSpeech/Piper format with metadata.csv and wavs/ (default: flat pairs)",
+    )
+    audio_parser.add_argument(
+        "--template",
+        default="",
+        help="Template for transcript text. Use {{transcript}} as placeholder. "
+        "Without placeholder, text is prepended. "
+        "Examples: 'sks person says: {{transcript}}', '[trigger] {{transcript}}'",
     )
     audio_parser.add_argument(
         "--demucs",

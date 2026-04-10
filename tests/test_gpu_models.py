@@ -104,7 +104,7 @@ class TestCaptionFlorence2:
         for txt in captions:
             assert len(txt.read_text().strip()) > 0
 
-    def test_trigger_word_is_prepended(self, tmp_path):
+    def test_template_with_placeholder(self, tmp_path):
         input_dir, output_dir = make_test_images(tmp_path, n=1)
 
         result = run_cli(
@@ -116,8 +116,8 @@ class TestCaptionFlorence2:
             "--device",
             "auto",
             "--florence-2-base",
-            "--trigger-word",
-            "sks person,",
+            "--template",
+            "sks person, {{caption}}",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         caption = (output_dir / "000.txt").read_text()

@@ -34,7 +34,7 @@ class TestCaptionCLI:
     def test_help(self):
         result = run_caption("--help")
         assert result.returncode == 0
-        assert "--trigger-word" in result.stdout
+        assert "--template" in result.stdout
         assert "--florence-2-base" in result.stdout
         assert "--florence-2-large" in result.stdout
         assert "--num-beams" in result.stdout
@@ -217,7 +217,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="gpt-5-nano",
             prompt="Describe.",
-            trigger_word="",
+            template="",
             max_tokens=300,
             temperature=0.3,
         )
@@ -254,7 +254,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="x-ai/grok-4.1-fast",
             prompt="Describe in 3 sentences.",
-            trigger_word="",
+            template="",
             max_tokens=300,
             temperature=0.3,
         )
@@ -273,7 +273,7 @@ class TestCmdCaptionLlmApi:
         txt_files = list(out_dir.glob("*.txt"))
         assert len(txt_files) == 3
 
-    def test_trigger_word(self, tmp_path):
+    def test_template(self, tmp_path):
         from types import SimpleNamespace
 
         from datasety.caption import _cmd_caption_llm_api
@@ -285,7 +285,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="gpt-5-nano",
             prompt="Describe.",
-            trigger_word="[photo]",
+            template="[photo] {{caption}}",
             max_tokens=300,
             temperature=0.3,
         )
@@ -316,7 +316,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="test-model",
             prompt="Describe.",
-            trigger_word="",
+            template="",
             max_tokens=300,
             temperature=0.3,
         )
@@ -354,7 +354,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="test-model",
             prompt="Describe.",
-            trigger_word="",
+            template="",
             max_tokens=300,
             temperature=0.3,
         )
@@ -397,7 +397,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="",
             prompt="Describe.",
-            trigger_word="",
+            template="",
             max_tokens=300,
             temperature=0.3,
         )
@@ -441,7 +441,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="gpt-5-nano",
             prompt="Describe.",
-            trigger_word="",
+            template="",
             max_tokens=300,
             temperature=0.3,
         )
@@ -474,7 +474,7 @@ class TestCmdCaptionLlmApi:
         args = SimpleNamespace(
             model="explicit-model",
             prompt="Describe.",
-            trigger_word="",
+            template="",
             max_tokens=300,
             temperature=0.3,
         )
